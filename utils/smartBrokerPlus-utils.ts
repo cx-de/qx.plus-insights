@@ -1,0 +1,529 @@
+/*
+    These functions can only be applied to SmartBrokerPlus website
+    as it depends on a specific HTML structure
+*/
+
+const broker = "Smart Broker +";
+
+// SmartBroker+ exposes no customer id anywhere, so the depot number is the account.
+let currentAccountId:any = null;
+
+async function smartBrokerSyncUser() {
+  console.log("smartBrokerSyncUser");
+  try {
+    const stored = await chrome.storage.local.get({ CUR_SMARTBROKERID: null });
+    // Only safe while this broker has one account; see accountMayFallback. The
+    // /finance dashboard has no depot in its URL and relies on this for the Cash row.
+    // With several accounts clear it instead, so a leftover value cannot stamp wrong.
+    currentAccountId = (await accountMayFallback(broker) && stored.CUR_SMARTBROKERID)
+      ? String(stored.CUR_SMARTBROKERID) : null;
+
+    // Only a depot URL carries the id; /finance has to fall back to the stored one.
+    let pageId = null;
+    const urlParts = window.location.pathname.split("/");
+    const depotAt = urlParts.indexOf('depot');
+    // The segment after "depot", not the last one: /depot/<id>/orders would give "orders".
+    if (depotAt !== -1) pageId = urlParts[depotAt + 1] || null;
+    if (!pageId) return currentAccountId;
+
+    // Pre-2.9 rows were stamped with the LAST path segment; pass it as the legacy id
+    // so /depot/<id>/orders data folds in instead of prompting as a new account.
+    const legacyId = urlParts[urlParts.length - 1] || null;
+
+    // null while a prompt is pending, which is what freezes this broker's writes.
+    currentAccountId = await accountDetect(broker, String(pageId), legacyId);
+    if (currentAccountId) await chrome.storage.local.set({ CUR_SMARTBROKERID: currentAccountId });
+  } catch (err) {
+    // Last known id stays in the module snapshot; a read failure must not blank it.
+    console.error('smartBrokerSyncUser error:', err);
+  }
+  return currentAccountId;
+}
+
+export async function addSyncButtonOnSmartBroker() {
+  console.log("addSyncButtonOnSmartBroker");
+
+  const exportBtn = document.querySelector('[data-testid="PageHeaderFinance"]');
+  const container = exportBtn?.parentElement;
+  if (!exportBtn || !container) return;
+  
+  let syncBtn = container.querySelector('[data-testid="sync-button"]');
+  if (syncBtn) return;
+
+  const btnText = "Sync QX+";
+  syncBtn = document.createElement("button");
+  syncBtn.setAttribute("data-testid", "sync-button");
+  
+  syncBtn.className ="flex justify-center gap-x-1.5 p-1  font-semibold text-onSurface-primary text-10 text-label-xs inline-block mt-2";
+  syncBtn.textContent = btnText;
+  syncBtn.style.backgroundColor = "#fcaf2c";
+
+  syncBtn.addEventListener("click", async () => {
+    await smartBrokerSaveDataToLocalStorage();
+    syncBtn.style.backgroundColor = "#57a658";
+    syncBtn.textContent = "Synced";
+
+    setTimeout(() => {
+      syncBtn.style.backgroundColor = "#fcaf2c";
+      syncBtn.textContent = btnText;
+    }, 1000);
+  });
+
+  container.appendChild(syncBtn);
+}
+
+export function addCustomRowHeaderSmartBroker() {
+  console.log("addCustomRowHeaderSmartBroker");
+  const rowHeaders = [
+    "Derivatetyp (Basiswert / Lieferung / Quanto / Ratio)",
+    "", 
+    "Cap", 
+    "Zielwert",
+    "G/V Ziel €", 
+    "G/V Ziel p.a. (abs.) %", 
+    "Basiswert-Kurs"
+  ];
+  
+  const header = document.querySelector('[data-testid="depot-sorting-header"]');
+  if (!header) return;
+
+  const cols = header.querySelectorAll('.flex.flex-col');
+  if (header.querySelector('[data-qx="custom-extra-row"]')) return;
+
+  cols.forEach((col, i) => {
+    const text = rowHeaders[i] ?? "";
+    const row = document.createElement("p");
+    row.setAttribute("data-qx", "custom-extra-row");
+    row.className = "text-onSurface-secondary";
+    
+    row.textContent = text;
+    col.appendChild(row);
+  });
+}
+
+export async function updateCustomRowDataSmartBroker(){
+  console.log("updateCustomRowDataSmartBroker");
+
+  const result = await chrome.storage.local.get(['MAIN_LIST']) || [];
+  console.log("updateCustomRowDataSmartBroker result",result.MAIN_LIST);
+  if (!result.MAIN_LIST.length) return;
+
+  const ownRows = await accountOwnRows(result.MAIN_LIST, broker, currentAccountId);
+
+  const columns = [
+    "type", 
+    "",
+    "cap", 
+    "future_total_value",
+    "profit_loss_target",
+    "profit_loss_target_pa", 
+    //"underlying_price"
+  ];
+    
+  const cards = document.querySelectorAll('a[data-testid="depot-asset-card"]');
+  cards.forEach(card => {
+    if (card.nextElementSibling?.classList?.contains("custom-extra-row")) return;
+    
+    const isin = getIdFromRow(card);
+    //console.log("updateCustomRowDataSmartBroker isin",isin);
+    if (!isin) return;
+
+    const rowData = ownRows.find( x => x.isin?.toUpperCase() === isin.toUpperCase());
+    //console.log("updateCustomRowDataSmartBroker rowData",rowData);
+    if (!rowData) return;
+    
+    const extra = document.createElement("div");
+    extra.className =
+      "[grid-template-columns:minmax(0,1fr)_minmax(0,0.8fr)_minmax(140px,auto)_minmax(140px,auto)_minmax(140px,auto)] grid gap-3 border-onSurface-quaternary border-b p-4 text-onSurface-primary bg-surface-5 custom-extra-row";
+
+    extra.innerHTML = columns
+    .slice(0, 5)  // grid has 5 columns
+    .map((col, index) => `
+        <div class="flex flex-col ${index === 0 ? '' : 'items-end'}">
+          <p class="text-label-sm text-onSurface-secondary">
+            ${updateColumnValue(rowData, col)}
+          </p>
+        </div>
+      `).join("");
+      card.parentNode.insertBefore(extra, card.nextSibling);
+    });
+  
+}
+
+
+//Getting the ISIN of a specific stock using the anchor tag
+const getIdFromRow = (aTag) =>{
+    let link = aTag.getAttribute("href");
+    let arrayOfLinkPath = link.split("/");
+    const ISIN = arrayOfLinkPath[arrayOfLinkPath.length - 1];
+    return ISIN;
+}
+
+//Getting all ISIN of stocks visible in the table
+const getAllIdAvailableOnPage = () =>{
+    //Using anchor tags to get ISIN as it's stored in the href
+    const allISINAnchorTags = document.querySelectorAll("main > div div a")
+    if(allISINAnchorTags.length == 0){
+        console.log("couldn't find any rows to extract the ISIN...");
+    }
+    
+    let allISIN = Array.from(allISINAnchorTags).map(aTag=>{
+        //Extracting ISIN from anchor tag href link
+        const ISIN = getIdFromRow(aTag);
+        return ISIN;
+    })
+    return allISIN;
+}
+
+const createEmptyRowsToFill = () =>{
+    //Grab all currently available rows
+    const rowsThatNeedExtraData = document.querySelectorAll("main > div div.flex.flex-col.gap-4.py-5 a:not(.hasExtraData):not(.extraData)");
+    
+    //
+    for(let x = 0; x < rowsThatNeedExtraData.length; x++){
+        const ISIN = getIdFromRow(rowsThatNeedExtraData[x]) || x;
+        rowsThatNeedExtraData[x].classList.add("hasExtraData");
+        //Create row
+        const rowElement = document.createElement("div");
+        rowElement.className = `row${ISIN} detailsNotAvailable flex space-x-5 extraDataWrapper flex-row pt-1 extraData`;
+        createRowHTMLStructure(rowElement);
+        rowsThatNeedExtraData[x].querySelector("div").firstChild.appendChild(rowElement);
+    }
+
+}
+
+
+//Create a row to fill data with
+function createRowHTMLStructure(rowElement){
+    rowElement.innerHTML = `
+    <style>
+        .extraDataWrapper p{
+        min-width:50px !important;
+        }
+        .extraDataWrapper div:nth-child(2){
+            margin: 0 !important;
+        }
+    </style>
+        <div class="flex  flex-col">
+            <p class="text-label-xs text-onSurface-tertiary">
+            Zeit
+            </p>
+            <p class="a  text-label-xs text-onSurface-primary">
+            
+            </p>
+        </div>
+        <div class="flex  flex-col">
+            <p class="text-label-xs text-onSurface-tertiary">
+            Kurs
+            </p>
+            <p class="b   text-label-xs text-onSurface-primary">
+            
+            </p>
+        </div>
+        <div class="flex  flex-col">
+            <p class="text-label-xs text-onSurface-tertiary">
+            Gesamtwert
+            </p>
+            <p class="c   text-label-xs text-onSurface-primary">
+            
+            </p>
+        </div>
+        <div class="flex  flex-col">
+            <p class="text-label-xs text-onSurface-tertiary">
+            Einstandswert
+            </p>
+            <p class="d   text-label-xs text-onSurface-primary">
+            
+            </p>
+        </div>
+        <div class="flex  flex-col">
+            <p class="text-label-xs text-onSurface-tertiary">
+            Entw. %
+            </p>
+            <p class="e   text-label-xs text-onSurface-primary">
+            
+            </p>
+        </div>
+        <div class="flex  flex-col">
+            <p class="text-label-xs text-onSurface-tertiary">
+            Gesamt Vortag
+            </p>
+            <p class="f   text-label-xs text-onSurface-primary">
+            
+            </p>
+        </div>
+        <div class="flex  flex-col">
+            <p class="text-label-xs text-onSurface-tertiary">
+            Tagesentw. %
+            </p>
+            <p class="g   text-label-xs text-onSurface-primary">
+            
+            </p>
+        </div>
+    `
+}
+
+export function checkIfStocksLoaded(){
+  console.log("checkIfStocksLoaded")
+    const stockRow = document.querySelector("main > div div a");
+    if(stockRow){
+        let ISIN = getIdFromRow(stockRow);
+        if(ISIN.length == "12")return true;
+        else return false;
+    }
+
+    return false;
+}
+
+// Get more detailed data from a specific stock by using the stock link
+async function getSingleStockData(stockLink) {
+    let iframe = document.createElement("iframe");
+    iframe.id = "singlePriceStockFrame";
+    iframe.style.display = "none";
+    iframe.src = stockLink;
+    
+    let data = null;
+    document.body.appendChild(iframe); // Add iframe to the page so it loads the page
+
+    return new Promise((res,rej)=>{
+
+    iframe.onload = async function () {
+      try {
+        let dataContainer = await waitForElementToLoadInsideIFrame(
+          iframe,
+          ".flex.flex-row.gap-6.cursor-pointer.bg-surface-0"
+        );
+        if(!dataContainer){
+          console.log("The container for stock data didn't load in time...");
+          return;
+        }
+        
+        let individualStockPrice = dataContainer.children[1].lastChild.innerText;
+        let nmbOfStocksPurchased = dataContainer.children[2].lastChild.innerText;
+
+        
+        if(individualStockPrice && nmbOfStocksPurchased){
+          res({
+            individualStockPrice,nmbOfStocksPurchased
+          })
+        }else{
+          console.log("The container loaded but couldn't find single stock price...");
+        }
+      } catch (e) {
+        console.log(e);
+      } finally {
+        iframe.remove();
+      }
+    };
+    })
+}
+  
+//Wait for an element to load inside an iframe
+function waitForElementToLoadInsideIFrame(IFrame, elementPath) {
+  console.log("running..;.")
+    if (!IFrame || !elementPath) {
+      console.log("Please fill all the required arguments...");
+      return ;
+    }
+  
+    return new Promise((res, rej) => {
+      let steps = 0;
+      let interval = setInterval(() => {
+        let element = IFrame.contentDocument.querySelector(elementPath);
+        if (steps >= 6) {
+          clearInterval(interval);
+          rej({ error: "Single Price Stock Didn't load..." });
+          return;
+        }
+  
+        if (element) {
+          res(element);
+          clearInterval(interval);
+          return;
+        }
+      }, 1000);
+    });
+}
+
+
+//Get All Stock Data
+export function smartBrokerGetAllStockData(){
+    console.log("getAllStockData")
+    //all stocks in an array
+    const allStocksPurchased = Array.from(document.querySelectorAll("[data-testid='depot-asset-card']"));
+    
+    //Store all the stock data
+    let stockData = [];
+    for(let stock of allStocksPurchased){
+      const id  = crypto.randomUUID();
+      const isin = getIdFromRow(stock);
+      
+      const url = window.location.pathname;
+      const urlParts = url.split("/");
+      // Segment after "depot": the last one is "orders" etc. on depot sub-routes.
+      const depotAt = urlParts.indexOf('depot');
+      const deposite_number = depotAt !== -1
+        ? urlParts[depotAt + 1] : urlParts[urlParts.length-1];
+      //console.log("smartBrokerGetAllStockData url",url);
+      //console.log("smartBrokerGetAllStockData deposite_number",deposite_number);
+
+      const cols = stock.querySelectorAll(":scope > div > div");
+      
+      let type = cols[0]?.querySelectorAll("p")[1]?.textContent.trim() || "";
+      if(type=='Aktien'){
+        type = 'stock';
+      }else if(type=='ETFs'){
+        type = 'certificate';
+      }
+
+      const stock_name = cols[0]?.querySelector("p")?.textContent.trim() || "";
+      const wkn = cols[0]?.querySelectorAll("p")[2]?.textContent.trim() || "";
+      
+      let total_entry_value = cols[1]?.querySelector("p")?.textContent.trim() || 0;
+      total_entry_value = germanToNumer(total_entry_value);
+
+      let stocks_owned = cols[1]?.querySelectorAll("p")[1]?.textContent.trim() || 0;
+      stocks_owned = germanToNumer(stocks_owned);
+
+      let bid = cols[2]?.querySelector("p")?.textContent.trim() || 0;
+      bid = bid.substring(0, bid.length - 1).trim();
+      bid = germanToNumer(bid);
+      
+      let profit_loss_price = cols[4]?.querySelector(".priceClass")?.textContent.trim() || 0;
+      profit_loss_price = germanToNumer(profit_loss_price);
+
+      let profit_loss_percentage = cols[4]?.querySelector("div")?.textContent.trim() || 0;
+      profit_loss_percentage = profit_loss_percentage.replace('%', '');
+      profit_loss_percentage = germanToNumer(profit_loss_percentage);
+
+      let buy_price = 0;
+      if (stocks_owned > 0) {
+        const buyTotal = total_entry_value - profit_loss_price;
+        buy_price = buyTotal / stocks_owned;
+      }
+
+      stockData.push({
+        id: id,
+        broker: broker,
+        account_id: currentAccountId,
+        isGroup: false,
+        deposite_number,
+        isin : isin, 
+        stock_name,
+        type,
+        wkn,
+        bid,
+        buy_price:buy_price, 
+        stocks_owned,
+        total_entry_value,
+        profit_loss_percentage,
+        profit_loss_price,
+        timestamp: Date.now()
+      });
+    }
+
+    return stockData;
+}
+
+function checkSmartBrokerDashboardPage (){
+  return window.location.href.toLowerCase().includes("finance");
+}
+
+//Save data on Chrome Storage for the grouped page
+export async function smartBrokerSaveDataToLocalStorage(){
+  try{
+    
+    await smartBrokerSyncUser();
+
+    // Rows with no account_id would merge into the wrong account.
+    if (!currentAccountId) {
+      console.log("smartbroker: account id unknown, skipping save");
+      return false;
+    }
+
+    //if(!isOnStocksPage()){
+    if(checkIfStocksLoaded()){
+      addSyncButtonOnSmartBroker();
+      addCustomRowHeaderSmartBroker();
+      updateCustomRowDataSmartBroker();
+      
+      /*smartBrokerGetAllStockData().then(data=>{
+        chrome.storage.local.set({ [`SMART_BROKER_PLUS`]: data});
+      });  
+      */
+      
+      const freshSmartBroker = smartBrokerGetAllStockData();
+      // Never persist an empty scrape: getLatestData would read every position as sold.
+      if (!freshSmartBroker.length) {
+        console.log("smartbroker: no rows scraped, skipping save to avoid wiping SMART_BROKER_PLUS");
+        return false;
+      }
+      const storedSmartBroker = await chrome.storage.local.get(['SMART_BROKER_PLUS']);
+      chrome.storage.local.set({
+        [`SMART_BROKER_PLUS`]: accountReplaceRows(storedSmartBroker.SMART_BROKER_PLUS, freshSmartBroker, broker, currentAccountId)
+      });
+      console.log("smartbroker: Saved Data To Local Storage!");
+      return false;
+    }else if(checkSmartBrokerDashboardPage()){
+      chrome.storage.local.get(['SMART_BROKER_PLUS'], (result) => {
+        const currentData = result.SMART_BROKER_PLUS || [];
+        const cashIndex = currentData.findIndex(item => item.stock_name === 'Cash' && item.broker === broker
+          && item.account_id === currentAccountId);
+        
+        const now = new Date();
+        let currentTimestamp = now.toISOString();
+
+        const card = document.querySelector('[data-testid="portfolio-Verrechnungskonto"]')?.closest("a");
+        if (!card) return null;
+        let accountBalance = card.querySelector('h4 span[aria-hidden="true"]')?.textContent?.trim() || 0;
+        accountBalance = accountBalance.split(' ')[0];
+        accountBalance = germanToNumer(accountBalance);
+        
+        if (cashIndex !== -1) {
+          currentData[cashIndex].total_entry_value = accountBalance;
+          currentData[cashIndex].timestamp = currentTimestamp;
+        } else {
+          currentData.push({
+            id: crypto.randomUUID(),
+            broker: broker,
+            account_id: currentAccountId,
+            stock_name: 'Cash',
+            total_entry_value: accountBalance,
+            isGroup: false,
+            isin : '', 
+            stocks_owned:0, 
+            buy_price:0, 
+            product_type: '', 
+            wkn: '', 
+            profit_loss_percentage:0, 
+            profit_loss_price:0,
+            bid:0,
+            timestamp:currentTimestamp
+          });
+        }
+
+        chrome.storage.local.set({ SMART_BROKER_PLUS: currentData }, () => {
+          //console.log("dash Updated SMART_BROKER_PLUS with newStockData:", currentData);
+          console.log("smartbroker accountBalance:",accountBalance);
+        });
+        
+      });
+    }else{
+      console.log("Can't update data, not on stocks page...");
+      return;
+    }
+  }catch (err) {
+    console.error('smartBrokerSaveDataToLocalStorage error:', err);
+  }
+}
+
+//Checks whether the user is on stocks page data can be stored locally & accurately
+function isOnStocksPage(){
+  const url = window.location.href;
+  //Check the url for specific keywords
+  return(url.includes("/depot/") &&
+    //Check for specific element in stocks page
+    //!!document.querySelector("[data-testid='investmentTab-Heute']")
+    !!document.querySelector('id="tabpanel-investments"]')
+  ); 
+}
