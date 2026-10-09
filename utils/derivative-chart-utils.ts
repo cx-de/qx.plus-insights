@@ -113,7 +113,6 @@ const computeMetrics = (D: any, U: any, restDays: number, settleDays: number, ap
 };
 
 export function buildDerivativeData(info: any) {
-  // console.log("buildDerivativeData", info?.wkn);
   if (!info) return null;
   const model = PRODUCT_TYPES[info.type];
   const bid = toNum(info.bid), ask = toNum(info.ask);
@@ -215,7 +214,6 @@ export function buildDerivativeData(info: any) {
 
 // Returns the content width so the card can shrink to fit, like the mockup.
 export function renderDerivativeChart(svg: any, tip: any, DATA: any, C: any, L: any) {
-  // console.log("renderDerivativeChart", DATA?.derivative?.wkn);
   svg.replaceChildren();
   // Inherit the app font so the chart matches the rest of the card.
   const FONT = C.font || 'ui-sans-serif,system-ui,sans-serif';

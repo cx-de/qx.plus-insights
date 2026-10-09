@@ -3,7 +3,6 @@ module.exports = {
   content: [
 	"assets/**", 
 	"entrypoints/**",
-	//"components/**",
 	"components/**/*.{ts,js,vue}",
 	],
   theme: {

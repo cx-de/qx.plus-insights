@@ -31,19 +31,10 @@
 
 <script lang="ts" setup>
 import Layout from '@/components/Layout.vue';
+import { todayIso } from "~/utils/helper";
 
 import { Button } from "@/components/ui/button"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 
 const isNewAccount = ref(false);
@@ -89,7 +80,7 @@ const replaceNewAccount = async () => {
     // account above, so nothing in this store still belongs to anyone.
     await storage.removeItem('local:FLATEX_PURCHASE_DATES');
     await storage.setItem('local:CUR_FLATEXID', account.account_id);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayIso();
     await storage.setItem('local:flatexUserSync',today);
   }
   if (account.broker === 'justTRADE') {

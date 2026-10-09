@@ -152,7 +152,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 
-import { getApiKey,apiBaseUrl,apiKey,numberToGerman,formatTimestamp,getComparableUnderlyingPrice } from '~/utils/helper'
+import { numberToGerman, formatTimestamp, getComparableUnderlyingPrice } from '~/utils/helper';
 import { buildDerivativeData, renderDerivativeChart } from '~/utils/derivative-chart-utils';
 import { Copy, Check } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n';
@@ -188,7 +188,6 @@ const visibleColumns = computed(() => props.columns.filter((col: any) => !hideCo
 const leftColumns = computed(() => visibleColumns.value.slice(0, Math.ceil(visibleColumns.value.length / 2)));
 const rightColumns = computed(() => visibleColumns.value.slice(Math.ceil(visibleColumns.value.length / 2)));
 
-//'stocks_owned','currency_rate', 'ratio'
 const priceColumns = ref([
     'buy_price',
     'total_entry_value',

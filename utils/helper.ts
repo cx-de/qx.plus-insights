@@ -1,7 +1,6 @@
 import { storage } from '#imports';
 import {useI18n} from "vue-i18n";
 
-//export const apiBaseUrl = 'https://feed.qx.plus/';
 // Build-time values from .env (WXT_ prefix); see .env.example for local overrides.
 export const apiBaseUrl = import.meta.env.WXT_API_BASE_URL;
 export const portalUrl = import.meta.env.WXT_PORTAL_URL;
@@ -13,7 +12,6 @@ export const apiRateLimit = ref<any>(null);
 export const isApiRateLimited = () => !!apiRateLimit.value && Date.now() < apiRateLimit.value.until;
 
 export const getApiKey = async (force = false) => {
-  //console.log('getApiKey');
   if (apiKey.value === '' || force) {
     const key = await storage.getItem('local:api_key')
     apiKey.value = key ?? ''
@@ -26,7 +24,6 @@ export const getApiKey = async (force = false) => {
   const rateLimit:any = await storage.getItem('local:api_rate_limit');
   apiRateLimit.value = rateLimit && Date.now() < rateLimit.until ? rateLimit : null;
   apiKeyLoaded.value = true
-  //console.log('getApiKey apiKey',apiKey.value);
 }
 
 export const setApiAuthFailed = async (failed:any) => {
@@ -40,7 +37,6 @@ export const setApiAuthFailed = async (failed:any) => {
   } else {
     await storage.setItem('local:api_auth_fail_count', 0);
   }
-  //console.log('setApiAuthFailed', failed);
 }
 
 const AUTH_COOLDOWN_MINUTES = [5, 15, 30, 60];
@@ -156,6 +152,20 @@ export const isCashRow = (item)=> {
   return typeof name === 'string' && name.trim().toLowerCase() === 'cash';
 }
 
+// Anything interpolated into innerHTML/v-html must go through this, or a crafted name becomes markup.
+export const escapeHtml = (value:any) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+// Pause an async function, e.g. to let a broker page finish rendering.
+export const sleep = (ms:number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// UTC date as YYYY-MM-DD, the key format of every daily snapshot in storage.
+export const todayIso = () => new Date().toISOString().slice(0, 10);
+
 export const germanToNumer = (germanAmount)=> {
   // Remove the thousands separator (.)
   const cleanedAmount = germanAmount.replace(/\./g, '');
@@ -179,7 +189,6 @@ export const parseGermanDateOnly = (input: any): string | null => {
 
   const match = cleaned.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/);
   if (!match) {
-    //console.log('parseGermanDateOnly unrecognized format:', cleaned);
     return null;
   }
 
@@ -192,7 +201,6 @@ export const parseGermanDateOnly = (input: any): string | null => {
   const date = new Date(year, month - 1, day);
   // Round-trip check rejects impossible dates like 30.02.2021
   if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
-    //console.log('parseGermanDateOnly date does not exist:', cleaned);
     return null;
   }
 
@@ -202,8 +210,6 @@ export const parseGermanDateOnly = (input: any): string | null => {
 }
 
 export const numberToGerman = (floatValue, isInt = false, decimalPoints?) => {
-  //console.log("numberToGerman floatValue", floatValue);
-  //if(!floatValue){ return ''; }
   if (floatValue === null || floatValue === undefined || isNaN(floatValue)) {
     return '';
   }
@@ -219,15 +225,9 @@ export const numberToGerman = (floatValue, isInt = false, decimalPoints?) => {
       decimalPoints = 4;
     }
   }
-  //console.log("numberToGerman decimalPoints", decimalPoints);
 
-  //return floatValue.toLocaleString('de-DE', { minimumFractionDigits: decimalPoints, maximumFractionDigits: decimalPoints });
   const floatString = isInt ? floatValue.toFixed(0) : floatValue.toFixed(decimalPoints);
   
-  /*let lang = localStorage.getItem('lang') || 'en';
-  if(lang === 'en'){
-    return floatValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }*/
   
   const [integerPart, decimalPart] = floatString.split('.');
   // Format the integer part with periods as thousands separators
@@ -238,7 +238,6 @@ export const numberToGerman = (floatValue, isInt = false, decimalPoints?) => {
 
 export const sendTelegramMessage = async (token, channelId, message) => {
   if(!token || !channelId){
-    //console.log("sendTelegramMessage invalid token/channel");
     return false;
   }
 
@@ -264,10 +263,8 @@ export const sendTelegramMessage = async (token, channelId, message) => {
     if (!result.ok) {
       throw new Error(`Telegram Error: ${result.description}`);
     }
-    //console.log('Message sent successfully');
     return result;
   } catch (error) {
-    //console.log('Failed to send message to Telegram:', error.message);
     return null;
   }
 };
@@ -287,17 +284,14 @@ export const sendTestApi = async (token) => {
     }
 
     const result = await response.json().catch(() => null);
-    //console.log('sendTestApi result',result);
     return result?.success === true;
   } catch (error) {
-    //console.log('Failed sendTestApi:', error.message);
     return false;
   }
 };
 
 // Not via fetchFeed: a 401 here is shown in Settings, it must not latch apiAuthFailed and stop price polling.
 export const fetchApiUsage = async (token:any) => {
-  //console.log("fetchApiUsage");
   try {
     const response = await fetch(`${apiBaseUrl}usage`, {
       headers: { 'X-Api-Key': token },
@@ -318,7 +312,6 @@ export const fetchApiUsage = async (token:any) => {
 
 // Relative to the feed base so local/staging builds hit their own backend; the key is optional and only links the account.
 export const sendSupportMessage = async (form:any) => {
-  //console.log("sendSupportMessage");
   try {
     const headers:any = { Accept: 'application/json' };
     // A latched-dead key would get the message rejected; send anonymously instead.
@@ -346,77 +339,12 @@ export const deepCloneReactiveData = (data) => {
   return JSON.parse(JSON.stringify(toRaw(data)));
 }
 
-/*
-export const getLatestData2 = async () => {
-  const currentData = await storage.getItem('local:MAIN_LIST') || [];
-  const newStockData = await storage.getItem('local:KONTO_FLATEX') || [];
-  if(!newStockData){
-    //console.log("getLatestData no newStockData");
-    return false;
-  }
-  
-  let mergedData = [];
-
-  //new sync
-  if(currentData.length===0){
-    //console.log("getLatestData currentData not set");
-    mergedData.push(...newStockData);
-  }else{
-    //console.log("getLatestData currentData set sync");
-    
-    mergedData = [];
-    const newCash = newStockData.find(item => item.stock_name === "Cash");
-    if (newCash) {
-      mergedData.push(newCash);
-    }
-    
-    newStockData.forEach(newItem => {
-      if (newItem.stock_name !== "Cash") {
-        const existingItem = currentData.find(item => item.wkn === newItem.wkn);
-        if (existingItem) {
-          const allowedFields = [ 
-            'stocks_owned', 'total_entry_value','profit_loss_price','profit_loss_percentage',
-            'page_timestamp','timestamp' ,
-          ];
-            const filteredNewItem = Object.fromEntries(
-              Object.entries(newItem).filter(([key]) => allowedFields.includes(key))
-            );
-            mergedData.push({...existingItem, ...filteredNewItem});
-        } else {
-          //console.log("getLatestData currentData wkn not exist : add");
-          mergedData.push(newItem);
-        }
-      }
-    });
-
-    const remainingOldCash = currentData.find(item => item.stock_name === "Cash");
-    if (!newCash && remainingOldCash) {
-      mergedData.push(remainingOldCash);
-    }
-  }
-  
-  //console.log("getLatestData newStockData",newStockData);
-  //console.log("getLatestData mergedData",mergedData);
-  
-  const clonedData = deepCloneReactiveData(mergedData);
-  //console.log("getLatestData clonedData",clonedData);
-  await storage.setItem('local:MAIN_LIST',clonedData);
-}
-*/
 
 export const getLatestData = async () => {
-  //const hasNewAccount = await storage.getItem('local:hasNewAccount') || '';
-  //console.log("getLatestData hasNewAccount")
-  //if (hasNewAccount === 'flatex') {
-  //  //console.log("getLatestData hasNewAccount")
-  //  return false;
-  //}
-
   // Only the prompted broker is held back; the other three must keep merging.
   const frozenBrokers = await accountFrozenBrokers();
 
   const currentData = (await storage.getItem('local:MAIN_LIST') as any[]) || [];
-  //const newStockData = await storage.getItem('local:KONTO_FLATEX') || [];
   
   const flatexData = await storage.getItem('local:KONTO_FLATEX') || [];
   const consorsBank = await storage.getItem('local:consorsBank') || [];
@@ -426,9 +354,7 @@ export const getLatestData = async () => {
   
   const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData]
     .filter(item => !frozenBrokers.includes(item.broker));
-  //console.log("getLatestData smartBrokerData",smartBrokerData);
   if (!newStockData) {
-    //console.log("getLatestData: no new stock data");
     return false;
   }
 
@@ -436,18 +362,15 @@ export const getLatestData = async () => {
 
   // Case 1: First sync or current data empty
   if (currentData.length === 0) {
-    //console.log("getLatestData: currentData is empty, initializing");
     mergedData = [...newStockData];
   } else {
     
-    //console.log("getLatestData: syncing currentData with newStockData");
     const allowedFields = [
       'stocks_owned',
       'buy_price',
       'total_entry_value',
       'profit_loss_price',
       'profit_loss_percentage',
-      //'bid',
       'page_bid',
       'page_timestamp', 'timestamp',
       'purchase_date', 'purchase_dates'
@@ -469,25 +392,6 @@ export const getLatestData = async () => {
         .filter(item => item.stock_name === "Cash")
         .map(item => accountKeyOf(item))
     );
-    /*let newCash;
-    newCash = newStockData.find(item => item.stock_name === "Cash" && broker==broker);
-    if (newCash) {
-      //console.log("getLatestData newCash");
-      //mergedData.push(newCash);
-      let currentCash = currentData.find(item => item.stock_name === "Cash" && broker==broker);
-      if(currentCash){
-        //console.log("getLatestData newCash currentCash");
-        let mergedCash = { ...currentCash,
-          ...Object.fromEntries(
-            allowedFields.filter(k => k in newCash).map(k => [k, newCash[k]])
-          )
-        };
-        mergedData.push(mergedCash);
-      }else{
-        //console.log("getLatestData newCash newCash");
-        mergedData.push(newCash);
-      }
-    }*/
    
     cashAccounts.forEach(accountKey => {
       const newCash = newStockData.find(
@@ -523,9 +427,6 @@ export const getLatestData = async () => {
     });
 
     
-    
-
-
     // Handle updated and removed stocks
     for (const currentItem of currentData) {
       if (currentItem.stock_name === "Cash") continue;
@@ -546,37 +447,26 @@ export const getLatestData = async () => {
         mergedData.push({ ...currentItem, ...filteredFields });
         newDataMap.delete(key); // processed
       }
-      // else: stock was sold → do not include
     }
 
     // Handle newly bought stocks
     for (const [, newItem] of newDataMap) {
-      //console.log("getLatestData: new stock added", newItem.wkn);
       mergedData.push(newItem);
     }
 
     // Preserve old cash if new cash doesn't exist
-    /*if (!newCash) {
-      //console.log("getLatestData oldCash");
-      const oldCash = currentData.find(item => item.stock_name === "Cash");
-      if (oldCash) mergedData.push(oldCash);
-    }*/
   }
 
-  //console.log("getLatestData: newStockData", newStockData);
-  //console.log("getLatestData: mergedData", mergedData);
 
   const clonedData = deepCloneReactiveData(mergedData);
   await storage.setItem('local:MAIN_LIST', clonedData);
-  //console.log("getLatestData: updated MAIN_LIST clonedData",clonedData);
 };
 
 
 export const formatTimestamp = (timestamp) => {
-  //console.log("formatTimestamp timestamp",timestamp);
   if (!timestamp) return '';
   
-  const { t,locale } = useI18n();
+  const { t } = useI18n();
   const date = new Date(timestamp);
   const now = new Date();
 
@@ -588,7 +478,6 @@ export const formatTimestamp = (timestamp) => {
   const isYesterday = date.toDateString() === yesterday.toDateString();
 
   if (isSameDay) {
-    //console.log("formatTimestamp isSameDay timestamp",timestamp);
     return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   } else if (isYesterday) {
     return `${t('yesterday')} ${date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
@@ -605,7 +494,6 @@ export const formatTimestamp = (timestamp) => {
 };
 
 export const formatDate = (date: Date | string | number | null | undefined): string => {
-  //console.log("formatDate date",date);
   
   if (!date) return '';
 
@@ -631,7 +519,6 @@ export const formatMonthYear = (date: Date | string | number | null | undefined)
 };
 
 export function formatDateToYMD(date){
-  //console.log("formatDateToYMD date",date);
   if (!date) return '';
   const year = date.year;
   const month = String(date.month).padStart(2, '0');
@@ -670,30 +557,21 @@ export const calculateFutureTotalValue = (item, expectationMultiplier = 0) => {
   let cap_strike = parseFloat(item.strike ? item.strike : item.cap) || 0;
   let FX_rate = parseFloat(item.currency_rate) || 1;
 
-  //console.log(`[calcFTV] === START wkn=${item.wkn} type=${item.type} ===`);
-  //console.log(`[calcFTV] inputs: strike=${strike}, cap=${itemCap}, bid=${bid}, stocks_owned=${stocks_owned}, underlying_price=${underlying_price}, ratio=${ratio}, knockout=${barrier_knockout}, cap_strike=${cap_strike}, FX_rate=${FX_rate}`);
-  //console.log(`[calcFTV] expectationMultiplier=${expectationMultiplier}`);
 
   if (expectationMultiplier != 0) {
     underlying_price *= expectationMultiplier;
-    //console.log(`[calcFTV] adjusted underlying_price by multiplier: ${underlying_price}`);
   }
 
   const item_currency = (item.currency || "").trim().toUpperCase();
-  const underlying_currency = (item.underlying_currency || "").trim().toUpperCase();
-  const isIndexUnderlying = underlying_currency === "";
   const isQuanto = !!item.quanto;
   const isCashPosition = item.stock_name === "Cash";
   const isProductEUR = item_currency === "EUR";
 
-  //console.log(`[calcFTV] currency: item_currency=${item_currency}, underlying_currency=${underlying_currency}, isIndexUnderlying=${isIndexUnderlying}, isQuanto=${isQuanto}, isCashPosition=${isCashPosition}, isProductEUR=${isProductEUR}`);
 
   let comparableUnderlying = getComparableUnderlyingPrice(item, underlying_price);
 
   if (comparableUnderlying !== underlying_price) {
-    //console.log(`[calcFTV] FX adjusted comparableUnderlying: ${comparableUnderlying} (${underlying_price} * ${FX_rate})`);
   } else {
-    //console.log(`[calcFTV] comparableUnderlying (no FX): ${comparableUnderlying}`);
   }
  
   const convertBackToPortfolioCurrency = (value) => {
@@ -718,7 +596,6 @@ export const calculateFutureTotalValue = (item, expectationMultiplier = 0) => {
           : comparableUnderlying < strike
             ? strike - comparableUnderlying
             : 0;
-      //console.log(`[calcFTV] discountPut cap_strike=${cap_strike} (comparableUnderlying=${comparableUnderlying}, itemCap=${itemCap}, strike=${strike})`);
       break;
 
     case "discountCall":
@@ -728,32 +605,26 @@ export const calculateFutureTotalValue = (item, expectationMultiplier = 0) => {
           : comparableUnderlying > strike
             ? comparableUnderlying - strike
             : 0;
-      //console.log(`[calcFTV] discountCall cap_strike=${cap_strike} (comparableUnderlying=${comparableUnderlying}, itemCap=${itemCap}, strike=${strike})`);
       break;
 
     case "cappedBonusCertificate":
       barrier_knockout = strike;
       cap_strike = itemCap;
-      //console.log(`[calcFTV] cappedBonusCertificate barrier_knockout=${barrier_knockout}, cap_strike=${cap_strike}`);
       break;
   }
 
   if (isCashPosition) {
-    //console.log(`[calcFTV] Cash position, returning total_entry_value=${item.total_entry_value}`);
     return parseFloat(item.total_entry_value) || 0;
   }
  
-  //console.log(`[calcFTV] total_value=${total_value}, max_value=${max_value}, comparableUnderlying=${comparableUnderlying}`);
 
   switch (item.type) {
     case "discountPut": {
       let payoff =
         comparableUnderlying < strike ? strike - comparableUnderlying : 0;
       let max_payoff = strike - itemCap;
-      //console.log(`[calcFTV] discountPut: payoff=${payoff}, max_payoff=${max_payoff}`);
       if (payoff > max_payoff) payoff = max_payoff;
       future_total_value = payoff * ratio * stocks_owned;
-      //console.log(`[calcFTV] discountPut: clamped payoff=${payoff}, future_total_value=${future_total_value}`);
       break;
     }
 
@@ -761,10 +632,8 @@ export const calculateFutureTotalValue = (item, expectationMultiplier = 0) => {
       let payoff =
         comparableUnderlying > strike ? comparableUnderlying - strike : 0;
       let max_payoff = itemCap - strike;
-      //console.log(`[calcFTV] discountCall: payoff=${payoff}, max_payoff=${max_payoff}`);
       if (payoff > max_payoff) payoff = max_payoff;
       future_total_value = payoff * ratio * stocks_owned;
-      //console.log(`[calcFTV] discountCall: clamped payoff=${payoff}, future_total_value=${future_total_value}`);
       break;
     }
 
@@ -772,35 +641,30 @@ export const calculateFutureTotalValue = (item, expectationMultiplier = 0) => {
       let redemption =
         comparableUnderlying > itemCap ? itemCap : comparableUnderlying;
       future_total_value = redemption * ratio * stocks_owned;
-      //console.log(`[calcFTV] discountCertificate: redemption=${redemption}, future_total_value=${future_total_value}`);
       break;
     }
 
     case "put": {
       let payoff = strike - comparableUnderlying;
       future_total_value = (payoff > 0 ? payoff : 0) * ratio * stocks_owned;
-      //console.log(`[calcFTV] put: payoff=${payoff}, future_total_value=${future_total_value}`);
       break;
     }
 
     case "call": {
       let payoff = comparableUnderlying - strike;
       future_total_value = (payoff > 0 ? payoff : 0) * ratio * stocks_owned;
-      //console.log(`[calcFTV] call: payoff=${payoff}, future_total_value=${future_total_value}`);
       break;
     }
 
     case "openEndTurboShort": {
       let payoff = strike - comparableUnderlying;
       future_total_value = (payoff > 0 ? payoff : 0) * ratio * stocks_owned;
-      //console.log(`[calcFTV] openEndTurboShort: payoff=${payoff}, future_total_value=${future_total_value}`);
       break;
     }
 
     case "openEndTurboLong": {
       let payoff = comparableUnderlying - strike;
       future_total_value = (payoff > 0 ? payoff : 0) * ratio * stocks_owned;
-      //console.log(`[calcFTV] openEndTurboLong: payoff=${payoff}, future_total_value=${future_total_value}`);
       break;
     }
 
@@ -809,7 +673,6 @@ export const calculateFutureTotalValue = (item, expectationMultiplier = 0) => {
         comparableUnderlying < barrier_knockout
           ? max_value * stocks_owned
           : total_value;
-      //console.log(`[calcFTV] reverseCappedBonus: comparableUnderlying=${comparableUnderlying} < barrier_knockout=${barrier_knockout}? ${comparableUnderlying < barrier_knockout}, future_total_value=${future_total_value}`);
       break;
 
     case "cappedBonusCertificate": {
@@ -820,28 +683,22 @@ export const calculateFutureTotalValue = (item, expectationMultiplier = 0) => {
         (barrierBroken ? Math.min(comparableUnderlying, cap_strike) : cap_strike) *
         ratio *
         stocks_owned;
-      //console.log(`[calcFTV] cappedBonus: barrierBroken=${barrierBroken}, future_total_value=${future_total_value}`);
       break;
     }
 
     case "indexcertificate":
       future_total_value = comparableUnderlying * ratio * stocks_owned;
-      //console.log(`[calcFTV] indexcertificate: future_total_value=${future_total_value}`);
       break;
 
     default:
       future_total_value =
         cap_strike * ratio * stocks_owned || total_value;
-      //console.log(`[calcFTV] default: cap_strike*ratio*stocks_owned=${cap_strike * ratio * stocks_owned}, total_value=${total_value}, future_total_value=${future_total_value}`);
       break;
   }
 
-  const beforeConvert = future_total_value;
   future_total_value = convertBackToPortfolioCurrency(future_total_value);
   future_total_value = clamp0(future_total_value);
 
-  //console.log(`[calcFTV] final: beforeConvert=${beforeConvert}, afterConvert=${future_total_value}`);
-  //console.log(`[calcFTV] === END wkn=${item.wkn} result=${future_total_value} ===`);
 
   return Number.isFinite(future_total_value) ? future_total_value : 0;
 };
@@ -887,7 +744,6 @@ export const clearAllStockData = async () => {
   // SmartBroker+ had no identity key at all before multi-account.
   await storage.removeItem('local:CUR_SMARTBROKERID');
   
-  //console.log("clearAllStockData done");
 }
 
 function isWeekend(date = new Date()) {
@@ -895,48 +751,21 @@ function isWeekend(date = new Date()) {
   return day === 0 || day === 6;
 }
 
-function isMarketHoliday(date = new Date()) {
-  const yyyy = date.getFullYear();
-  const mmdd = date.toISOString().slice(5, 10); // "MM-DD"
-  
-  const marketHolidays = [
-    "01-01", // New Year's Day
-    "04-18", // Good Friday (2025)
-    "04-21", // Easter Monday (2025)
-    "05-01", // Labour Day
-    "05-29", // Ascension Day (2025)
-    "06-09", // Whit Monday (2025)
-    "06-19", // Corpus Christi (2025)
-    "10-03", // German Unity Day
-    "12-25", // Christmas Day
-    "12-26"  // Boxing Day
-  ];
-
-  return marketHolidays.includes(mmdd);
-}
-
 export function isMarketClosed() {
   if(!apiKey.value){
-    //console.log("isMarketClosed apiKey missing");
     return true;
   }
 
   // A rejected key would otherwise re-fire every doomed request on each refresh cycle.
   if(apiAuthFailed.value){
-    //console.log("isMarketClosed apiAuthFailed");
     return true;
   }
 
   const today = new Date();
   if (isWeekend(today)){
-    //console.log("isMarketClosed isWeekend");
     return true;
   }
 
-  /*if (isMarketHoliday(today)){
-    //console.log("isMarketClosed isMarketHoliday");
-    return true;
-  }*/
  
   return false;
 }
@@ -953,7 +782,7 @@ export async function saveDailyTotal() {
     accounts[key] = (accounts[key] || 0) + value;
     return sum + value;
   }, 0);
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayIso();
   const dailyTotals = await storage.getItem('local:DAILY_TOTAL') || [];
   const index = dailyTotals.findIndex((entry: { date: string }) => entry.date === today);
 
@@ -967,5 +796,4 @@ export async function saveDailyTotal() {
     await storage.setItem('local:DAILY_TOTAL', dailyTotals);
   }
 }
-
 

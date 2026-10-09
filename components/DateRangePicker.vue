@@ -28,7 +28,6 @@ import {
   DateRangePickerTrigger,
 } from 'reka-ui'
 
-import { addMonths } from 'date-fns'
 import { Button } from '@/components/ui/button'
 
 // Props from parent
@@ -58,7 +57,6 @@ const isSelectingStartDate = ref(true)
 // Sync local → emit to parent
 watch([startDate, endDate], () => {
   const updated = { start: startDate.value, end: endDate.value }
-  //console.log('[DateRangePicker] Emitting updated:', updated)
   emit('update:modelValue', updated)
   isSelectingStartDate.value = !startDate.value || (startDate.value && !endDate.value)
 });
@@ -72,7 +70,6 @@ watch(() => modalDate,(val) => {
 },{ immediate: true, deep: true });
 
 function clearDateRange() {
-  //console.log('[DateRangePicker] Clear clicked')
   startDate.value = undefined
   endDate.value = undefined
   const updated = { start: startDate.value, end: endDate.value }
@@ -82,7 +79,6 @@ function clearDateRange() {
 }
 
 function formatDate(date?: Date) {
-  //console.log("formatDate date",date);
   if (!date) return ''
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -93,7 +89,6 @@ function formatDate(date?: Date) {
 
 
 import type { DateValue } from '@internationalized/date'
-import { addYears } from 'date-fns'
 
 function pagingFunc(date: DateValue, sign: -1 | 1) {
   return sign === -1 ? date.subtract({ years: 1 }) : date.add({ years: 1 })

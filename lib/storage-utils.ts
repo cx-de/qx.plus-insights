@@ -53,10 +53,8 @@ const storageKeys = [
 /**
  * Get all data from WXT storage and localStorage
  */
-export async function getAllData() {
+async function getAllData() {
   const extData = await storage.getItems(storageKeys);
-  console.log("getAllData extData", extData);
-  console.log("getAllData localStorage", localStorage);
   
   // --- LocalStorage ---
   const localData: Record<string, any> = {};
@@ -111,15 +109,6 @@ function validateBackupFile(data: any): { valid: boolean; errors: string[] } {
   }
 
   // Validate entries
-  /*data.forEach((item, index) => {
-    if (!item.key) {
-      errors.push(`Missing "key" at index ${index}`);
-    }
-    if (item.value === null || item.value === undefined) {
-      errors.push(`Missing or null "value" for key "${item.key}" at index ${index}`);
-    }
-  });
-  */
 
   return { valid: errors.length === 0, errors };
 }
@@ -135,27 +124,17 @@ export async function importAll(file: File) {
       try {
         const parsed = JSON.parse(String(reader.result));
 
-        /*
-        if (parsed.extension) {
-          await storage.setItems(parsed.extension);
-        }
-        */
 
         const { valid, errors } = validateBackupFile(parsed.extension || parsed.local);
-        //console.log("importAll validateBackupFile valid",valid);
-        //console.log("importAll validateBackupFile errors",errors);
         if (!valid) {
-            //console.error('Import validation failed:', errors);
             reject(errors);
             return;
         }
 
         if (parsed.extension) {
-            //console.log("importAll parsed.extension",parsed.extension);
             if (parsed.extension && Array.isArray(parsed.extension)) {
                 for (const item of parsed.extension) {
                     const { key, value } = item;
-                    //console.log("importAll item",item);
                     // skip invalid entries
                     if (!key || value === null || value === undefined) continue;
                     await storage.setItem(key, value);
@@ -165,43 +144,12 @@ export async function importAll(file: File) {
 
 
         // Restore localStorage
-        // if (parsed.local) {
-        //   for (const [key, value] of Object.entries(parsed.local)) {
-        //     localStorage.setItem(key, JSON.stringify(value));
-        //   }
-        // }
 
         if (parsed.local) {
             for (const [key, value] of Object.entries(parsed.local)) {
-                //console.log("importAll key",key);
 
                 try {
                   
-                  /*
-                  const existing = localStorage.getItem(key);
-                    if (existing) {
-                        let parsedExisting;
-                        try {
-                            parsedExisting = JSON.parse(existing);
-                        } catch {
-                            parsedExisting = existing;
-                        }
-                        //console.log("importAll parsedExisting",parsedExisting);
-                        
-                        if (typeof parsedExisting === 'object' && typeof value === 'object') {
-                            //console.log("importAll parsedExisting object",value);
-                            //localStorage.setItem(key, JSON.stringify({ ...parsedExisting, ...value }));
-                            localStorage.setItem(key, value);
-                        } else {
-                            //console.log("importAll parsedExisting value",value);
-                            //localStorage.setItem(key, JSON.stringify(value));
-                            localStorage.setItem(key, value);
-                        }
-                  } else {
-                    //console.log("importAll not exist",value);
-                    //localStorage.setItem(key, JSON.stringify(value));
-                    localStorage.setItem(key,value);
-                  }*/
 
                   let jsonKeys = ['tableSortState','columnOrder','tableExpanded','accountViewSelected'];
                   if(jsonKeys.includes(key)){
@@ -224,7 +172,6 @@ export async function importAll(file: File) {
         );
         if (!restoredSchema) await storage.removeItem('local:ACCOUNTS_SCHEMA');
 
-        //resolve();
         resolve({ valid: true });
 
       } catch (err) {

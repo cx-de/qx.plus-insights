@@ -9,42 +9,6 @@
             <div class="flex flex-wrap items-center justify-start gap-5 mb-2">
               <!-- v-show here, not on the strip: a hidden strip still left this empty flex item and its gap-5 -->
               <div v-show="Object.keys(rowSelection).length" class="w-full">
-                <!--
-                <template v-if="false">
-                  <div v-show="Object.keys(rowSelection).length"
-                    class="p-2 bg-muted rounded-md flex items-center justify-between">
-                    <span class="text-sm font-medium">
-                      {{ Object.keys(rowSelection).length }} {{ $t('selected') }}
-                    </span>
-                    <div class="flex items-center gap-4 ml-2"> 
-                      <Input v-model="groupName" type="text" class="w-60"
-                        :disabled="Object.keys(rowSelection).length < 2" />
-                        <span>{{ $t('or') }}</span>
-                      <Select v-if="Object.keys(rowSelection).length>1" >
-                        <SelectTrigger>
-                          <SelectValue :placeholder="$t('select_existing_group')" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectGroup>
-                            <SelectItem v-for="group of allGroups" :key="group.id"
-                            :value="group.id">
-                              {{  group.group_name  }}
-                            </SelectItem>
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
-
-                      <Button v-if="Object.keys(rowSelection).length===1" 
-                        @click="openModal(currentRow,'stock')">
-                        {{ $t('set_alert') }}
-                      </Button>
-                      <Button v-else @click="combineRows()" :disabled="Object.keys(rowSelection).length < 2">
-                        {{ $t('combine') }}
-                      </Button>
-                    </div>
-                  </div>
-                </template>
-                -->
                 
                 <!-- one row, labels sr-only: the stacked label/field layout ate ~180px above the table -->
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border bg-muted/60 px-3 py-2">
@@ -54,7 +18,6 @@
 
                   <div class="hidden h-6 w-px bg-border sm:block" aria-hidden="true"></div>
 
-                  <!-- <div v-if="Object.keys(rowSelection).length > 1" -->
                   <!-- one row can only join an existing group, so the name field was dead weight -->
                   <template v-if="Object.keys(rowSelection).length > 1">
                     <Label for="new_group_name" class="sr-only">{{ $t('new_group_name') }}</Label>
@@ -87,8 +50,6 @@
                   </Button>
 
                   <template v-if="Object.keys(rowSelection).length === 1">
-                    <!-- <Input v-model="groupName" type="text" class="w-60"
-                    :placeholder="$t('new_group_name')" disabled /> -->
                     <Button size="sm" variant="outline" class="h-8 sm:ml-auto" @click="openModal(currentRow, 'stock')">
                       {{ $t('set_alert') }}
                     </Button>
@@ -129,20 +90,6 @@
 
                 <div class="flex flex-wrap gap-2 items-center">
 
-                <!-- <div class="w-full sm:w-[180px]">
-                  <Select v-model="selectedBroker" @update:modelValue="getList()">
-                    <SelectTrigger class="w-full">
-                      <SelectValue  />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectGroup>
-                        <SelectItem v-for="broker of brokers" :value="broker.id" :key="broker.id">
-                          {{ $t(broker.name) }}
-                        </SelectItem>
-                      </SelectGroup>
-                    </SelectContent>
-                  </Select>
-                </div> -->
                 
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
@@ -167,13 +114,6 @@
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <!-- <Button @click="exportCSV($event)" variant="outline" 
-                  class="flex items-center">
-                  <Download class="h-3.5 w-3.5" />
-                  <span class="sm:whitespace-nowrap ml-2">
-                    {{ $t('export') }}
-                  </span>
-                </Button> -->
 
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
@@ -226,26 +166,12 @@
             <div>
               
               
-              <!--
-                  <TableHead v-for="(header, hIndex) in headerGroup.headers" :key="header.id"
-                        :class="{'bg-gray-300 text-black': header.column.getIsSorted(),}">
-                          <div :class="{'w-80': header.id == 'stock_name',}">
-                          <FlexRender v-if="!header.isPlaceholder" 
-                            :render="header.column.columnDef.header" 
-                            :props="header.getContext()"
-                              />
-                        </div>
-                      </TableHead>
-                      -->
-
-                <!-- dvh max-height like eqad /horses; 210px once the toolbar wraps below 1360px -->
+                <!-- dvh max-height; 210px once the toolbar wraps below 1360px -->
                 <div ref="dt" class="rounded-md border w-full max-h-[calc(100dvh-150px)] max-[1360px]:max-h-[calc(100dvh-210px)] overflow-auto">
                  
                   <Table id="table_list">
                       <TableHeader class="bg-muted sticky top-0 z-10">
                        
-                        <!-- <TableRow v-for="(headerGroup, hgIndex) in table.getHeaderGroups()"
-                          :key="headerGroup.id"> -->
                           
                           <VueDraggableNext 
                           v-model="columnOrder" 
@@ -271,7 +197,6 @@
                             </TableHead>
                         </VueDraggableNext>
 
-                        <!-- </TableRow> -->
                         </TableHeader>
 
 
@@ -282,9 +207,8 @@
                             <TableRow v-if="row.depth==0" 
                             :class="{ 'group-row' : row.original?.isGroup,
                               '!bg-accent': row.getIsSelected() }">
-                              <!-- {{  row.depth==0 }} -->
                               
-                              <TableCell v-for="(cell, cellIndex) in row.getVisibleCells()" :key="cell.id"
+                              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id"
                                 :class="cell.column.id === 'select' ? 'sticky_column z-[1] bg-muted' : ''">
                                 
                                 <span :data-wkn="row.original.wkn" :data-position="accountPositionKey(row.original)" :data-field="cell.column.id"
@@ -329,10 +253,6 @@
                                       </div>
                                     </template>
 
-                                    <!-- <Button @click="editGroup(row.original.id)" 
-                                            class="ml-2 h-6 w-6" size="icon">
-                                            <Pencil class="h-2 w-2" />
-                                          </Button> -->
 
                                     <template v-else-if="cell.column.id === 'total_entry_value'">
                                       {{  formatGermanNumber(getScopedGroupTotals(row.original.id)['total_entry_value']) }}
@@ -372,7 +292,6 @@
                                  </template>
                                    
                                  <template v-else>
-                                    <!-- <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" /> -->
                                  </template>
                                     
                                 </template>
@@ -433,7 +352,6 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'stocks_owned'">
-                                    <!-- {{  row.original.stocks_owned }} -->
                                     {{  numberToGerman(row.original.stocks_owned,true)  }}
                                   </template>
 
@@ -517,24 +435,17 @@
 
                                   <!-- ((cap - underlyingPrice) / underlyingPrice) * 100 -->
                                   <template v-else-if="cell.column.id === 'distance_to_the_cap'">
-                                    <!-- {{ row.original.cap && row.original.underlying_price>0 
-                                      ? numberToGerman( ((row.original.cap - row.original.underlying_price) / row.original.underlying_price) * 100)
-                                      : '' }} -->
                                       {{ row.original.distance_to_the_cap ? numberToGerman(row.original.distance_to_the_cap) : '' }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'total_value'">
-                                    <!-- <span :class="row.original.bid * row.original.stocks_owned > 0 ? 'text-green-600':'text-red-600' "> -->
-                                    <!-- {{  row.original.stocks_owned ? numberToGerman((row.original.bid || 1) *  (row.original.stocks_owned || 1)) : ''  }} -->
                                     <span :title="getTitleForHL('total_value', row.original.total_value)" :class="getClassForHL('total_value', row.original.total_value)">
                                     {{  row.original.total_value ? numberToGerman(row.original.total_value) : '' }}
                                     </span>
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'future_total_value'">
-                                    <!-- {{  row.original.stocks_owned ? numberToGerman( (row.original.stocks_owned || 1) * (row.original.cap || 1) ) : '' }} -->
                                     <span :title="getTitleForHL('future_total_value', row.original.future_total_value)" :class="getClassForHL('future_total_value', row.original.future_total_value)">
-                                      <!-- {{  row.original.future_total_value ? numberToGerman(row.original.future_total_value) : '' }} -->
                                       {{ row.original.future_total_value ? numberToGerman(row.original.future_total_value) : ''  }}
                                     </span>
                                   </template>
@@ -645,14 +556,13 @@
                                 class="group-child"
                                 :class="{ 'group-child-last': index === visibleSubRows(row).length - 1 }"
                               >
-                              <TableCell v-for="(column, cIndex) in columns" :key="column.id"
+                              <TableCell v-for="column in columns" :key="column.id"
                                 :class="column.id === 'select' ? 'sticky_column z-[1] bg-muted' : ''">
                                 <template v-if="column.id === 'select'">
                                   <Button @click="removeItemFromGroup(row.original.id,item.original.id)" class="mr-2 h-8 w-8"
                                     size="icon" variant="ghost"
                                     :title="$t('delete_from_group')" :aria-label="$t('delete_from_group')">
                                     <X class="h-4 w-4 text-red-600 dark:text-red-400" />
-                                    <!-- {{ JSON.stringify(row) }} -->
                                   </Button>
                                 </template>
 
@@ -860,11 +770,6 @@
                           </TableCell>
                         </TableRow>
 
-                        <!-- <TableRow v-if="!isLoading && table.getRowModel().rows?.length==0">
-                          <TableCell :colspan="columnOrder.length" class="h-24 text-center">
-                            {{  t('no_results') }}
-                          </TableCell>
-                        </TableRow> -->
 
                       </TableBody>
 
@@ -874,7 +779,6 @@
                           <template v-for="header in table.getHeaderGroups()[0].headers" 
                             :key="'foot'+header.id">
                             
-                            <!-- {{ header.id }} -->
                             <TableCell :class="header.id === 'select' ? 'sticky_column z-[1] bg-muted' : ''">
                               <!-- one v-if chain: separate v-ifs let the trailing v-else add a stray &nbsp; to every cell -->
                               <template v-if="header.id === 'total_entry_value'">
@@ -1071,12 +975,6 @@
               </div>
               
       
-              <!-- <DialogFooter class="mt-6">
-                <Button variant="outline" @click="closeModal">
-                  {{  $t('cancel') }}
-                </Button>
-              </DialogFooter> -->
-
             </div>
           </DialogContent>
         </Dialog>
@@ -1125,7 +1023,6 @@
 import { onBeforeRouteLeave } from 'vue-router'
 
 import { storage } from '#imports';
-import { BlackScholes } from '@uqee/black-scholes';
 import Empty from '~/components/Empty.vue'
 import StockInfoCard from '~/components/StockInfoCard.vue'
 import AccountFilter from '~/components/AccountFilter.vue'
@@ -1134,9 +1031,7 @@ import PeerProductsCard from '~/components/PeerProductsCard.vue'
 import DataTableFacetedFilter from '~/components/DataTableFacetedFilter.vue'
 import { VueDraggableNext } from 'vue-draggable-next'
 
-import type { ColumnDef,
-  ColumnFiltersState,
- } from '@tanstack/vue-table'
+import type { ColumnFiltersState } from '@tanstack/vue-table';
  
 import {
   Table,
@@ -1163,62 +1058,18 @@ import {
 import { valueUpdater } from '~/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-import { Card, CardContent, 
-  CardDescription, CardFooter, 
-  CardHeader, CardTitle
-  } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuPortal,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-  DropdownMenuCheckboxItem,
-} from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl,
-  apiKey, apiAuthFailed, fetchFeed,
-  isApiRateLimited, apiRateLimitSecondsLeft,
-  numberToGerman, germanToNumer,
-  formatTimestamp, formatDate,
-  getLatestData,chunkArray,
-  deepCloneReactiveData,
-  calculateFutureTotalValue,
-  isMarketClosed,
-  saveDailyTotal,
-  getComparableUnderlyingPrice,
-} from '~/utils/helper'
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, fetchFeed, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso } from '~/utils/helper';
 
 import { 
   getPriceData,
@@ -1227,46 +1078,20 @@ import {
   calculateLatestMainListData,
 } from '~/utils/price-data-utils'
 
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover"
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 
 import {useI18n} from "vue-i18n";
-import { timestamp } from '@vueuse/core';
 import { debounce } from 'lodash';
 import { toast } from '@/components/ui/toast';
-import { ToastPortal } from 'reka-ui';
-import * as XLSX from 'xlsx';
+import { downloadCsv, downloadXlsx, fileTimestamp } from '~/utils/export-utils';
 
-import {
-  MoreHorizontal,
-  ArrowUpDown, 
-  ChevronDown,
-  FileUp,
-  ArrowUpNarrowWide,
-  ArrowDownWideNarrow,
-  ListFilter,
-  MinusIcon,
-  PlusIcon,
-  Trash,
-  CircleMinus,
-  X,
-  Search,
-  Download,
-  RefreshCcw,
-  AlarmClockPlus,
-  Pen,
-  File,
-  FileSpreadsheet,
-  Filter,
-  Pencil,
-  Save,
-  ChevronRight,
-} from 'lucide-vue-next'
+import { sortableHeader } from '~/utils/table-utils';
+import { ListFilter, Trash, X, Search, Download, RefreshCcw, AlarmClockPlus, Pen, File, FileSpreadsheet, Pencil, Save, ChevronRight } from 'lucide-vue-next';
 
-const { t,locale } = useI18n();
+const { t } = useI18n();
 document.title = t('list');
 
 // native alert() blocked the page and was English-only; these now go through toast + i18n
@@ -1287,12 +1112,6 @@ const runConfirm = async () => {
   if (action) await action();
 };
 
-const escapeHtml = (value: unknown): string => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#39;');
 
 const safeJsonGet = <T,>(key: string, fallback: T): T => {
   try {
@@ -1308,21 +1127,16 @@ const onDragEnd = (event) => {
 
   if (oldIndex === newIndex) return // No change, exit
 
-  //console.log("onDragEnd oldIndex",oldIndex);
-  //console.log("onDragEnd newIndex",newIndex);
   
   //Get Only Visible Columns
   const visibleColumns = table.getAllColumns()
     .filter(col => col.getIsVisible())
     .map(col => col.id)
-    //console.log("onDragEnd visibleColumns",visibleColumns);
     
   //Reorder the visible columns
   const movedColumn = visibleColumns.splice(oldIndex, 1)[0] // Remove dragged column
   visibleColumns.splice(newIndex, 0, movedColumn) // Insert at new position
 
-  //console.log("onDragEnd movedColumn",movedColumn);
-  //console.log("onDragEnd columnOrder",columnOrder.value);
 
   //Update Full Column Order
   columnOrder.value = columnOrder.value.filter(colId => visibleColumns.includes(colId)) // Keep only visible ones
@@ -1332,7 +1146,6 @@ const onDragEnd = (event) => {
 const nonDraggableColumns = ['select', 'actions']
 
 function onMoveColumn(evt) {
-  //console.log("onMoveColumn evt",evt);
   const draggedColumnId = columnOrder.value[evt.draggedContext.index]
   // slot 0 belongs to the pinned select column
   if (evt.relatedContext?.index === 0) return false
@@ -1341,7 +1154,6 @@ function onMoveColumn(evt) {
 
 // Save column visibility changes
 const saveColumnVisibility = () => {
-  //console.log("saveColumnVisibility");
   localStorage.setItem('columnOrder', JSON.stringify(columnOrder.value));
 };
 
@@ -1419,7 +1231,6 @@ const issuerOptions = computed(() => {
 const tableRowKey = (row:any) => row?.isGroup ? row.id : accountRowKey(row);
 
 const groupAwareRowFilter = (row, columnId, filterValues) => {
-  //console.log("groupAwareRowFilter filterValues",filterValues);
   const original = row.original
   if (!filterValues?.length) return true
 
@@ -1474,7 +1285,6 @@ const allColumns = {
       h(Checkbox, {
         'modelValue': row.original.depth ? row.original.getIsSelected() : row.getIsSelected(),
         'onUpdate:modelValue': (value: boolean) => {
-          //console.log("click row",row);
           if(row.original.depth){
             row.original.toggleSelected(!!value);
           }else{
@@ -1499,45 +1309,6 @@ const allColumns = {
     accessorKey: 'broker',
     id: 'broker',
     cell: (info) => info.getValue(),
-    /*
-    header: ({ column }) =>
-      h("div", { class: "flex items-center gap-2" }, [
-      getSortingHeader(column, "broker"),
-      h(Popover,{},
-        {
-          default: () => [
-            h(PopoverTrigger, { asChild: true }, () =>
-              h(Button, { variant: "ghost", size: "sm", class: "p-1" }, () =>
-                h(Filter, { class: "h-4 w-4" })
-              )
-            ),
-            h(PopoverContent, { class: "w-56 p-3 space-y-2" }, () => [
-              h("div", { class: "font-medium text-sm mb-2" }, t("broker") ),
-              ...brokerOptions.value.map(broker =>
-                h("div", { class: "flex items-center space-x-2" }, [
-                  h(Checkbox, {
-                    modelValue: (column.getFilterValue() ?? []).includes(broker),
-                    "onUpdate:modelValue": (checked: boolean) => {
-                      const current = new Set(column.getFilterValue() ?? [])
-                      if (checked) current.add(broker)
-                      else current.delete(broker)
-                      column.setFilterValue(Array.from(current))
-                    },
-                  }),
-                  h("span", { class: "text-sm" }, t(broker))
-                ])
-              ),
-              h(Button, {
-                variant: "outline",
-                size: "sm",
-                class: "mt-2 w-full",
-                onClick: () => column.setFilterValue([]),
-              }, () => t("clear_filters") )
-            ]),
-          ],
-        }
-      )
-    ]),*/
     header: ({ column }) =>
       h("div", { class: "flex items-center gap-2" }, [
         getSortingHeader(column, "broker"),
@@ -1558,8 +1329,6 @@ const allColumns = {
   type: { 
     accessorKey: 'type', id: 'type', 
     cell: (info) => info.getValue(), 
-    //header: ({ column }) => getSortingHeader(column, 'type'), 
-    //filterFn: 'includes', 
     header: ({ column }) =>
       h("div", { class: "flex items-center gap-2" }, [
         getSortingHeader(column, "type"),
@@ -1570,10 +1339,6 @@ const allColumns = {
           })),
         }),
     ]),
-    /*filterFn: (row, columnId, filterValues) => {
-      if (!filterValues || filterValues.length === 0) return true
-      return filterValues.includes(row.getValue(columnId))
-    },*/
     filterFn: groupAwareRowFilter,
   },
 
@@ -1603,7 +1368,6 @@ const allColumns = {
   issuer: { 
     accessorKey: 'issuer', id: 'issuer', 
     cell: (info) => info.getValue(), 
-    //header: ({ column }) => getSortingHeader(column, 'issuer'),
     header: ({ column }) =>
       h("div", { class: "flex items-center gap-2" }, [
         getSortingHeader(column, "issuer"),
@@ -1650,7 +1414,6 @@ const allColumns = {
   market_cap: { accessorKey: 'market_cap', id: 'market_cap', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'market_cap')  },
   barrier_knockout: { accessorKey: 'barrier_knockout', id: 'barrier_knockout', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'barrier_knockout') },
   bonus_level: { accessorKey: 'bonus_level', id: 'bonus_level', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'bonus_level') },
-  //maturity: { accessorKey: 'maturity', id: 'maturity', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'maturity')},
   coupon: { accessorKey: 'coupon', id: 'coupon', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'coupon') },
   
   omega: { accessorKey: 'omega', id: 'omega', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'omega') },
@@ -1660,13 +1423,10 @@ const allColumns = {
   peer_members: { accessorKey: 'peer_members', id: 'peer_members', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'peer_members')  },
   implied_volatility: { accessorKey: 'implied_volatility', id: 'implied_volatility', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'implied_volatility')  },
   
-  //actions: { id: 'actions', enableHiding: false, cell: (info) => info.getValue() },
 }
 
 
 const sorting = ref([
-  //{ id: 'stock_name',desc: false },
-  //{ id: 'group_name',desc: false }
 ])
 
 const setSorting = (sortingUpdater) => {
@@ -1676,7 +1436,6 @@ const setSorting = (sortingUpdater) => {
   localStorage.setItem("tableSortState", JSON.stringify(newSortVal));
 }
 
-//const columnOrder = ref([])
 const defaultColumnOrder = Object.keys(allColumns).filter(colId => allColumns[colId].defaultVisible !== false);
 const storedOrder = safeJsonGet<string[]>('columnOrder', defaultColumnOrder);
 
@@ -1692,12 +1451,8 @@ const columns = computed(() => columnOrder.value.map(colId => allColumns[colId])
 const expanded = ref(safeJsonGet<Record<string, boolean>>('tableExpanded', {}));
 let isFirstLoad = false;
 function setExpanded(updater) {
-  //console.log("setExpanded updater",updater);
-  //console.log("setExpanded updater typeof",typeof updater);
-  //console.log("setExpanded updater expanded",expanded.value);
   if(isFirstLoad && updater){
     valueUpdater(updater, expanded); // your helper
-    //expanded.value = typeof updater === 'function' ? updater(expanded.value) : updater;
     localStorage.setItem('tableExpanded', JSON.stringify(expanded.value));
   }
 }
@@ -1706,9 +1461,7 @@ function setExpanded(updater) {
 const globalFilter = ref('');
 const globalFilterInput = ref('');
 const applyDebouncedFilter = debounce((val) => {
-  //console.log("applyDebouncedFilter val",val);
   globalFilter.value = val;
-  //table.setGlobalFilter(val);
 }, 300);
 
 watch(globalFilterInput, (val) => {
@@ -1777,12 +1530,15 @@ const newFilteredData = computed(() => {
 });
 
 
-
-
-
 const columnFilters = ref<ColumnFiltersState>([])
 const mainListData = ref([]);
 const listData = ref([]);
+
+// Saves the list (groups, notes, targets) so it survives a reload.
+const persistListData = async () => {
+  await storage.setItem('local:LIST_DATA', deepCloneReactiveData(listData.value));
+};
+
 
 const table = useVueTable({
   get data() {
@@ -1835,11 +1591,7 @@ const selectedProducts = ref([]);
 
 watch(rowSelection, (newVal) => {
   const selectedIds = new Set(Object.keys(newVal));
-  /*const selectedProducts = listData.value.filter(item =>
-    selectedIds.includes(item.isin || item.id)
-  );*/
   
-  //groupName.value = '';
   selectedProducts.value = [];
   listData.value.map(item => {
     if (selectedIds.has(tableRowKey(item))){
@@ -1855,12 +1607,9 @@ watch(rowSelection, (newVal) => {
       });
     }
   });
-  //console.log("watch selectedProducts",selectedProducts.value);
   
   const wknValues = selectedProducts.value.map(item => item.wkn);
   groupName.value = wknValues.join(', ');
-  //console.log("watch wknValues",wknValues);
-  //console.log("watch groupName",groupName.value);
 
   currentRow.value = selectedProducts.value[0];
 });
@@ -1888,11 +1637,6 @@ const removeGroupWithEmptyItems = ()=>{
 }
 
 const combineRows = async () => {
-  const selectedIds = Object.keys(rowSelection.value)
-  //console.log("combineRows selectedProducts",selectedProducts.value);
-  //console.log("combineRows defaultColumnOrder",defaultColumnOrder);
-  //console.log("combineRows selectedProducts",selectedProducts);
-  
   if(selectedGroup.value){
     const groupIndex = listData.value.findIndex(g => g.id === selectedGroup.value);
     if (groupIndex !== -1) {
@@ -1907,9 +1651,6 @@ const combineRows = async () => {
       existingGroup.items.push(...newItems);
 
       // Remove the selected products from the top-level list
-      /*listData.value = listData.value.filter(
-        item => !selectedProducts.value.some(p => !item.isGroup && p.isin === item.isin)
-      );*/
 
       listData.value = listData.value.map(item => {
         if (item.id === selectedGroup.value) return item;
@@ -1950,10 +1691,6 @@ const combineRows = async () => {
         .map(({ items, ...rest }) => rest),
     };
 
-    /*
-    const flatRows = listData.value.filter(item =>
-      !selectedProducts.value.some(p => !item.isGroup && p.isin === item.isin)
-    );*/
 
     const flatRows = listData.value.map(item => {
       const mainSelected = selectedProducts.value.some(
@@ -1971,10 +1708,7 @@ const combineRows = async () => {
     }).filter(Boolean);
 
 
-    //console.log("combineRows 1 flatRows",flatRows);
-
     // Set new listData with grouped + remaining
-    //listData.value = [groupedRow, ...listData.value]
     listData.value = [groupedRow, ...flatRows];
     removeGroupWithEmptyItems();
   }
@@ -1982,14 +1716,8 @@ const combineRows = async () => {
   // Clear selection
   clearRowSelecttion();
   
-  //console.log("combineRows 1 listData",listData.value);
-  const clonedData = deepCloneReactiveData(listData.value);
-  //console.log("combineRows final clonedData",clonedData);
-  //chrome.storage.local.set({ [`KONTO_FLATEX`]: clonedData });
-  await storage.setItem('local:LIST_DATA',clonedData);
+  await persistListData();
   
-  //let newData = await storage.getItem('local:KONTO_FLATEX');
-  //console.log("combineRows final newData",newData);
 }
 
 const editGroupId = ref(0);
@@ -2009,7 +1737,6 @@ const editGroup = (groupId)=>{
 }
 
 const updateGroup = async (groupId) => {
-  //console.log("removeGroup groupId",groupId);
   
   // Find the group by the groupId
   const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
@@ -2025,17 +1752,12 @@ const updateGroup = async (groupId) => {
     editGroupId.value = 0;
     editGroupName.value = '';
     
-    // Optionally: Save the new data to storage
-    const clonedData = deepCloneReactiveData(listData.value);
-    await storage.setItem('local:LIST_DATA', clonedData);
-    //let newData = await storage.getItem('local:KONTO_FLATEX');
-    //console.log("removeGroup final newData", newData);
+    await persistListData();
   }
 };
 
 
 const removeGroup = async (groupId) => {
-  //console.log("removeGroup groupId",groupId);
   
   // Find the group by the groupId
   const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
@@ -2058,12 +1780,8 @@ const removeGroup = async (groupId) => {
   // Clear selection
   rowSelection.value = {};
 
-  // Optionally: Save the new data to storage
-  const clonedData = deepCloneReactiveData(listData.value);
-  await storage.setItem('local:LIST_DATA', clonedData);
+  await persistListData();
 
-  //let newData = await storage.getItem('local:KONTO_FLATEX');
-  //console.log("removeGroup final newData", newData);
 };
 
 
@@ -2097,14 +1815,9 @@ const removeItemFromGroup = async (groupId, itemId) => {
   // Trigger full reactivity
   listData.value = updatedList;
 
-  // Save to storage
-  const clonedData = deepCloneReactiveData(listData.value);
-  await storage.setItem('local:LIST_DATA', clonedData);
+  await persistListData();
 
-  //const newData = await storage.getItem('local:KONTO_FLATEX');
-  //console.log("removeItemFromGroup final newData", newData);
 };
-
 
 
 const formatGermanNumber = (num) => numberToGerman(num, false, 2);;
@@ -2245,8 +1958,6 @@ const scopedPositionPercentage = (row:any) => {
 };
 
 
-
-
 const listTotal = ref({});
 // "Total" used to sit only in the broker column, so it vanished whenever broker was hidden
 const footerLabelColumn = computed(() => columnOrder.value.find((id: string) => id !== 'select'));
@@ -2280,63 +1991,18 @@ async function calculateTotals(saveDaily = true) {
 
     //convert to german
     for (const key in totals) {
-      //totals[key] = numberToGerman(totals[key]);
       totals[key] = parseFloat(totals[key]).toFixed(2);
     }
 
     listTotal.value = totals;
-    //console.log("calculateTotals listTotal",listTotal.value);
 
   }
 }
 
 
-let sortBy = 'stock_name';
-let sortOrder='asc';
+// No hover override: gray-300 hover with black text broke dark mode; ghost variant already has a themed hover
+const getSortingHeader = (column, label) => sortableHeader(column, t(label));
 
-function getSortingHeader(column, label) {
-  return h(Button, {
-    variant: 'ghost',
-    // gray-300 hover with black text broke dark mode; ghost variant already has a themed hover
-    class : '',
-    onClick: () => {
-      column.toggleSorting(column.getIsSorted() === 'asc');
-      // Toggle sorting
-      //const newSortOrder = column.toggleSorting(column.getIsSorted() === 'asc' ? 'desc' : 'asc');
-      // Call the API with the new sort order
-      sortBy = column.id;
-      sortOrder= column.getIsSorted();
-      //getHorses();
-      //console.log("getSortingHeader sortBy",sortBy);
-      //console.log("getSortingHeader sortOrder",sortOrder);
-      },
-  }, () => [
-    t(label),
-    column.getIsSorted() === 'asc'
-      ? h(ArrowUpNarrowWide, { class: 'ml-2 h-4 w-4' })
-      : column.getIsSorted() === 'desc'
-        ? h(ArrowDownWideNarrow, { class: 'ml-2 h-4 w-4' })
-        : h(ArrowUpDown, { class: 'ml-2 h-4 w-4 ' })
-  ]);
-}
-
-const selectedBroker = ref('all');
-const brokers = ref([
-  { id:'all', name:'view_all'},
-  { id:'Flatex', name:'flatex'},
-  { id:'Consors Bank', name:'consors_bank'},
-  //{ id:'smart_broker', name:'smart_broker_plus'},
-]);
-
-const getList = async () =>{
-  //console.log("getList");
-  if(selectedBroker.value!=='all'){
-    table.getColumn('broker')?.setFilterValue(selectedBroker.value);
-  }else{
-    table.getColumn('broker')?.setFilterValue('');
-  }
-  
-}
 
 const controllers: AbortController[] = [];
 let chunkSize = 20;
@@ -2350,8 +2016,7 @@ const getProductData = async (forceUpdate = false) => {
 
   mainListData.value = await storage.getItem('local:MAIN_LIST') || [];
 
-  const today = new Date().toISOString().split('T')[0];
-  //console.log("getProductData mainListData",mainListData.value);
+  const today = todayIso();
   const shouldInclude = (item) => forceUpdate || item.lastUpdated !== today;
   // Deduped: the same holding in two accounts is two rows but one product to fetch.
   const stockItems = [...new Set(mainListData.value.filter(item => item.type === 'stock' && shouldInclude(item)).map(item => item.wkn).filter(Boolean))];
@@ -2380,7 +2045,6 @@ const getProductData = async (forceUpdate = false) => {
         if(apiData.status == 1 && apiData?.data?.length>0){
           allApiData = allApiData.concat(apiData.data);
         }
-        //console.log(`getProductData apiData`, apiData);
       } catch (chunkErr) {
         if ((chunkErr as any)?.name === 'AbortError') throw chunkErr;
         console.error('getProductData error:', chunkErr);
@@ -2402,7 +2066,6 @@ const getProductData = async (forceUpdate = false) => {
         if(apiData.status == 1 && apiData?.data?.length>0){
           allApiData = allApiData.concat(apiData.data);
         }
-        //console.log(`getProductData apiData`, apiData);
       } catch (chunkErr) {
         if ((chunkErr as any)?.name === 'AbortError') throw chunkErr;
         console.error('getProductData error:', chunkErr);
@@ -2413,19 +2076,15 @@ const getProductData = async (forceUpdate = false) => {
     const apiMap = Object.fromEntries(
       allApiData.map(product => [product.isin, { ...product, lastUpdated: today }])
     );
-    //console.log("getProductData apiMap", apiMap);
     
     // Merge data into your list
     mainListData.value = mainListData.value.map(item => {
       const extraData = apiMap[item.isin];
-      //console.log("getProductData mainListData loop== extraData",extraData);
-      //console.log("getProductData mainListData loop== item",item);
       if (extraData && Object.keys(extraData).length > 0) {
         return { ...item, ...extraData };
       } else if(answered.has(item.wkn) || answered.has(item.isin)) {
         // If the item was supposed to be updated but no data found, set lastUpdated to today to avoid refetching
         return { ...item, lastUpdated: today };
-        //return item;
       }else {
         return item;
       }
@@ -2433,7 +2092,6 @@ const getProductData = async (forceUpdate = false) => {
     const clonedData = deepCloneReactiveData(mainListData.value);
     await storage.setItem('local:MAIN_LIST',clonedData);
 
-    //console.log("getProductData mainListData updated-->",mainListData.value);
   } catch (err) {
     console.error('getProductData Failed to fetch product data:', err);
   } finally {
@@ -2444,7 +2102,6 @@ const getProductData = async (forceUpdate = false) => {
 
 const isPriceLoading = ref(false);
 const reloadPriceData = async(forceUpdate=false) =>{
-  //console.log("reloadPriceData")
   // forceUpdate means the Reload button, so only then say why nothing happened; the interval stays silent.
   if(isRefreshing.value || isPriceLoading.value){
     if(forceUpdate) toast({ title: t('refresh_already_running') });
@@ -2480,7 +2137,6 @@ const reloadPriceData = async(forceUpdate=false) =>{
     ];
 
     mainListData.value = await storage.getItem('local:MAIN_LIST') || [];
-    //console.log('reloadPriceData mainListData 2:',  mainListData.value);
 
     // Per position, not per wkn: one wkn in two accounts flashed only the first row.
     const oldByPosition = new Map(currentData.map(i => [accountPositionKey(i), i]));
@@ -2518,8 +2174,7 @@ const getPeerProductData = async () => {
   controllers.push(controller);
 
   mainListData.value = await storage.getItem('local:MAIN_LIST') || [];
-  const today = new Date().toISOString().split('T')[0];
-  //console.log("getPeerProductData");
+  const today = todayIso();
   // Deduped: the same holding in two accounts is two rows but one peers request.
   const wknList = [...new Set(mainListData.value
     .filter(item => item.peerslastUpdated !== today)
@@ -2561,15 +2216,9 @@ const getPeerProductData = async () => {
       await Promise.all(batch.map(fetchPeers));
     }
     
-    //console.log(`getPeerProductData allApiData:`, allApiData);
     // Merge data into your list
     mainListData.value = mainListData.value.map(item => {
       const extraData = allApiData[item.wkn];
-      //console.log("getPeerProductData extraData loop== extraData",extraData);
-      //console.log("getPeerProductData mainListData loop== item",item);
-      /*if(extraData){
-        return extraData ? { ...item, ...extraData } : item;
-      }*/
 
         if (extraData && Object.keys(extraData).length > 0) {
           return { ...item, ...extraData };
@@ -2584,7 +2233,6 @@ const getPeerProductData = async () => {
     const clonedData = deepCloneReactiveData(mainListData.value);
     await storage.setItem('local:MAIN_LIST',clonedData);
 
-    //console.log("getPeerProductData mainListData updated-->",mainListData.value);
   } catch (err) {
     console.error('getPeerProductData Failed to fetch product data:', err);
   } finally {
@@ -2627,94 +2275,44 @@ const amountFields = [
   ];
 
 const exportDelimiter = ref(';');
+// Selected rows if the user ticked any, otherwise everything in the table.
+const rowsToExport = () => {
+  if (!Object.keys(rowSelection.value).length) return combinedData.value;
+  return combinedData.value.filter(item => rowSelection.value[tableRowKey(item)] === true);
+};
+
+// Cell value as it should appear in a file: peers joined, amounts rounded to 2 decimals.
+const exportCellValue = (row, col) => {
+  const value = getNestedValue(row, col.accessorKey || col.id);
+  if (col.accessorKey === 'peer_members') return value != null ? value.join(',') : '';
+  if (amountFields.includes(col.accessorKey)) return value != null ? Number(parseFloat(value).toFixed(2)) : '';
+  return value;
+};
+
 const exportCSV = () => {
-  let tableRows = combinedData.value;
-  //console.log("exportCSV tableRows",tableRows);
-  
-  let delimiter = exportDelimiter.value;
-  let activeColumns = columns.value.filter(col => !['select','id','profile_photo','actions'].includes(col.id));
+  const delimiter = exportDelimiter.value;
+  const activeColumns = columns.value.filter(col => !['select','id','profile_photo','actions'].includes(col.id));
 
-  if (Object.keys(rowSelection.value).length) {
-    tableRows = combinedData.value.filter(item =>
-      rowSelection.value[tableRowKey(item)] === true
-    );
-  }
-  
-  const tableColumns = activeColumns.map(col => col.id).join(delimiter) + '\n';
-  /*const csvContent = tableRows.map(row => {
-    return activeColumns.map(col => getNestedValue(row, col.accessorKey)).join(delimiter);
-  }).join('\n');
-  */
+  const header = activeColumns.map(col => col.id).join(delimiter) + '\n';
+  const body = rowsToExport()
+    .map(row => activeColumns.map(col => exportCellValue(row, col) ?? '').join(delimiter))
+    .join('\n');
 
-  const csvContent = tableRows.map(row => {
-  return activeColumns.map(col => {
-      const value = getNestedValue(row, col.accessorKey || col.id);
-      if (col.accessorKey === 'peer_members') {
-        return value != null ? value.join(',') : '';
-      } else if (amountFields.includes(col.accessorKey)) {
-        //return value != null ? parseFloat(value).toFixed(2) : '';
-        return value != null ? Number(parseFloat(value).toFixed(2)) : '';
-      } else {
-        return value != null ? value : '';
-      }
-    }).join(delimiter);
-  }).join('\n');
-  //console.log("exportCSV csvContent",csvContent);
-
-  const blob = new Blob([tableColumns + csvContent], {type: 'text/csv;charset=utf-8;'});
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  
-  const now = new Date();
-  const timestamp = now.toISOString().slice(0, 16).replace(/[:T]/g, '_');
-
-  link.setAttribute('href', url);
-  link.setAttribute('download', 'list_' + timestamp + '.csv');
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  downloadCsv(header + body, `list_${fileTimestamp()}.csv`);
 }
 
 const exportXlsx = () => {
-  let tableRows = combinedData.value;
-  const activeColumns = columns.value.filter(
-    col => !['select', 'id', 'actions'].includes(col.id)
-  );
+  const activeColumns = columns.value.filter(col => !['select', 'id', 'actions'].includes(col.id));
 
-  if (Object.keys(rowSelection.value).length) {
-    tableRows = combinedData.value.filter(item =>
-      rowSelection.value[tableRowKey(item)] === true
-    );
-  }
-  
-  //console.log("exportXlsx columns",columns.value);
-  const exportData = tableRows.map(row => {
+  const exportData = rowsToExport().map(row => {
     const newRow = {};
     activeColumns.forEach(col => {
-      const value = getNestedValue(row, col.accessorKey || col.id);
-      if(col.accessorKey=='peer_members'){
-        newRow[col.id] = value != null ? value.join(',') : '';
-      }else if(amountFields.includes(col.accessorKey)){
-        //newRow[col.id] = value != null ? parseFloat(value).toFixed('2') : '';
-        newRow[col.id] = value != null ? Number(parseFloat(value).toFixed(2)) : '';
-      }else{
-        newRow[col.id] = value;
-      }
-      //console.log("exportXlsx col",col.id,"value",newRow[col.id],'Value Type',typeof newRow[col.id]);
+      newRow[col.id] = exportCellValue(row, col);
     });
     return newRow;
   });
 
-  const worksheet = XLSX.utils.json_to_sheet(exportData);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-
-  const now = new Date();
-  const timestamp = now.toISOString().slice(0, 16).replace(/[:T]/g, '_');
-  const filename = `list_${timestamp}.xlsx`;
-
-  XLSX.writeFile(workbook, filename);
+  downloadXlsx(exportData, 'Sheet1', `list_${fileTimestamp()}.xlsx`);
 };
 
 const wknLink = ref('');
@@ -2741,17 +2339,14 @@ let priceInterval: ReturnType<typeof setInterval> | null = null;
 let alertInterval: ReturnType<typeof setInterval> | null = null;
 
 onBeforeUnmount(() => {
-  //console.log("onBeforeUnmount");
   cancellAllRequests();
 });
 
 onBeforeRouteLeave(() => {
-  //console.log("onBeforeRouteLeave");
   cancellAllRequests();
 });
 
 onUnmounted(() => {
-  //console.log("onUnmounted");
   if (priceInterval !== null) clearInterval(priceInterval);
   if (alertInterval !== null) clearInterval(alertInterval);
   priceInterval = null;
@@ -2760,7 +2355,6 @@ onUnmounted(() => {
 
 onMounted( async() => {
   await getApiKey();
-  //console.log("onMounted apikey:",apiKey.value);
   await getLatestData();
   await paintFromStorage();
 
@@ -2772,11 +2366,9 @@ onMounted( async() => {
   if(apiKey.value) refreshFromNetwork();
 
   setTimeout(()=>{
-    //isLoading.value = false;
   },1000);
 
   const settings = await storage.getItem('local:settings') as Record<string, any> | null;
-  //console.log("onMounted list settings",settings.);
   if(settings){
     wknLink.value          = settings.wkn_link            ?? '';
     isinLink.value         = settings.isin_link           ?? '';
@@ -2787,7 +2379,6 @@ onMounted( async() => {
   }
 
   // Outside the settings block: a fresh install has no saved settings and never auto-refreshed.
-  //console.log("apiKey ",apiKey.value);
   if(apiKey.value && priceUpdateDuration.value > 0){
     priceInterval = setInterval(async()=>{
       await reloadPriceData();
@@ -2797,47 +2388,8 @@ onMounted( async() => {
   //Alert Interval
   alertInterval = setInterval(checkAlerts, 1000);
 
-  /*
-    //const konto = await storage.getItem('local:KONTO_FLATEX');
-    const konto = await storage.getItem('local:LIST_DATA');
-    if(konto){
-      listData.value = konto;
-
-      await getProductData();
-      await getPriceData();
-      await getUnderlyingPriceData();
-      //console.log("onMounted listData",listData.value);
-
-      const clonedData = deepCloneReactiveData(listData.value);
-      //console.log("onMounted clonedData",clonedData);
-
-      //await storage.setItem('local:KONTO_FLATEX',clonedData);
-      await storage.setItem('local:LIST_DATA',clonedData);
-      //console.log("onMounted saved",listData.value);
-
-      //let newData = await storage.getItem('local:KONTO_FLATEX');
-      //console.log("onMounted saved newData",newData);
-    }
-    isLoading.value = false;
-
-    //console.log("onMounted list konto",listData.value);
-    //console.log("onMounted list apiBaseUrl",apiBaseUrl);
-    //console.log("onMounted apiKey",apiKey.value);
-  */
 });
 
-
-function getQuantoLabel(currency, quanto) {
-  if (currency === 'EUR') {
-    return t('yes');
-  } else if (currency !== 'EUR' && quanto === true) {
-    return t('yes');
-  } else {
-    return t('no');
-  }
-}
-
-//calculateLatestMainListData();
 
 // A count, not a flag: an account switch can start a second pass before the first ends.
 const activeRefreshes = ref(0);
@@ -2852,15 +2404,12 @@ const getLatestMainListData = async(isPriceReload=false) =>{
   }
 
   //new added for page change issue
-  //const clonedData = deepCloneReactiveData(mainListData.value);
-  //await storage.setItem('local:MAIN_LIST',clonedData);
 }
 
 // Paint from storage first; the network pass can take many seconds on the first load of a day.
 const paintFromStorage = async() =>{
   await calculateLatestMainListData();
   mainListData.value = await storage.getItem('local:MAIN_LIST') || [];
-  //console.log("paintFromStorage mainListData",mainListData.value);
   // No DAILY_TOTAL save yet when a network pass follows: cached prices would stand in for today on Home.
   calculateTotals(!apiKey.value);
   await getLatestListData();
@@ -2881,7 +2430,6 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
     await getProductData();
     await getPeerProductData();
 
-    //await getPriceData(false);
     if(!isPriceReload){
       await getPriceData();
       await getUnderlyingPriceData();
@@ -2904,8 +2452,6 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
 
 //listData
 const getLatestListData = async() =>{
-  //console.log("getLatestListData ==>")
-  //listData.value = mainListData.value;
   const currentListData = await storage.getItem('local:LIST_DATA');
   if(currentListData){
     listData.value = currentListData;
@@ -2915,13 +2461,10 @@ const getLatestListData = async() =>{
   const currentData = listData.value || [];
 
   if(currentData.length===0){
-    //console.log("getLatestListData init")
     currentData.push(...newStockData.map(stock => ({...stock, isGroup: false})));
   }else{
-    //console.log("getLatestListData exist");
     // Shared with MAIN_LIST so the two stores can never disagree about identity.
     const getKey = (item) => accountPositionKey(item);
-    //const newWknSet = new Set(newStockData.map(stock => stock.wkn));
     const newWknSet = new Set(newStockData.map(stock => getKey(stock)));
 
     // Indexed once up front; findIndex per stock was O(n²) with a key rebuild on every compare. First match wins, as before.
@@ -2967,13 +2510,11 @@ const getLatestListData = async() =>{
       const entry = currentData[i];
 
       if (entry.isGroup && Array.isArray(entry.items)) {
-        //entry.items = entry.items.filter(item => newWknSet.has(item.wkn));
         entry.items = entry.items.filter(item => newWknSet.has(getKey(item)));
         // Optionally remove empty groups
         if (entry.items.length === 0) {
           currentData.splice(i, 1);
         }
-      //} else if (!entry.isGroup && !newWknSet.has(entry.wkn)) {
       } else if (!entry.isGroup && !newWknSet.has(getKey(entry))) {
         currentData.splice(i, 1);
       }
@@ -2982,8 +2523,6 @@ const getLatestListData = async() =>{
   
   //set init
   const clonedData = deepCloneReactiveData(currentData);
-  //console.log("getLatestListData listData",listData.value)
-  //console.log("getLatestListData clonedData",clonedData)
   listData.value = clonedData;
   await storage.setItem('local:LIST_DATA',clonedData);
 }
@@ -3021,16 +2560,11 @@ const hlExtremes = computed(() => {
 });
 
 function getClassForHL(field, currentValue) {
-  //console.log("getClassForHL field",field);
-  //console.log("getClassForHL currentValue",currentValue);
   const extremes = hlExtremes.value[field];
   if (!extremes) return '';
 
   const highValue = extremes.high;
   const lowValue = extremes.low;
-  //console.log("getClassForHL highValue",highValue);
-  //console.log("getClassForHL lowValue",lowValue);
-  //console.log("getClassForHL field:"+field+" currentValue:"+currentValue  + " highValue:"+highValue + " lowValue:"+lowValue);
   
   if (currentValue === highValue) {
     return 'high';
@@ -3075,10 +2609,6 @@ function getClassForAlert(field, row) {
   const matchingAlerts = (alertsByKey.value.get(`${field}|${row?.wkn}`) || []).filter(
     (a:any) => alertMatchesRow(a, row)
   );
-  //console.log("getClassForAlert alerts",alerts.value);
-  //console.log("getClassForAlert field",field);
-  //console.log("getClassForAlert wkn",wkn);
-  //console.log("getClassForAlert matchingAlerts",matchingAlerts);
   
   if (matchingAlerts.length === 0) return '';
 
@@ -3090,9 +2620,7 @@ function getClassForAlert(field, row) {
 
   for (const alert of matchingAlerts) {
     const isActive = alert.status !== 1;
-    //console.log("getClassForAlert isActive",isActive);
     if (topConditions.includes(alert.condition)) {
-      //console.log("getClassForAlert topConditions",topConditions);
       if(isActive) topColor = 'border-top-green';
       else topColor = 'border-top-red';
     }
@@ -3108,10 +2636,8 @@ function getClassForAlert(field, row) {
   if (bottomColor) classes.push('alert_bottom', bottomColor);
   if (matchingAlerts.length > 1) classes.push('alert_bg','bg-green-200');
 
-  //console.log("getClassForAlert classes",classes);
   return classes.join(' ');
 }
-
 
 
 /* Alert */
@@ -3122,7 +2648,6 @@ const alertForm = reactive({
   field:'',
   condition:'==',
   alert_value:0,
-  //wkn:'',
   stock_name:'',
   status:0,
 });
@@ -3178,8 +2703,6 @@ function setAlertFields(){
 }
 
 function openModal(item, type='stock') {
-  //console.log("openModal item",item);
-  //console.log("openModal type",type);
   selectedItem.value = item;
   if(selectedItem.value?.wkn){
     resetAlertForm();
@@ -3221,14 +2744,11 @@ const clearRowSelecttion = ()=>{
 }
 
 const onAlertFieldChange = (event) =>{
-  //console.log("onAlertFieldChange event",event);
-  //console.log("onAlertFieldChange selectedItem",selectedItem.value);
   const raw = selectedItem.value?.[alertForm.field];
   const parsed = raw == null ? NaN : Number(raw);
   if (Number.isFinite(parsed)) {
     alertForm.alert_value = parsed.toFixed(2);
   }
-  //console.log("onAlertFieldChange event alertForm",alertForm);
 }
 
 const alerts = ref([]);
@@ -3261,7 +2781,6 @@ async function createAlert() {
 
   if (exists) {
     // 🚨 Show warning
-    //console.log('Alert with same settings already exists!')
     toast({ title: t('alert_with_same_settings_already_exists'), variant: 'destructive' });
     return
   }
@@ -3298,8 +2817,6 @@ async function openEditAlert(id) {
     
     alertType.value = currentAlert.type;
     setAlertFields();
-    //console.log("currentAlert ",currentAlert);
-    //console.log("currentAlert.wkn ",currentAlert.wkn);
     
     if(alertType.value==='stock'){
       selectedItem.value = listData.value.find(item => item.wkn === currentAlert.type_id && alertMatchesRow(currentAlert, item));
@@ -3321,9 +2838,6 @@ async function openEditAlert(id) {
     alertForm.status = 0;
     isAlertModal.value = true;
   }
-  //console.log("openEditAlert idx",idx);
-  //console.log("openEditAlert selectedItem",selectedItem);
-  //console.log("openEditAlert selectedEditItem",selectedEditItem);
 }
 
 // Update an existing alert
@@ -3347,12 +2861,6 @@ async function deleteAlert(id: string) {
   alerts.value = alerts.value.filter((a) => a.id !== id)
   await saveAlerts()
   toast({ title: t('alert_deleted_successfully') });
-}
-
-// Optional: Clear all alerts
-async function clearAllAlerts() {
-  alerts.value = []
-  await saveAlerts()
 }
 
 
@@ -3379,13 +2887,10 @@ async function checkAlerts() {
   // Cached prices are painted before the network pass; firing on them would complete alerts on stale values.
   if (isRefreshing.value) return;
   alertCheckInFlight = true;
-  //console.log("checkAlerts alerts",alerts.value);
   try {
     for (const alert of alerts.value) {
       if(alert.status===1) continue; //pass if completed
 
-      //console.log("checkAlerts alert",alert);
-      //console.log("checkAlerts alert type",alert.type);
 
       let item;
       let alertType = alert.type;
@@ -3399,7 +2904,6 @@ async function checkAlerts() {
         item = getGroupTotals(alert.type_id);
       }
 
-      //console.log("checkAlerts alert item",item);
       if (!item) continue
 
       const rawFieldValue = item[alert.field];
@@ -3427,7 +2931,6 @@ async function checkAlerts() {
         const audio = new Audio(alertAudioUrl);
         audio.currentTime = 0 // always reset to start
         audio.play().catch((err) => {
-          //console.log('⚠️ Could not play alert sound:', err)
         });
 
         // Telegram message — build HTML safely with user-input fields escaped.
@@ -3445,8 +2948,7 @@ async function checkAlerts() {
           `<strong>${t('current')}</strong>: ${numberToGerman(a.currentValue)}`;
         
         if(telegramBotToken.value && telegramChannelId.value){
-          let sendData = await sendTelegramMessage(telegramBotToken.value,telegramChannelId.value,message)
-          //console.log("checkAlerts sendTestMessage sendData",sendData);
+          await sendTelegramMessage(telegramBotToken.value,telegramChannelId.value,message)
         }
 
         //update status to complet
@@ -3457,11 +2959,9 @@ async function checkAlerts() {
         }
         break // Stop after first match (optional: remove if you want to show multiple)
       }else{
-        ///console.log("checkAlerts else not in condition");
       }
     }
   } catch (error) {
-    //console.log("checkAlerts error:", error);
   } finally {
     alertCheckInFlight = false;
   }
@@ -3484,16 +2984,10 @@ function isConditionSatisfied(current: number, condition: string, target: number
 // Keyed by position, not wkn: the same product in two accounts is two rows, and the
 // first match would take the other account's edit.
 const updatePositionTarget = async (row,target,groupId=null) => {
-  /*
-  //console.log("updatePositionTarget row",row);
-  //console.log("updatePositionTarget target",target);
-  //console.log("updatePositionTarget groupId",groupId);
-  */
   const key = accountPositionKey(row);
 
   //main
   let index = mainListData.value.findIndex(item => accountPositionKey(item) === key);
-  //console.log("updatePositionTarget index",index);
   if (index !== -1) {
     mainListData.value[index].position_target_percentage = target;
     const clonedData = deepCloneReactiveData(mainListData.value);
@@ -3502,23 +2996,18 @@ const updatePositionTarget = async (row,target,groupId=null) => {
 
   //list
   index = listData.value.findIndex(item => accountPositionKey(item) === key);
-  //console.log("updatePositionTarget index",index);
   if (index !== -1) {
     listData.value[index].position_target_percentage = target;
-    const clonedData = deepCloneReactiveData(listData.value);
-    await storage.setItem('local:LIST_DATA',clonedData);
+    await persistListData();
   }
 
   if (groupId) {
     const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
-    //console.log("updatePositionTarget groupIndex",groupIndex);
     if (groupIndex !== -1) {
       const subItemIndex = listData.value[groupIndex].items.findIndex(item => accountPositionKey(item) === key);
-      //console.log("updatePositionTarget subItemIndex", subItemIndex);
       if (subItemIndex !== -1) {
         listData.value[groupIndex].items[subItemIndex].position_target_percentage = target;
-        const clonedData = deepCloneReactiveData(listData.value);
-        await storage.setItem('local:LIST_DATA', clonedData);
+        await persistListData();
       }
     }
   }
@@ -3531,13 +3020,10 @@ const debounceUpdatePositionTarget = debounce((row, target, groupId = null) => {
 
 
 const updateNotes = async (row,target,groupId=null) => {
-  //console.log("updateNotes row",row);
-  //console.log("updateNotes target",target);
   const key = accountPositionKey(row);
 
   //main
   let index = mainListData.value.findIndex(item => accountPositionKey(item) === key);
-  //console.log("updateNotes index",index);
   if (index !== -1) {
     mainListData.value[index].notes = target;
     const clonedData = deepCloneReactiveData(mainListData.value);
@@ -3546,23 +3032,18 @@ const updateNotes = async (row,target,groupId=null) => {
 
   //list
   index = listData.value.findIndex(item => accountPositionKey(item) === key);
-  //console.log("updateNotes index",index);
   if (index !== -1) {
     listData.value[index].notes = target;
-    const clonedData = deepCloneReactiveData(listData.value);
-    await storage.setItem('local:LIST_DATA',clonedData);
+    await persistListData();
   }
 
   if (groupId) {
     const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
-    //console.log("updateNotes groupIndex",groupIndex);
     if (groupIndex !== -1) {
       const subItemIndex = listData.value[groupIndex].items.findIndex(item => accountPositionKey(item) === key);
-      //console.log("updateNotes subItemIndex", subItemIndex);
       if (subItemIndex !== -1) {
         listData.value[groupIndex].items[subItemIndex].notes = target;
-        const clonedData = deepCloneReactiveData(listData.value);
-        await storage.setItem('local:LIST_DATA', clonedData);
+        await persistListData();
       }
     }
   }
@@ -3660,7 +3141,6 @@ td:has(.alert_bottom) {
 .price_cell {
   transition: color 0.5s ease, background-color 0.5s ease;
 }
-/*.down { font-weight: 600;color: #e4200e; }*/
 
 .up {  background-color: #00915a; }
 .down {  background-color: #e4200e; }

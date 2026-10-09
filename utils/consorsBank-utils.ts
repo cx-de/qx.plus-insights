@@ -10,7 +10,7 @@ const broker = "Consors Bank";
 let currentAccountId:any = null;
 
 
-export async function addSyncButtonOnConsorsBank(){
+async function addSyncButtonOnConsorsBank(){
   console.log("addSyncButtonOnConsorsBank")
   const selectWrapper = document.querySelector('.select-dropdown-wrapper--white .select-dropdown');
   if (selectWrapper) {
@@ -21,53 +21,24 @@ export async function addSyncButtonOnConsorsBank(){
       parent.style.gap = '10px'; // spacing between select and button
 
       // Create the button
-      // const syncBtn = document.createElement('button');
-      // syncBtn.id = 'syncAccountBtn';
-      // syncBtn.className = 'button button--small button-secondary sync-qx-button';
-      // syncBtn.title = 'Sync Account';
-      // syncBtn.textContent = 'Sync QX+';
 
-    let btnText = "Sync QX+";
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = btnText;
     button.className = "sync-qx-button";
     button.style.marginLeft = "10px";
-    button.style.backgroundColor = "#fcaf2c";
     button.style.padding = "5px 10px";
     button.style.border = "none";
     button.style.borderRadius = "6px";
     button.style.cursor = "pointer";
     button.style.color = "white";
-
-    button.addEventListener("click", async () => {
-
-      await consorsBankSaveDataToLocalStorage();
-
-      button.style.backgroundColor = "#57a658";
-      button.textContent = "Synced";
-
-      setTimeout(()=>{
-        button.style.backgroundColor = "#fcaf2c";
-        button.textContent = btnText;
-      },1000);
-    });
+    attachSyncFeedback(button, consorsBankSaveDataToLocalStorage);
     parent.appendChild(button);
   }
   }
 }
 
-export function addCustomRowHeaderConsorsBank(){
+function addCustomRowHeaderConsorsBank(){
   console.log("addCustomRowHeaderWikifolio");
-  const rowHeaders = [
-    "Derivatetyp (Basiswert / Lieferung / Quanto / Ratio)",
-    "", 
-    "Cap", 
-    "Zielwert",
-    "G/V Ziel €", 
-    "G/V Ziel p.a. (abs.) %", 
-    "Basiswert-Kurs"
-  ];
   
   // Select the sticky header row
   const headerRow = document.querySelector('.tablecards-row-descriptions[data-type="sticky-header"]');
@@ -87,14 +58,14 @@ export function addCustomRowHeaderConsorsBank(){
     newHeaderCell.innerHTML = `
       <div>
         <div class="link link-inline link-underline link--grey">
-          ${rowHeaders[index] || '&nbsp;'}
+          ${EXTRA_ROW_HEADERS[index] || '&nbsp;'}
         </div>
       </div>`;
       headerCells[index].appendChild(newHeaderCell);
   });
 }
 
-export async function updateCustomRowDataConsorsBank(){
+async function updateCustomRowDataConsorsBank(){
   console.log("updateCustomRowDataConsorsBank");
 
   const result = await chrome.storage.local.get(['MAIN_LIST']) || [];
@@ -104,18 +75,8 @@ export async function updateCustomRowDataConsorsBank(){
   const data = depotNo
     ? accountRows.filter((item:any) => String(item.deposite_number) === String(depotNo))
     : accountRows;
-  console.log("updateCustomRowDataConsorsBank result",data);
   if (!data.length) return;
 
-  const columns = [
-    "type", 
-    "",
-    "cap", 
-    "future_total_value",
-    "profit_loss_target",
-    "profit_loss_target_pa", 
-    "underlying_price"
-  ];
   
   try {
     
@@ -138,20 +99,18 @@ export async function updateCustomRowDataConsorsBank(){
       const currentWKN = wknElement ? wknElement.getAttribute('ui-value') : null;
       console.log("consorsBankUpdateCustomRowData currentWKN",currentWKN);
       const currentStock = data.find(item => item.wkn === currentWKN);
-      console.log("consorsBankUpdateCustomRowData currentStock",currentStock);
       if(!currentStock){ return; }
       
-      columns.forEach((col, i) => {
+      EXTRA_ROW_COLUMNS.forEach((col, i) => {
         const cell = headerCells[i];
         if (!cell) return;
         if (cell.querySelector(`.custom_colValue[data-col="${col}"]`)) return;
 
-        const colVal = updateColumnValue(currentStock, col);
+        const colVal = updateColumnValueHtml(currentStock, col);
         const newHeaderCell = document.createElement('div');
 
         newHeaderCell.className = 'flex middle-xs no-wrap custom_colValue';
         newHeaderCell.setAttribute("data-col", col);
-        //newHeaderCell.innerHTML = `<div>${col} ${colVal}</div>`;
         newHeaderCell.innerHTML = `<div>${colVal}</div>`;
         cell.appendChild(newHeaderCell);
       });
@@ -199,13 +158,13 @@ async function syncConsorsBankUser() {
 
 
 // Checks whether the user is on stocks page data can be stored locally & accurately
-export function consorsBankDepositPortfolio() {
+function consorsBankDepositPortfolio() {
   const stockLink = document.querySelector("li.tabs--active span");
   return !!stockLink && stockLink.textContent.trim().toLowerCase().includes("portfolio");
 }
 
 // Save data on Chrome Storage for the grouped page
-export async function consorsBankSaveDataToLocalStorage() {
+async function consorsBankSaveDataToLocalStorage() {
   console.log("consorsBankSaveDataToLocalStorage")
   await syncConsorsBankUser();
 
@@ -236,20 +195,18 @@ export async function consorsBankSaveDataToLocalStorage() {
     });
 
     console.log("Saved Data To Local Storage!");
-    //updateData();
     return false;
   }
 
 }
 
 // Get All Stock Rows
-export function consorsBankGetAllStockData() {
+function consorsBankGetAllStockData() {
   const rows = document.querySelectorAll('.tablecards-row.transition--ease-3');
   const data:any = [];
   
   const params = new URLSearchParams(window.location.search);
   const depotNo = params.get("depotNo");
-  console.log("consorsBankGetAllStockData depotNo",depotNo);
 
   if(depotNo){
     rows.forEach(row => {
@@ -262,7 +219,6 @@ export function consorsBankGetAllStockData() {
       labels.forEach((label, index) => {
           const key = label.textContent.trim();
           const value = values[index] ? values[index].textContent.trim() : '';
-          //console.log("consorsBankGetAllStockData index key value",index,key,value);
           
           const id  = crypto.randomUUID();
           const isGroup  = false;
@@ -307,24 +263,12 @@ export function consorsBankGetAllStockData() {
           }else if(key==="Handelsplatz"){
             rowData['trading_partner'] = value;
           }else if(key==="Gesamtwert"){
-            /*
-            let total_value = value;
-            total_value = total_value.split(' ')[0];
-            total_value = germanToNumer(total_value);
-            rowData['total_value'] = total_value;
-            */
           }else if(key==="Entwicklung absolut"){
-            //rowData['profit_loss_price'] = value;
           }else if(key==="Entwicklung prozentual"){
-            //rowData['profit_loss_percentage'] = value;
-          }else{
-            console.log("consorsBankGetAllStockData index key value",index,key,value);
-            //rowData[key] = value;
           }
       });
       data.push(rowData);
     });
-    console.log("consorsBankGetAllStockData",data);
     return data;
   }else{
     console.log("consorsBankGetAllStockData no depotNo");
@@ -332,60 +276,6 @@ export function consorsBankGetAllStockData() {
     return [];
   }
 
-  /*
-  return Array.from(rows, (row, x) => {
-    const id  = crypto.randomUUID();
-    const isGroup  = false;
-
-    const stock_name = row.querySelector(".C0").textContent;
-    const isin = getIdFromRow(secondRowOfAllStocks[x]);
-    const wkn = secondRowOfAllStocks[x].textContent.split('(')[1]?.split(')')[0]?.trim();
-    
-    //Type
-    let type = typetRowOfAllStocks[x].querySelector(".C0 .PaperKindName").textContent.trim();
-    if(type=='Aktie'){
-      type = 'stock';
-    }else if(type=='Zertifikat'){
-      type = 'certificate';
-    }
-
-    let stocks_owned = row.querySelector(".C2").textContent.trim().split(' ')[0];
-    stocks_owned = germanToNumer(stocks_owned);
-
-    let bid = secondRowOfAllStocks[x].querySelector(".C2").textContent.trim();
-    bid = bid.substring(0, bid.length - 1).trim();
-    bid = germanToNumer(bid);
-    //console.log("getAllStockData bid",bid);
-
-    let buy_price = secondRowOfAllStocks[x].querySelector(".C4").textContent.trim();
-    buy_price = buy_price.substring(0, buy_price.length - 1).trim();
-    buy_price = germanToNumer(buy_price);
-
-    
-    //let total_entry_value = row.querySelector(".C4 .PositiveAmount").textContent.trim().split(' ')[0];
-    let total_entry_value = row.querySelector(".C4").textContent.trim().split(' ')[0];
-    total_entry_value = germanToNumer(total_entry_value);
-
-    let profit_loss_price = secondRowOfAllStocks[x].querySelector(".C5").textContent.trim().split(' ')[0];
-    profit_loss_price = germanToNumer(profit_loss_price);
-    
-    let profit_loss_percentage = row.querySelector(".C5").textContent.trim();
-    profit_loss_percentage = profit_loss_percentage.replace('%', '');
-    profit_loss_percentage = germanToNumer(profit_loss_percentage);
-    //.replace(/\s+/g, '');
-    
-    let timestamp = secondRowOfAllStocks[x].querySelector(".C1").textContent?.trim();
-    //console.log("getAllStockData timestamp",timestamp);
-    let page_timestamp = parseStockTimestamp(timestamp);
-    //console.log("getAllStockData timestamp",timestamp);
-    
-    return { id, isGroup, broker,stock_name, isin, stocks_owned, buy_price,
-      type, wkn, total_entry_value, profit_loss_percentage, profit_loss_price, 
-      bid, page_bid:bid,
-      timestamp:page_timestamp, page_timestamp 
-    };
-
-  });*/
 
 }
 
@@ -396,9 +286,4 @@ export async function mainConsorsBank(){
 
   await consorsBankSaveDataToLocalStorage();
 }
-
-
-
-
-
 

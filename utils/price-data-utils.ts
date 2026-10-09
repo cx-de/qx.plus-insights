@@ -44,14 +44,9 @@ const getPriceUpdateDuration = async () => {
 
 
 export const reloadPriceData = async () => {
-  //console.log("reloadPriceData - Global function");
-  let priceUpdateDuration = await getPriceUpdateDuration();
-  //console.log("reloadPriceData - priceUpdateDuration",priceUpdateDuration);
-  
   if (isMarketClosed()) return;
   let mainListData = await storage.getItem('local:MAIN_LIST') || [];
   const currentData = mainListData;
-  //console.log('reloadPriceData currentData:',currentData);
   try {
     await getPriceData();
     await getUnderlyingPriceData();
@@ -89,7 +84,6 @@ export const reloadPriceData = async () => {
         }
       });
     });
-    //console.log('reloadPriceData mainListData:',mainListData);
 
     await calculateLatestMainListData(true);
     saveDailyTotal();
@@ -99,14 +93,12 @@ export const reloadPriceData = async () => {
 };
 
 export const getPriceData = async (forceUpdate = true) => {
-  //console.log("getPriceData");
   if (isMarketClosed()) return;
   
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
 
   let mainListData = await storage.getItem('local:MAIN_LIST') || [];
-  //console.log("getPriceData mainListData",mainListData);
 
   let priceUpdateDuration = await getPriceUpdateDuration();
   const currentDatetime = new Date().toISOString();
@@ -134,7 +126,6 @@ export const getPriceData = async (forceUpdate = true) => {
       const isinParam = chunk.join(',');
       const url = `${apiBaseUrl}price?apikey=${apiKey.value}&uisin=${isinParam}`;
       const apiData = await fetchFeed(url, controller.signal);
-      //console.log("getPriceData apiData",apiData);
       // A dead key kills every remaining chunk, so stop rather than firing the whole queue.
       if (!apiData) { failed = true; if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
 
@@ -170,7 +161,6 @@ export const getPriceData = async (forceUpdate = true) => {
       
       if (extraData && typeof extraData === "object") {
         const { currency, bid, ask, timestamp, ...restExtraData } = extraData;
-         //console.log("getPriceData timestamp",timestamp);
         return {
           ...item,
           ...restExtraData,
@@ -189,15 +179,10 @@ export const getPriceData = async (forceUpdate = true) => {
           return { ...item, ...freshStamp };
         }
       }
-      //return item;
     });
 
-    //const clonedData = deepCloneReactiveData(mainListData);
-    //await storage.setItem('local:MAIN_LIST',clonedData);
-    //console.log("getPriceData mainListData before set",mainListData);
 
     await storage.setItem('local:MAIN_LIST',mainListData);
-    //console.log('getPriceData mainListData:', mainListData);
 
   } catch (err) {
     console.error('getPriceData Failed to fetch price data:', err);
@@ -224,7 +209,6 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
     const nextUpdateTime = lastUpdatedTime + updateMinutes * 60_000;
     return now >= nextUpdateTime;
   };
-  //console.log("getUnderlyingPriceData mainListData",mainListData);
 
   const uisinList = [...new Set(mainListData.filter((item) => item.underlying_isin && needsUpdate(item))
     .map(item => item.underlying_isin)
@@ -248,17 +232,13 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
     
     const apiMap = Object.fromEntries(allApiData.map(product => [product.isin, product]));
     const freshStamp = failed ? {} : { underlyingPriceUpdatedAt: currentDatetime };
-    //console.log("getUnderlyingPriceData apiMap",apiMap);
 
     mainListData = mainListData.map(item => {
       const extraData = apiMap[item.underlying_isin];
-      //console.log("getUnderlyingPriceData wkn",item.wkn);
-      //console.log("getUnderlyingPriceData underlying_isin",item.underlying_isin,"extraData",extraData);
       if (extraData && Object.keys(extraData).length > 0) {
         let { bid, ask, timestamp, currency } = extraData;
 
         if (bid && ask) {
-          //console.log("getUnderlyingPriceData underlying_isin ==> in",item.underlying_isin,"ask",ask,"bid",bid,"currency",currency);
           bid = parseFloat(bid);
           ask = parseFloat(ask);
           return {
@@ -276,7 +256,6 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
     });
     const clonedData = deepCloneReactiveData(mainListData);
     await storage.setItem('local:MAIN_LIST',clonedData);
-    //console.log('getUnderlyingPriceData mainListData:',mainListData);
   } catch (err) {
     console.error('getUnderlyingPriceData Failed to fetch underlying price data:', err);
   } finally {
@@ -317,7 +296,6 @@ export const getCurrencyRate = async (forceUpdate = true) => {
       const currencyParam = chunk.join(',');
       const url = `${apiBaseUrl}price?apikey=${apiKey.value}&currencies=${currencyParam}`;
       const apiData = await fetchFeed(url, controller.signal);
-      //console.log("getCurrencyRate apiData",apiData);
       if (!apiData) { failed = true; if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
 
       if (apiData.status === 1 && apiData?.data?.length > 0) {
@@ -325,15 +303,10 @@ export const getCurrencyRate = async (forceUpdate = true) => {
       }
     }
     
-    //const currencyMap = Object.fromEntries(allApiData.map(currency => [currency.currency, currency]));
     const currencyMap = Object.fromEntries(allApiData.map(currency => [currency.currencyID, currency]));
     const freshStamp = failed ? {} : { currencyRateUpdatedAt: currentDatetime };
-    //console.log("getCurrencyRate currencyMap",currencyMap);
-    //console.log("getCurrencyRate allApiData",allApiData);
     mainListData = mainListData.map(item => {
       const currencyData = currencyMap[item.currency];
-      //console.log("getCurrencyRate currency",item.currency);
-      //console.log("getCurrencyRate currencyData",currencyData);
       
       if (currencyData && Object.keys(currencyData).length > 0) {
         let bid = parseFloat(currencyData.bid);
@@ -351,12 +324,10 @@ export const getCurrencyRate = async (forceUpdate = true) => {
           ...freshStamp
         };
       }
-      //return item;
     });
 
     const clonedData = deepCloneReactiveData(mainListData);
     await storage.setItem('local:MAIN_LIST',clonedData);
-    //console.log('getCurrencyRate mainListData:',mainListData);
   } catch (err) {
     console.error('getCurrencyRate Failed to fetch currency rates:', err);
   } finally {
@@ -386,16 +357,13 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
   const justtradeData = (await storage.getItem('local:JUSTTRADE') as any[]) || [];
   const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData];
   if (!newStockData || newStockData.length === 0) {
-    //console.log("calculateLatestMainListData mainListData no data");
     return false;
   }
   
   let mergedData: any[] = [];
   if (currentData.length === 0) {
-    //console.log("calculateLatestMainListData currentData not set");
     mergedData.push(...newStockData);
   } else {
-    //console.log("calculateLatestMainListData currentData set sync");
     mergedData = [];
     // Derived, not hardcoded: the old list mislabelled Consors Bank and Smart Broker +,
     // so their Cash rows matched nothing and were dropped on every merge.
@@ -404,10 +372,6 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
         .filter((item: any) => item.stock_name === "Cash")
         .map((item: any) => accountKeyOf(item))
     );
-    /*const newCash = newStockData.find((item: any) => item.stock_name === "Cash");
-    if (newCash) {
-      mergedData.push(newCash);
-    }*/
 
     cashAccounts.forEach(accountKey => {
       const newCash = newStockData.find(item => item.stock_name === "Cash" 
@@ -423,9 +387,7 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
       }
     });
 
-    //console.log("calculateLatestMainListData currentData:",currentData);
     newStockData.forEach(newItem => {
-      //console.log("calculateLatestMainListData loop wkn:",newItem.wkn);
      
 
       if (newItem.stock_name !== "Cash") {
@@ -438,63 +400,39 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
         );
         
         if (existingItem) {
-          //console.log("calculateLatestMainListData existingItem",existingItem);
           const allowedFields = [
             'stocks_owned', 'total_entry_value',
             'profit_loss_price','profit_loss_percentage',
             'page_timestamp',
             'currency_rate',
             'purchase_date', 'purchase_dates'
-            //'timestamp'
           ];
           
           const filteredNewItem = Object.fromEntries(
             Object.entries(newItem).filter(([key]) => allowedFields.includes(key))
           );
-          //console.log("calculateLatestMainListData filteredNewItem:", JSON.stringify(filteredNewItem, null, 2));
 
-          //mergedData.push({ ...existingItem, ...newItem });
-          //mergedData.push({...existingItem, ...filteredNewItem});
           
           const merged = {...existingItem, ...filteredNewItem};
-          //console.log("calculateLatestMainListData merged:", JSON.stringify(merged, null, 2));
           mergedData.push(merged);
         } else {
-          //console.log("calculateLatestMainListData existingItem == not exist : add",newItem);
           mergedData.push(newItem);
         }
       }
     });
 
-    /*const remainingOldCash = currentData.find(item => item.stock_name === "Cash");
-    if (!newCash && remainingOldCash) {
-      mergedData.push(remainingOldCash);
-    }*/
   }
 
-  //console.log("calculateLatestMainListData currentData",currentData);
-  //console.log("calculateLatestMainListData mergedData",mergedData);
 
   let mainListData = mergedData;
   //add calculation to direct fields
    mainListData = mainListData.map(item => {
-    //let cap = (item.cap ? item.cap : item.strike) || 0;
     let strike = parseFloat(item.strike) || 0;
     let itemCap = parseFloat(item.cap) || 0;
     
-    //let cap_strike = parseFloat(strike || cap || 0);
     
-    // console.log("calculateLatestMainListData item.wkn -->",item.wkn);
-    // console.log("calculateLatestMainListData item.strike",item.strike);
-    // console.log("calculateLatestMainListData item.cap",item.cap);
-    // console.log("calculateLatestMainListData strike",strike);
-    // console.log("calculateLatestMainListData itemCap",itemCap);
-    // console.log("calculateLatestMainListData cap_strike",item.cap_strike);
-
-
     let bid = parseFloat(item.bid) || 0;
     let stocks_owned = item.stocks_owned;
-    let underlying_price = parseFloat(item.underlying_price) || 0;
     // underlying quote converted to the product currency, comparable with cap/strike
     let comparableUnderlying = getComparableUnderlyingPrice(item);
     let ratio = parseFloat(item.ratio) || 1;
@@ -534,70 +472,26 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
     let total_value = item.stock_name === 'Cash' ? item.total_entry_value: (bid * stocks_owned) || 0;
     
     //Future total value
-    //let future_total_value = (cap * stocks_owned) || 0;
-    //let future_total_value = (cap_strike * stocks_owned) || total_value;
     
-    let max_value = (2*strike - itemCap)*ratio;
     let FX_rate = item.currency_rate || 1;
-    //let future_total_value = total_value;
     let future_total_value = calculateFutureTotalValue(item);
     
-    //console.log("calculateLatestMainListData ---->");
-    //console.log("calculateLatestMainListData type",item.type);
-    //console.log("calculateLatestMainListData wkn",item.wkn);
-    //console.log("calculateLatestMainListData underlying_price",underlying_price);
-    //console.log("calculateLatestMainListData strike",strike);
-    //console.log("calculateLatestMainListData cap",itemCap);
-    //console.log("calculateLatestMainListData ratio",ratio);
-    //console.log("calculateLatestMainListData stocks_owned",stocks_owned);
-    //console.log("calculateLatestMainListData barrier_knockout",barrier_knockout);
-    //console.log("calculateLatestMainListData max_value",max_value);
-    //console.log("calculateLatestMainListData bid",bid);
-    //console.log("calculateLatestMainListData future_total_value",future_total_value);
-    //console.log("calculateLatestMainListData FX_rate",FX_rate);
-    //console.log("calculateLatestMainListData item",item);
     
-
-   
-    /*
-    //console.log("--------------------------->");
-    //console.log("calculateLatestMainListData type",item.type);
-    //console.log("calculateLatestMainListData wkn",item.wkn);
-    //console.log("calculateLatestMainListData cap_strike",cap_strike);
-    //console.log("calculateLatestMainListData stocks_owned",stocks_owned);
-    //console.log("calculateLatestMainListData FX_rate",FX_rate);
-    //console.log("calculateLatestMainListData ratio",ratio);
-    //console.log("calculateLatestMainListData underlying_price",underlying_price);
-    //console.log("calculateLatestMainListData itemCap",itemCap);
-    //console.log("calculateLatestMainListData strike",strike);
-    //console.log("calculateLatestMainListData bid",bid);
-   */
-  
-   //console.log("calculateLatestMainListData future_total_value-->",future_total_value);
-
     let profit_loss_price = total_value - item.total_entry_value;
     let profit_loss_percentage = ((total_value / item.total_entry_value) - 1) * 100;
-    //let profit_loss_target = (stocks_owned * cap_strike) - (stocks_owned * bid);
 
     let profit_loss_target = future_total_value - total_value;
     let profit_loss_target_pa = (profit_loss_target / total_value) * 100;
 
-    //console.log(`[calcMainList] wkn=${item.wkn} type=${item.type} profit_loss_target calc:`);
-    //console.log(`[calcMainList]   total_entry_value=${item.total_entry_value}, total_value=${total_value}, future_total_value=${future_total_value}`);
-    //console.log(`[calcMainList]   profit_loss_price=${profit_loss_price}, profit_loss_percentage=${profit_loss_percentage}`);
-    //console.log(`[calcMainList]   profit_loss_target=${profit_loss_target} (future_total_value ${future_total_value} - total_value ${total_value})`);
-    //console.log(`[calcMainList]   profit_loss_target_pa=${profit_loss_target_pa}%`);
 
     switch (item.type) {
       case 'indexcertificate':
         profit_loss_target = 0;
         profit_loss_target = 0;
-        //console.log(`[calcMainList]   indexcertificate: profit_loss_target forced to 0`);
         break;
     }
 
 
-    //let sideways_return =  cap_strike && bid && ratio ? ((cap_strike / bid * ratio) - 1) * 100 : 0;
     // cap/strike is in the product currency; convert it to EUR unless the product
     // is EUR or quanto (quanto pays the cap amount 1:1 in EUR)
     let capInPortfolioCurrency = (item.currency && item.currency !== 'EUR' && !item.quanto) ? cap_strike / FX_rate : cap_strike;
@@ -642,23 +536,13 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
         sideways_return_pa = (annualizedReturn * 100);
       }
       
-      /*
-      //console.log("sideways_return_pa startAmount",startAmount);
-      //console.log("sideways_return_pa endAmount",endAmount);
-      //console.log("sideways_return_pa daysUntilValuation",daysUntilValuation);
-      //console.log("sideways_return_pa sideways_return_pa",sideways_return_pa);
-      */
     }
 
-    //console.log("sideways_return_pa wkn",item.wkn);
-    //console.log("sideways_return_pa profit_loss_target",profit_loss_target);
-    //console.log("sideways_return_pa daysUntilValuation",daysUntilValuation);
     
     let profit_loss_target_per_day = 0;
     //profit_loss_target_per_day
     if(profit_loss_target && daysUntilPayout>0){
       profit_loss_target_per_day = profit_loss_target / daysUntilPayout;
-      //console.log("sideways_return_pa profit_loss_target_per_day",profit_loss_target_per_day);
     }
 
     //Holding time and yield p.a. since purchase
@@ -671,7 +555,6 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
       if (days_since_purchase >= MIN_HOLD_DAYS_FOR_PA && item.total_entry_value > 0 && total_value > 0) {
         yield_pa_since_purchase = (Math.pow(total_value / item.total_entry_value, 365 / days_since_purchase) - 1) * 100;
       }
-      //console.log("calculateLatestMainListData days_since_purchase",item.wkn,days_since_purchase,yield_pa_since_purchase);
     }
     
     
@@ -698,11 +581,6 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
         const bsStrike = strike;
         const bsTime = daysUntilValuation / 365;
         const bsUnderlying = item.underlying_price;
-        //console.log("calculateLatestMainListData sigma bsPrice",bsPrice);
-        //console.log("calculateLatestMainListData sigma bsRate",bsRate);
-        //console.log("calculateLatestMainListData sigma bsStrike",bsStrike);
-        //console.log("calculateLatestMainListData sigma bsTime",bsTime);
-        //console.log("calculateLatestMainListData sigma bsUnderlying",bsUnderlying);
 
         const sigma = bs.sigma({
           price: bsPrice,
@@ -712,16 +590,13 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
           type: item.type,
           underlying: bsUnderlying,
         });
-        //console.log("calculateLatestMainListData sigma type",sigma,item.type);
         impliedVolatility = sigma ? sigma * 100 : 0;
         break;
       default:
         impliedVolatility = 0;
     }
 
-    //console.log("calculateLatestMainListData impliedVolatility",impliedVolatility);
 
-    //console.log("calculateLatestMainListData loop item",item);
     const newFields = {
       total_value: total_value,
       profit_loss_price: profit_loss_price,
@@ -737,14 +612,12 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
       profit_loss_target_pa: profit_loss_target_pa,
       barrier_knockout: barrier_knockout,
       profit_loss_target_per_day: profit_loss_target_per_day,
-      //implied_volatility: impliedVolatility,
       implied_volatility: impliedVolatility ? impliedVolatility : item.implied_volatility,
       bonus_level: bonusLevel,
       // Set even when undefined so a stale value never survives the spread; undefined also sorts last like purchase_date.
       days_since_purchase: days_since_purchase,
       yield_pa_since_purchase: yield_pa_since_purchase,
     };
-    //console.log("calculateLatestMainListData newFields",newFields);
     return newFields ? { ...item, ...newFields } : item;
   });
 
@@ -752,7 +625,6 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
   mainListData = mainListData.map(item => {
     const total = mainListData.reduce((acc, val) => acc + Number(val.total_value), 0);
     let position_percentage = ((item.total_value / total) * 100).toFixed(2);
-    //console.log("mainListData total",total);
     const newFields = {
       position_percentage: position_percentage,
     };
@@ -761,14 +633,6 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
 
   const clonedData = deepCloneReactiveData(mainListData);
   await storage.setItem('local:MAIN_LIST',clonedData);
-  //console.log("calculateLatestMainListData clonedData",clonedData);
   return true;
-};
-
-
-//Clear all active controllers
-export const clearPriceDataControllers = () => {
-  globalPriceState.controllers.forEach(controller => controller.abort());
-  globalPriceState.controllers = [];
 };
 

@@ -7,12 +7,8 @@
         <Card class="block w-full  p-6 bg-white dark:bg-gray-900 transition-all">
           <CardContent>
             
-            <!-- <div class="w-full lg:w-auto">
-                <highcharts :options="chartOptions" />
-            </div> -->
 
             <div class="w-full lg:w-auto flex items-center justify-center">
-              <!-- <div v-if="chartData.datasets[0].data.length" class="relative w-[400px] h-[400px]"> -->
               
                 <div  class="relative w-[400px] h-[400px]">
               
@@ -43,8 +39,6 @@
 </div>
       
       
-
-    
 </template>
 
 <script lang="ts" setup>
@@ -52,22 +46,13 @@ import { ref } from 'vue';
 
 document.title = "Aggregate";
 
-import { numberToGerman,germanToNumer } from '~/utils/helper'
-//import { Chart } from "highcharts-vue";
+import { numberToGerman } from '~/utils/helper';
 import { Doughnut } from 'vue-chartjs'
 import { Skeleton } from '@/components/ui/skeleton'
 import Empty from '~/components/Empty.vue'
 
 
-import {
-  Chart as ChartJS,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-  ChartData,
-  ChartOptions,
-} from 'chart.js'
+import { Chart as ChartJS, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement)
 
@@ -125,7 +110,6 @@ const chartOptions = ref({
     const el = elements?.[0];
     if (el) {
       const dataset = chart.data.datasets?.[0];
-      //console.log("dataset",dataset);
       
       const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
       const value = (dataset?.data as number[])[el.index];
@@ -135,7 +119,6 @@ const chartOptions = ref({
       
       centerText.value = `${label}<br>${numberToGerman(percentage)}%<br>€ ${numberToGerman(value)}`;
     } else {
-      //centerText.value = '100%';
       centerText.value = `${numberToGerman(100)}%<br>€ ${totalAmount.value}`;
     }
   }
@@ -184,7 +167,6 @@ onMounted( async() => {
   const konto = await storage.getItem('local:KONTO_FLATEX');
   if(konto){
     listData.value = konto;
-    //chartOptions.value.series[0].data = pieChartData
     updateChartData();
   }
   isLoading.value = false;

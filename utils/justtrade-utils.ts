@@ -4,11 +4,11 @@
     so every selector below keys on role / data-testid / Mui* class names instead)
 */
 
-import { germanToNumer } from "./helper";
+import { germanToNumer, sleep } from "./helper";
+import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from "./constants";
 
 const broker = "justTRADE";
 const ISIN_CACHE_KEY = 'JUSTTRADE_ISINS';
-const LOOP_MS = 10000;
 
 let currentAccountId:any = null;
 // Kundennummer proven on this page (/securities `user` or the profile popover); never taken from storage.
@@ -31,10 +31,10 @@ const EXTRA_COLUMNS = [
   "underlying_price"];
 
 const SYNC_STYLES:any = {
-  idle: { bg: '#fcaf2c', text: 'Sync QX+' },
-  busy: { bg: '#fcaf2c', text: 'Syncing…' },
-  done: { bg: '#57a658', text: 'Synced' },
-  error: { bg: '#d24b4b', text: 'Sync failed' },
+  idle: { bg: SYNC_COLOR_IDLE, text: 'Sync QX+' },
+  busy: { bg: SYNC_COLOR_IDLE, text: 'Syncing…' },
+  done: { bg: SYNC_COLOR_DONE, text: 'Synced' },
+  error: { bg: SYNC_COLOR_ERROR, text: 'Sync failed' },
 };
 
 
@@ -42,16 +42,12 @@ const SYNC_STYLES:any = {
  *  DOM helpers
  * ------------------------------------------------------------------------- */
 
-function justtradeSleep(ms:any) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 async function justtradeWaitFor(fn:any, timeoutMs = 3000) {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     const found = fn();
     if (found) return found;
-    await justtradeSleep(100);
+    await sleep(100);
   }
   return null;
 }
@@ -188,14 +184,13 @@ async function justtradeOpenPopoverForAccount() {
       const id = await justtradeWaitFor(() => justtradeReadAccountFromPopover(), 1500);
       if (id) {
         justtradeClosePopover(trigger);
-        await justtradeSleep(500);
-        console.log("justtradeOpenPopoverForAccount id", id);
+        await sleep(500);
         return id;
       }
       // Wrong button (bell, mail…) opened its own popover; shut it before trying the next.
       if (!hadDialog && document.querySelector('[role="dialog"]')) {
         justtradeClosePopover(trigger);
-        await justtradeSleep(500);
+        await sleep(500);
         break;
       }
     }
@@ -340,7 +335,7 @@ async function justtradeMaxPageSize() {
   const largest = options.reduce((best:any, opt:any) =>
     Number(opt.getAttribute('data-value') || opt.textContent) > Number(best.getAttribute('data-value') || best.textContent) ? opt : best);
   largest.click();
-  await justtradeSleep(800);
+  await sleep(800);
 }
 
 
@@ -431,7 +426,7 @@ async function justtradeSaveCash() {
   await chrome.storage.local.set({ JUSTTRADE: currentData });
 }
 
-export async function justtradeSaveDataToLocalStorage(interactive = false) {
+async function justtradeSaveDataToLocalStorage(interactive = false) {
   console.log("justtradeSaveDataToLocalStorage", interactive);
   try {
     await justtradeSyncUser(interactive);
@@ -726,5 +721,5 @@ export async function mainJusttrade() {
     await justtradeSaveDataToLocalStorage();
     justtradeSyncTitle();
   }
-  setTimeout(() => mainJusttrade(), LOOP_MS);
+  setTimeout(() => mainJusttrade(), BROKER_REFRESH_MS);
 }

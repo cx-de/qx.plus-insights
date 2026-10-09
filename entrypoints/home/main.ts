@@ -3,7 +3,6 @@ import './style.css';
 import '@/assets/tailwind.css';
 import App from './App.vue';
 import router from './router/index.js';
-//import HighchartsVue from "highcharts-vue";
 
 import { createI18n } from 'vue-i18n'
 import en from './locales/en.json'
@@ -21,13 +20,11 @@ const i18n = createI18n({
     fallbackWarn: false,
 });
 
-//createApp(App).mount('#app');
 
 const app = createApp(App);
 
 app.use(router);
 app.use(i18n)
-//app.use(HighchartsVue)
 app.mount('#app')
 
 export { i18n };

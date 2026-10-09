@@ -73,9 +73,7 @@
 <script setup lang="ts">
 
 import { storage } from '#imports';
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, isApiRateLimited, fetchFeed,
-  numberToGerman, formatTimestamp, chunkArray,
-  deepCloneReactiveData } from '~/utils/helper'
+import { apiBaseUrl, apiKey, apiAuthFailed, isApiRateLimited, fetchFeed, numberToGerman, formatTimestamp, chunkArray, deepCloneReactiveData, todayIso } from '~/utils/helper';
 
 import {
   HoverCard,
@@ -83,13 +81,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 
-import type {
-  ColumnDef,
-  ColumnFiltersState,
-  ExpandedState,
-  SortingState,
-  VisibilityState,
-} from '@tanstack/vue-table'
+import type { ColumnFiltersState, ExpandedState, SortingState } from '@tanstack/vue-table';
 
 import {
   FlexRender,
@@ -117,13 +109,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-import { 
-  ArrowDownWideNarrow, 
-  ArrowUpDown, 
-  ArrowUpNarrowWide, 
-  CirclePlus, 
-  ChevronDown, 
-} from 'lucide-vue-next'
+import { sortableHeader } from '~/utils/table-utils';
+import { CirclePlus } from 'lucide-vue-next';
 
 import { h, ref } from 'vue'
 import { valueUpdater } from '~/lib/utils'
@@ -139,14 +126,12 @@ const props = defineProps<{
 const isLoading = ref(true);
 const products = ref([]);
 const getPeersPriceData = async () => {
-  //console.log("getPeersPriceData");
   // Only a missing or rejected key stops this — isMarketClosed() would also blank it every weekend.
   if (!apiKey.value || apiAuthFailed.value) { isLoading.value = false; return; }
   const wknChunks = props.peer_members.join(',');
   try {
       const url = `${apiBaseUrl}price?apikey=${apiKey.value}&wkn=${wknChunks}`;
       const apiData = await fetchFeed(url);
-      //console.log("getPeersPriceData wkn apiData length",apiData.length);
       if(apiData && apiData.status==1){
         const apiMap: Record<string, any> = Object.fromEntries(
           (apiData.data || []).map((item: any) => [item.wkn, item])
@@ -156,7 +141,6 @@ const getPeersPriceData = async () => {
           ...(apiMap[wkn] ?? {})
         }));
       }
-      //console.log("getPeersPriceData wkn apiData",apiData);
     } catch (err) {
       console.error('getPriceData Failed to fetch product data:', err);
     } finally {
@@ -164,24 +148,7 @@ const getPeersPriceData = async () => {
     }
 };
 
-function getSortingHeader(column, label) {
-  return h(Button, {
-    variant: 'ghost',
-    class : 'hover:bg-gray-300 hover:text-black',
-    onClick: () => {
-      column.toggleSorting(column.getIsSorted() === 'asc');
-      sortBy = column.id;
-      sortOrder= column.getIsSorted();
-      },
-  }, () => [
-    t(label),
-    column.getIsSorted() === 'asc'
-      ? h(ArrowUpNarrowWide, { class: 'ml-2 h-4 w-4' })
-      : column.getIsSorted() === 'desc'
-        ? h(ArrowDownWideNarrow, { class: 'ml-2 h-4 w-4' })
-        : h(ArrowUpDown, { class: 'ml-2 h-4 w-4 ' })
-  ]);
-}
+const getSortingHeader = (column, label) => sortableHeader(column, t(label), 'hover:bg-gray-300 hover:text-black');
 
 const columns = [
   {
@@ -234,8 +201,6 @@ const columns = [
 
 const sorting = ref<SortingState>([])
 const columnFilters = ref<ColumnFiltersState>([])
-//const columnVisibility = ref<VisibilityState>({})
-//const columnVisibility = ref<string[]>(['wkn', 'ask', 'bid'])
 const columnVisibility = ref<Record<string, boolean>>({
   wkn: true,
   ask: true,
@@ -280,7 +245,7 @@ const getPeerProductData = async () => {
   closeDelayTime.value = 10000;
   peerProducts.value = await storage.getItem('local:PEER_PRODUCTS') || [];
   
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayIso();
   console.log("getPeerProductData peerProducts",peerProducts.value);
   
     // Normalize peer members to array
@@ -348,7 +313,6 @@ const getPeerProductData = async () => {
     }
 
     console.log("getPeerProductData peerProducts update", peerProducts.value);
-    //await storage.setItem('local:PEER_PRODUCTS',peerProducts.value || []);
     
     const clonedData = deepCloneReactiveData(peerProducts.value);
     console.log("getPeerProductData clonedData",clonedData);
@@ -361,7 +325,6 @@ const getPeerProductData = async () => {
       const productData = peerProducts.value.find(peerItem => peerItem.wkn === wkn);
       return productData ? { ...existing, ...productData } : existing;
     });
-    //console.log("getProductData mainListData updated-->",mainListData.value);
 
   } catch (err) {
     console.error('getPeerProductData failed to fetch product data:', err);
@@ -369,7 +332,5 @@ const getPeerProductData = async () => {
 };
 
 onMounted(() => { 
-  //console.log("onMounted");
-  //getPeersPriceData();
 });
 </script>

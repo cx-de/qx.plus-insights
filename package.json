@@ -1,8 +1,8 @@
 {
   "name": "qx-plus-insights",
-  "description": "manifest.json description",
+  "description": "QX+ Insights browser extension: extra market data and portfolio insights for German online brokers.",
   "private": true,
-  "version": "2.10.2",
+  "version": "2.10.3",
   "type": "module",
   "scripts": {
     "dev": "wxt",
@@ -19,18 +19,16 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
-    "@tailwindcss/postcss": "^4.0.15",
-    "@tanstack/match-sorter-utils": "^8.19.4",
+    "@internationalized/date": "^3.8.2",
     "@tanstack/vue-table": "^8.21.2",
     "@uqee/black-scholes": "^1.0.7",
     "@vueuse/core": "^13.9.0",
     "chart.js": "^4.5.1",
     "chartjs-adapter-date-fns": "^3.0.0",
     "chartjs-chart-geo": "^4.3.6",
-    "chartjs-plugin-annotation": "^3.0.1",
-    "chartjs-plugin-datalabels": "^2.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "lodash": "^4.17.21",
     "lucide-vue-next": "^0.483.0",
     "modern-screenshot": "^4.7.0",

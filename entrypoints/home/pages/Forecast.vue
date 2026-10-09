@@ -70,8 +70,6 @@
          </Card>
 
         
-        
-        
          <template v-if="selectedType === 'forecast'">
             <!-- Scenarios  -->
             <Button @click="isScenarioSheet = true"
@@ -304,33 +302,12 @@
                                       {{ row.original[cell.column.id] }}
                                   </template>
                                   <template v-else>
-                                    <!-- <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" /> -->
-                                    <!-- {{  cell.column.id }} -->
                                     {{ row.original[cell.column.id] != null && row.original[cell.column.id] !== '' ? numberToGerman(row.original[cell.column.id]) : '' }}
                                   </template>
                                 </TableCell>
                               </TableRow>
 
                              
-
-
-                              <!-- <template v-if="row.subRows">
-                                <TableRow v-for="(subRow, index) in row?.subRows" :key="subRow.id"
-                                    class="!bg-gray-100">
-                                  <TableCell v-for="col in subRow.getVisibleCells()" :key="col.id">
-                                    <template v-if="col.column.id === 'stock_name'">
-                                      {{ $t('scenario')+" "+ col.row.original.market+"%" }}
-                                    </template>
-                                    <template v-else-if="forecastTablePriceFields.includes(col.column.id)">
-                                      {{ col.row.original[col.column.id] ? numberToGerman(col.row.original[col.column.id]) : '' }}
-                                    </template>
-                                    <template v-else>
-                                    
-                                    </template>
-                                  </TableCell>
-                                </TableRow>
-                              </template> -->
-
                             </template>
                             <TableRow class="sticky bottom-0 !bg-muted font-semibold z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.1)]">
                               <TableCell v-for="col in table.getAllLeafColumns()" :key="col.id">
@@ -393,7 +370,7 @@ import {
 } from '@/components/ui/alert-dialog'
 
 import { BlackScholes } from '@uqee/black-scholes'
-import * as XLSX from "xlsx";
+import { downloadXlsx } from "~/utils/export-utils";
 
 import {useI18n} from "vue-i18n";
 import { storage } from '#imports'
@@ -404,45 +381,17 @@ import { Label } from '@/components/ui/label'
 import DateRangePicker  from '@/components/DateRangePicker.vue'
 import AccountFilter from '~/components/AccountFilter.vue'
 import CombineSwitch from '~/components/CombineSwitch.vue'
-import { getLocalTimeZone, today, fromDate, CalendarDate } from '@internationalized/date'
+import { getLocalTimeZone, today, CalendarDate } from '@internationalized/date';
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from '@/components/ui/toast';
 
 
-import type {
-  ColumnDef,
-  ColumnFiltersState,
-  ExpandedState,
-  SortingState,
-  VisibilityState,
-} from "@tanstack/vue-table"
-import {
-  FlexRender,
-  getCoreRowModel,
-  getExpandedRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useVueTable,
-} from "@tanstack/vue-table"
-import { 
-  ArrowUpDown, 
-  ChevronDown, 
-  ArrowUpNarrowWide, 
-  ArrowDownWideNarrow, 
-  Search, 
-} from "lucide-vue-next"
+import { FlexRender, getCoreRowModel, getExpandedRowModel, getFilteredRowModel, getSortedRowModel, useVueTable } from "@tanstack/vue-table";
+import { sortableHeader } from '~/utils/table-utils';
 
 import { valueUpdater } from '~/lib/utils'
 
 
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 
 import {
   Table,
@@ -458,16 +407,10 @@ import {
   formatDate,
   deepCloneReactiveData,
   calculateFutureTotalValue,
+  todayIso,
 } from '~/utils/helper'
 
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 import {
   Chart as ChartJS,
@@ -493,21 +436,7 @@ ChartJS.register(
   Legend
 )
 
-import {
-  Pencil,
-  Trash,
-  Trash2,
-  Settings,
-  Eye,
-  EyeOff,
-  Download,
-  SlidersHorizontal,
-  Table2,
-  Calculator,
-  X,
-  CircleSlash,
-  ChevronRight,
-} from 'lucide-vue-next'
+import { Pencil, Trash, Trash2, Eye, EyeOff, Download, SlidersHorizontal, Table2, Calculator, X, CircleSlash, ChevronRight } from 'lucide-vue-next';
 
 const { t,locale } = useI18n();
 document.title = t('forecast');
@@ -641,7 +570,6 @@ for (let i = 0; i < 12; i++) {
   lastDay.setHours(0, 0, 0, 0); //new
   dates.push(lastDay);
 }
-//console.log("main dates",dates);
 
 
 const datapoints = ref([]);
@@ -661,20 +589,6 @@ const chartData = ref({
   labels: allDates,
   datasets: defaultDataSets
 });
-
-
-function getScenarioFactor(dateStr, startDate, endDate, targetPct) {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const current = new Date(dateStr);
-
-  const totalDays = (end - start) / (1000 * 60 * 60 * 24);
-  const elapsedDays = (current - start) / (1000 * 60 * 60 * 24);
-  let progress = Math.max(0, Math.min(1, elapsedDays / totalDays));
-  
-  return 1 + targetPct * progress;
-  
-}
 
 
 // numberToGerman ignores the UI language, which put "3.042.133" next to a "3,050,000" axis.
@@ -890,10 +804,8 @@ const chartOptions = {
           });
         },
         label: function (context) {
-          //console.log("label context",context);
           const dataset = context.dataset;
           const index = context.dataIndex;
-          //console.log("label index",index);
           
           let changeText = '';
           let changeAbsText = '';
@@ -909,18 +821,11 @@ const chartOptions = {
               prevDate = prevEntry.date.split('-').reverse().join('.');
             }
           } else if (index > 0) {
-            //prev = context.dataset.data[index - 1];
-            //console.log("label value",value);
-            //console.log("label prev",prev);
-            /*if(!prev){
-              prev = context.dataset?.data[index - 2];
-            }*/
             // Weekly scenario dates leave several NaN gaps between month-ends; two steps back was not enough.
             const prevIndex = lastFiniteIndex(context.dataset.data.slice(0, index));
             prev = prevIndex >= 0 ? context.dataset.data[prevIndex] : null;
           }
 
-          //console.log("label index",index,"value",value,"prev",prev);
           if(value && prev){
             const change = ((value - prev) / prev) * 100;
             const changeAbs = value - prev;
@@ -964,54 +869,24 @@ const chartOptions = {
           }
           
         if(dataset.scenario && selectedType.value === 'forecast'){
-        //if(context.datasetIndex !=0 && selectedType.value === 'forecast'){
-         //if(index !=0 && selectedType.value === 'forecast'){
             
-            //console.log("label context forecast");
             const scenarioValue = context.raw;
             // Base scenario = first dataset (index 0)
-            //const baseValue = chartData.value.datasets[0]?.data?.[index] ?? scenarioValue;
             // Own account's base line: datasets[0] is only the first account when split.
             const baseValue = dataset.baseData?.[index] ?? scenarioValue;
             
-            //const marketRisk = ((scenarioValue - baseValue) / baseValue) * 100;
             let scenarioEffectOnTarget = (scenarioValue - baseValue) || 0;
             const marketRisk = ((scenarioValue / baseValue -1) * 100) || 0;
-            //console.log("Tooltip baseValue",baseValue,"scenarioValue",scenarioValue,"scenarioEffectOnTarget",scenarioEffectOnTarget,"marketRisk",marketRisk);
             
             const todayTotal = dataset.todayTotal ?? scopedTodayTotal();
             let scenarioEffectOnCurrent = scenarioValue - todayTotal;
             const currentEffect = (scenarioValue / todayTotal -1) * 100;
             
             //NEW: Calculate scenario factor at this tooltip date
-            /*
-            const scenarioData = context.dataset.scenario;
-            //console.log("label scenarioData",scenarioData);
-            const tooltipDate = context.label; // label should be like "2025-11-30"
-            const targetFactor = 1 + scenarioData.market / 100;
-            const scenarioFactor = getScenarioFactor(
-              tooltipDate,
-              scenarioData.timeframe.start,
-              scenarioData.timeframe.end,
-              targetFactor,
-            );
-            const interpolatedPct = (scenarioFactor - 1) * 100;
-            */
             
-            /*
-            const tooltipDate = context.label;
-            const currentTooltipDate = new Date(tooltipDate);
-            const formattedEndDate = currentTooltipDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-            const initialValue = context.dataset.data.find(v => v !== null && v !== undefined);
-            //console.log("Initial Value:", initialValue);
-            const diff = scenarioValue - initialValue;   
-            const pctChange = (diff / initialValue) * 100;
-            */    
 
             return [
               `${dataset.label} : ${formatChartNumber(scenarioValue, 2)}`,
-              //`${dataset.label} (${interpolatedPct > 0 ? '+' : ''}${numberToGerman(interpolatedPct)}%) ${t('until')} ${formattedEndDate}: ${numberToGerman(scenarioValue)}`,
-              //`${dataset.label} (${pctChange >= 0 ? '+' : ''}${numberToGerman(pctChange)}%)  ${t('until')} ${formattedEndDate}: ${numberToGerman(scenarioValue)}`,
 
               `${t('scenario_effect_on_the_target_value')}: ${formatChartNumber(scenarioEffectOnTarget, 2)} (${marketRisk >= 0 ? '+' : ''}${formatChartNumber(marketRisk, 2)}%)`,
               `${t('scenario_effect_on_the_current_portfolio_value')}: ${formatChartNumber(scenarioEffectOnCurrent, 2)} (${currentEffect >= 0 ? '+' : ''}${formatChartNumber(currentEffect, 2)}%)`,
@@ -1025,7 +900,6 @@ const chartOptions = {
               changeText,
               changeAbsText
             ];
-            //return [`${dataset.label} : ${numberToGerman(context.raw)}`,];
           }
         },
         
@@ -1056,11 +930,6 @@ const chartOptions = {
           // on a time scale ticks[index].value is the tick timestamp
           return formatDate(new Date(ticks[index].value));
         },
-        /*callback: function(value, index, ticks) {
-          const date = this.getLabelForValue(value);
-          //console.log("callback date",date)
-          return new Intl.DateTimeFormat('de-DE', { year: 'numeric',month: 'long'}).format(new Date(date));
-        }*/
       },
     },
     y: {
@@ -1080,7 +949,6 @@ const chartOptions = {
 };
 
 const updateChartData = (event)=>{
-  //console.log("updateChartData");
   selectedType.value = event;
   try {
     localStorage.setItem('forecastType', event);
@@ -1089,7 +957,6 @@ const updateChartData = (event)=>{
     console.error('updateChartData error:', err);
   }
   recalculateDatapoints();
-  //console.log("updateChartData selected",selectedType.value);
 }
 
 const getMinDate = (date) =>{
@@ -1102,14 +969,9 @@ const getMinDate = (date) =>{
 
 
 function calculateTotalValueForDate(date: Date, rows:any = listData.value): number {
-  // date",date);
-  //console.log("=============calculateTotalValueForDate listData date",date);
   let total = 0;
   rows.forEach(item => {
     if (!item.total_value) return;
-    //console.log("=============calculateTotalValueForDate listData loop",item);
-    //console.log("=============calculateTotalValueForDate listData loop wkn",item.wkn);
-    //console.log("calculateTotalValueForDate listData loop valuation_date",item.valuation_date);
     
     
     if (item.valuation_date) {
@@ -1118,7 +980,6 @@ function calculateTotalValueForDate(date: Date, rows:any = listData.value): numb
       if (date > valuationDate) {
         total += item.future_total_value ?? item.total_value;
       } else {
-        //console.log("calculateTotalValueForDate listData loop type",item.type);
         if(item.type === "put"){
           const expectationMultiplier = 1;
           const dateObj = new Date(date);
@@ -1136,12 +997,6 @@ function calculateTotalValueForDate(date: Date, rows:any = listData.value): numb
             sigma: bsSigma, 
             time: bsTime,
           });
-          //console.log("calculateTotalValueForDate listData loop put strike",item.strike);
-          //console.log("calculateTotalValueForDate listData loop put underlying",newUnderlying);
-          //console.log("calculateTotalValueForDate listData loop put implied_volatility",item.implied_volatility);
-          //console.log("calculateTotalValueForDate listData loop put sigma",bsSigma);
-          //console.log("calculateTotalValueForDate listData loop put bsTime",bsTime);
-          //console.log("calculateTotalValueForDate listData loop put blackScholesValue", blackScholesValue);
 
           const scenarioValue = blackScholesValue.price;
           total += (scenarioValue * item.ratio) * item.stocks_owned;
@@ -1157,7 +1012,6 @@ function calculateTotalValueForDate(date: Date, rows:any = listData.value): numb
             total += interpolatedValue;
           }
         }
-        //console.log("calculateTotalValueForDate listData loop total", total);
       }
     } else {
       total += item.total_value;
@@ -1183,19 +1037,11 @@ const getScenarioItemFutureTotal = (item, scenario, date) =>{
   const end = new Date(timeframe.end);
   const totalDays = (end - start) / MS_PER_DAY;
   const targetFactor = 1 + market / 100;
-  //console.log("getScenarioItemFutureTotal =====","wkn",item.wkn, "market:", market, "→ targetFactor:", targetFactor);
 
   const dateObj = new Date(date);
-  //console.log("getScenarioItemFutureTotal dateTotal date", date);
   const daysElapsed = (dateObj - start) / (1000 * 60 * 60 * 24);
   
   let expectationMultiplier = 1;
-  /*if (isFinite(totalDays) && totalDays > 0 && daysElapsed >= 0 && daysElapsed <= totalDays) {
-    if (targetFactor > 0) {
-      const dailyMultiplier = Math.pow(targetFactor, 1 / totalDays);
-      expectationMultiplier = Math.pow(dailyMultiplier, daysElapsed);
-    }
-  }*/
 
   const valuationDate = item.valuation_date ? new Date(item.valuation_date) : null;
   const daysToValuation = valuationDate ? (valuationDate - start) / MS_PER_DAY : null;
@@ -1223,29 +1069,20 @@ const getScenarioItemFutureTotal = (item, scenario, date) =>{
   let futureTotalValue = 0;
 
   if (dateCurrent >= dateStart && dateCurrent <= dateEnd) {
-    //console.log("getScenarioItemFutureTotal listSnapshot loop in date condition");
     if(item.type === "stock"){
-      //const adjustedBid = item.bid * expectationMultiplier;
       futureTotalValue = item.future_total_value * expectationMultiplier;
-      //console.log("getScenarioItemFutureTotal type stock item.future_total_value",item.future_total_value);
     }else{
       futureTotalValue = calculateFutureTotalValue(item,expectationMultiplier);
-      //console.log("getScenarioItemFutureTotal type not stock FINAL futureTotalValue",futureTotalValue);
     }
     
-    //console.log("getScenarioItemFutureTotal futureTotalValue date",date);
-    //console.log("getScenarioItemFutureTotal futureTotalValue",futureTotalValue);
 
     if(item.valuation_date) {
-      //console.log("getScenarioItemFutureTotal has valuation_date",date);
       const valuationDate = new Date(item.valuation_date);
       // Use dateObj (which is new Date(date)) for comparison with valuationDate
       if (dateObj > valuationDate) {
-        //scenarioFutureTotal = futureTotalValue?? item.total_value;
         scenarioFutureTotal = item.type === "stock" 
           ? item.future_total_value * expectationAtValuation
           : calculateFutureTotalValue(item, expectationAtValuation);
-        //console.log("getScenarioItemFutureTotal valuation_date == passed");
         return scenarioFutureTotal;
       } else {
         const totalDays = (valuationDate - todayDate) / (1000 * 60 * 60 * 24);
@@ -1254,10 +1091,7 @@ const getScenarioItemFutureTotal = (item, scenario, date) =>{
         // Ensure we don't divide by zero and handle cases where valuationDate is before today
         if (totalDays <= 0 || daysSinceToday <= 0) {
           scenarioFutureTotal = item.total_value;
-          //console.log("getScenarioItemFutureTotal valuation_date daysSinceToday",daysSinceToday);
-          //console.log("getScenarioItemFutureTotal valuation_date totalDays",totalDays);
         } else {
-          //const interpolatedValue = item.total_value + ((item.future_total_value - item.total_value) / totalDays) * daysSinceToday;
           let interpolatedValue = item.total_value + ((futureTotalValue - item.total_value) / totalDays) * daysSinceToday; 
           if(item.type === "put"){
             const daysForValuation = (valuationDate - dateObj) / (1000 * 60 * 60 * 24);
@@ -1276,30 +1110,8 @@ const getScenarioItemFutureTotal = (item, scenario, date) =>{
             });
             const scenarioValue = blackScholesValue.price;
             
-            /*
-            //console.log("recalculateDatapoints PUT",item);
-            //console.log("recalculateDatapoints PUT",item.wkn);
-            //console.log("recalculateDatapoints PUT dateObj",dateObj);
-            //console.log("recalculateDatapoints PUT valuationDate",valuationDate);
-            //console.log("recalculateDatapoints PUT total_value",item.total_value);
             
-            //console.log("recalculateDatapoints PUT expectationMultiplier",expectationMultiplier);
-            //console.log("recalculateDatapoints PUT underlying_price",item.underlying_price);
-            //console.log("recalculateDatapoints PUT newUnderlying",newUnderlying);
-            //console.log("recalculateDatapoints PUT strike",item.strike);
-            //console.log("recalculateDatapoints PUT sigma",bsSigma);
-            //console.log("recalculateDatapoints PUT daysForValuation",daysForValuation);
-            //console.log("recalculateDatapoints PUT bsTime",bsTime);
-            //console.log("recalculateDatapoints PUT blackScholesValue",blackScholesValue);
-            //console.log("recalculateDatapoints PUT scenarioValue",scenarioValue);
-            */
-            
-            //interpolatedValue = item.total_value + ((scenarioValue - item.total_value) / totalDays) * daysSinceToday;
-            //interpolatedValue = scenarioValue;
-            //console.log("recalculateDatapoints PUT ratio",item.ratio);
-            //console.log("recalculateDatapoints PUT stocks_owned",item.stocks_owned);
             interpolatedValue = (scenarioValue * item.ratio) * item.stocks_owned;
-            //console.log("getScenarioItemFutureTotal PUT interpolatedValue",interpolatedValue);
           }
           scenarioFutureTotal = interpolatedValue;
         }
@@ -1309,17 +1121,13 @@ const getScenarioItemFutureTotal = (item, scenario, date) =>{
       scenarioFutureTotal = item.stock_name === "Cash"
         ? (parseFloat(item.total_entry_value) || item.total_value || 0)
         : item.total_value * expectationMultiplier;
-      //console.log("getScenarioItemFutureTotal Not have valuation_date");
     }
   }else{
-    //console.log("getScenarioItemFutureTotal Not in date condition");
     scenarioFutureTotal = NaN;
   }
 
   return scenarioFutureTotal;
 }
-
-
 
 
 const accountLabels = ref<any>({});
@@ -1353,21 +1161,16 @@ function scenarioTotalForDate(rows:any, scenario:any, date:any) {
   return total;
 }
 
-const chartRef = ref(null);
 const chartPanels = ref<any[]>([]);
 const isLoading = ref(true);
 const chartKey = ref(0);
 const recalculateDatapoints = async() => {
-  //console.log("forcast recalculateDatapoints scenarios",scenarios.value);
   chartData.value.labels = [];
   datapoints.value = [];
   // An early return below would otherwise leave the previous view's panels on screen.
   chartPanels.value = [];
-  //chartData.value.datasets[0].data = [];
-  //chartData.value.datasets[1].data = [];
   chartData.value.datasets = defaultDataSets;
 
-  //console.log("recalculateDatapoints dailyTotals",dailyTotals);
 
   if(selectedType.value==='history'){
     
@@ -1382,14 +1185,10 @@ const recalculateDatapoints = async() => {
 
       const groupDatapoints = groupTotals.map((totals:any) => historyDates.map(date => {
         const found = totals.find((entry:any) => entry.date === date);
-        //return found ? Math.round(found.total) : 0;
         return found ? found.total : null;
       }));
       const newDatapoints = groupDatapoints.flat().filter((value:any) => value !== null);
       
-      //console.log("recalculateDatapoints newDatapoints",newDatapoints);
-      //console.log("recalculateDatapoints datapoints",datapoints);
-      //console.log("recalculateDatapoints historyDates",historyDates);
       
       chartData.value.labels = historyDates;
       datapoints.value = newDatapoints;
@@ -1406,13 +1205,11 @@ const recalculateDatapoints = async() => {
         endLabel: t('history'),
       }));
 
-      //chartOptions.scales.x.min = getMinDate(historyDates[0]);
       chartOptions.scales.x.min = historyDates[0];
       chartOptions.scales.x.ticks.source = "data";
       // one tick per saved day made 1y/max ranges an unreadable smear of labels
       chartOptions.scales.x.ticks.autoSkip = true;
       chartOptions.scales.x.ticks.maxTicksLimit = 14;
-      //console.log("recalculateDatapoints chartOptions",chartOptions);
     }
     chartKey.value++; 
   }else if(selectedType.value==='forecast'){
@@ -1428,31 +1225,13 @@ const recalculateDatapoints = async() => {
     const savedScenarios = await storage.getItem('local:scenarios') || [];
     const activeScenarios = savedScenarios.filter((item) => item.active === true);
     
-    //console.log("recalculateDatapoints forecast1 dates",dates);
     let datesForForecast = [...dates];
     
     //add todays date
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
     today.setHours(0, 0, 0, 0);
     datesForForecast.push(today);
 
-    /*if(activeScenarios && activeScenarios.length>0){
-      activeScenarios.forEach((scenario, index) => {
-        const { timeframe } = scenario;
-        const start = new Date(timeframe.start);
-        const end = new Date(timeframe.end);
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          //console.log("recalculateDatapoints datesForForecast activeScenarios date ",d);
-          if (!datesForForecast.includes(d)) {
-            d.setHours(0, 0, 0, 0);
-            datesForForecast.push(d);
-            //console.log("recalculateDatapoints datesForForecast adding date ",d);
-            break;
-          }
-        }
-      });
-    }*/
     // includes() on a fresh Date never matched, so only the start was added and a 7-day scenario drew a single dot.
     activeScenarios.forEach((scenario:any) => {
       const start = toDate(scenario.timeframe.start);
@@ -1465,37 +1244,26 @@ const recalculateDatapoints = async() => {
 
     // Remove duplicates
     datesForForecast = [...new Map(datesForForecast.map(d => [d.getTime(), d])).values()];
-    //console.log("recalculateDatapoints datesForForecast 2",datesForForecast);
     
     //convert and filter dates
     datesForForecast = datesForForecast
-      //.map(item => toDate(item))
       .sort((a, b) => a - b);  
-    //console.log("recalculateDatapoints forecast dates",dates);
-    //console.log("recalculateDatapoints forecast datesForForecast",datesForForecast);
     const groups = chartAccountGroups();
     const allBase:any[] = [];
     chartData.value.datasets = [];
     groups.forEach((group:any, groupIndex:any) => {
       const newDatapoints = datesForForecast.map((date, dateIndex) =>{
-        //console.log("recalculateDatapoints forecast datesForForecast loop date",date);
         if(dateIndex===0){
           const todayTotal = scopedTodayTotal(group.key);
-          //console.log("recalculateDatapoints forecast datesForForecast loop todayEntry",todayEntry);
-          //console.log("recalculateDatapoints forecast datesForForecast loop todayStr",todayStr);
           return todayTotal;
         }else if(dates.includes(date)){      
           let calculatedValue = calculateTotalValueForDate(date, group.rows);
-          //console.log("recalculateDatapoints forecast datesForForecast loop include date calculatedValue",calculatedValue);
           return calculatedValue;
         }else{
-          //console.log("recalculateDatapoints forecast datesForForecast loop NotInclude date");
           return NaN;
         }
       });
-      //console.log("recalculateDatapoints forecast datesForForecast newDatapoints",newDatapoints);
     
-      //console.log("recalculateDatapoints datesForForecast 1",datesForForecast);
       // Remove duplicates
       datesForForecast = [...new Map(datesForForecast.map(d => [d.getTime(), d])).values()];
     
@@ -1507,16 +1275,9 @@ const recalculateDatapoints = async() => {
       const anchorBase = datesForForecast.map((date:any, i:any) =>
         Number.isFinite(newDatapoints[i]) ? newDatapoints[i] : calculateTotalValueForDate(date, group.rows));
 
-      //datapoints.value = newDatapoints;
       allBase.push(...newDatapoints.filter((value:any) => Number.isFinite(value)));
-      //chartData.value.labels = dates;
-      //chartData.value.labels = allDates;
       chartData.value.labels = datesForForecast;
-      //console.log("recalculateDatapoints datesForForecast",datesForForecast);
 
-      //chartData.value.datasets[0].data = datapoints.value;
-      //chartData.value.datasets[0].borderColor = customColors[1];
-      //chartData.value.datasets[0].backgroundColor = customColors[1];
     
       chartData.value.datasets.push({
         label: t('current_forecast'),
@@ -1531,8 +1292,6 @@ const recalculateDatapoints = async() => {
         endLabel: t('current_forecast'),
       });
 
-      //chartOptions.scales.x.min = new Date(dates[0]).toISOString().split('T')[0];
-      //chartOptions.scales.x.min = getMinDate(dates[0]);
       chartOptions.scales.x.min = getMinDate(datesForForecast[0]);
       chartOptions.scales.x.ticks.source = "auto";
       chartOptions.scales.x.ticks.autoSkip = false;
@@ -1541,144 +1300,16 @@ const recalculateDatapoints = async() => {
    
       activeScenarios.forEach((scenario, index) => {
         const { market, timeframe } = scenario;
-        //console.log("recalculateDatapoints #############################################");
-        //console.log("recalculateDatapoints scenario",scenario);
-        //console.log("recalculateDatapoints timeframe",timeframe);
-
-        const start = new Date(timeframe.start);
         const end = new Date(timeframe.end);
-        const totalDays = (end - start) / MS_PER_DAY;
-        const targetFactor = 1 + market / 100;
-        //console.log("activeScenarios loop", index + 1, "market:", market, "→ targetFactor:", targetFactor);
-      
-        //const adjustedData = dates
+
         const adjustedData = datesForForecast
-        //.filter(date => date >= start && date <= end) // only relevant dates
         .map((date, i) => {
           let total = 0;
           const dateObj = new Date(date);
-          //console.log("recalculateDatapoints dateTotal ===");
-          //console.log("recalculateDatapoints dateTotal date",date);
-          //const dateObj = date.getTime();
-          const daysElapsed = (dateObj - start) / (1000 * 60 * 60 * 24);
-          let expectationMultiplier = 1;
-          if (isFinite(totalDays) && totalDays > 0 && daysElapsed >= 0 && daysElapsed <= totalDays) {
-            if (targetFactor > 0) {
-              const dailyMultiplier = Math.pow(targetFactor, 1 / totalDays);
-              expectationMultiplier = Math.pow(dailyMultiplier, daysElapsed);
-            } else {
-              //expectationMultiplier = 0;
-            }
-          }
-          //console.log("recalculateDatapoints dateTotal expectationMultiplier",expectationMultiplier);
-        
-          //console.log("recalculateDatapoints main dates", dateObj, "start", start, "end", end,"expectationMultiplier",expectationMultiplier);
           const listSnapshot = [...group.rows];
           listSnapshot.forEach(item => {
-            //console.log("recalculateDatapoints listSnapshot loop");
             if (!item.total_value) return; // Skip items with no value
           
-            const dateCurrent = toDate(date);
-            const dateStart = toDate(timeframe.start);
-            const dateEnd = toDate(timeframe.end);
-            //console.log("recalculateDatapoints dateCurrent date",date);
-            //console.log("recalculateDatapoints dateCurrent",dateCurrent);
-            //console.log("recalculateDatapoints dateStart",dateStart);
-            //console.log("recalculateDatapoints dateEnd",dateEnd);
-
-            //if (dateObj >= start && dateObj <= end) {
-         
-            // old
-            /*
-            if (dateCurrent >= dateStart && dateCurrent <= dateEnd) {
-              //console.log("recalculateDatapoints listSnapshot loop in date condition");
-              //const expectationMultiplier = 1 + market / 100;
-              let futureTotalValue = 0;
-              if(item.type === "stock"){
-                //const adjustedBid = item.bid * expectationMultiplier;
-                futureTotalValue = item.future_total_value * expectationMultiplier;
-                //console.log("recalculateDatapoints type stock item.future_total_value",item.future_total_value);
-              }else{
-                futureTotalValue = calculateFutureTotalValue(item,expectationMultiplier);
-                //console.log("recalculateDatapoints type not stock FINAL futureTotalValue",futureTotalValue);
-              }
-              //console.log("recalculateDatapoints futureTotalValue date",date);
-              //console.log("recalculateDatapoints futureTotalValue",futureTotalValue);
-
-              if (item.valuation_date) {
-                //console.log("recalculateDatapoints has valuation_date",date);
-                const valuationDate = new Date(item.valuation_date);
-                if (dateObj > valuationDate) {
-                  total += futureTotalValue?? item.total_value;
-                  //console.log("recalculateDatapoints valuation_date == passed");
-                } else {
-                
-                  const totalDays = (valuationDate - todayDate) / (1000 * 60 * 60 * 24);
-                  const daysSinceToday = (dateObj - todayDate) / (1000 * 60 * 60 * 24);
-                
-                  // Ensure we don't divide by zero and handle cases where valuationDate is before today
-                  if (totalDays <= 0 || daysSinceToday <= 0) {
-                    total += item.total_value;
-                    //console.log("recalculateDatapoints valuation_date daysSinceToday",daysSinceToday);
-                    //console.log("recalculateDatapoints valuation_date totalDays",totalDays);
-                  } else {
-                    //const interpolatedValue = item.total_value + ((item.future_total_value - item.total_value) / totalDays) * daysSinceToday;
-                    let interpolatedValue = item.total_value + ((futureTotalValue - item.total_value) / totalDays) * daysSinceToday; 
-                    if(item.type === "put"){
-                      const daysForValuation = (valuationDate - dateObj) / (1000 * 60 * 60 * 24);
-                      const newUnderlying = item.underlying_price * expectationMultiplier;
-                      const bsTime = daysForValuation / 365;
-                      const bsSigma = item.implied_volatility/100;
-
-                      const bs = new BlackScholes();
-                      const blackScholesValue = bs.option({
-                        type: 'put',
-                        rate: 0.03, 
-                        strike: item.strike, 
-                        underlying: newUnderlying,
-                        sigma: bsSigma, 
-                        time: bsTime,
-                      });
-                      const scenarioValue = blackScholesValue.price;
-                    
-                      //console.log("recalculateDatapoints PUT",item);
-                      //console.log("recalculateDatapoints PUT",item.wkn);
-                      //console.log("recalculateDatapoints PUT dateObj",dateObj);
-                      //console.log("recalculateDatapoints PUT valuationDate",valuationDate);
-                      //console.log("recalculateDatapoints PUT total_value",item.total_value);
-                    
-                      //console.log("recalculateDatapoints PUT expectationMultiplier",expectationMultiplier);
-                      //console.log("recalculateDatapoints PUT underlying_price",item.underlying_price);
-                      //console.log("recalculateDatapoints PUT newUnderlying",newUnderlying);
-                      //console.log("recalculateDatapoints PUT strike",item.strike);
-                      //console.log("recalculateDatapoints PUT sigma",bsSigma);
-                      //console.log("recalculateDatapoints PUT daysForValuation",daysForValuation);
-                      //console.log("recalculateDatapoints PUT bsTime",bsTime);
-                      //console.log("recalculateDatapoints PUT blackScholesValue",blackScholesValue);
-                      //console.log("recalculateDatapoints PUT scenarioValue",scenarioValue);
-                    
-                      //interpolatedValue = item.total_value + ((scenarioValue - item.total_value) / totalDays) * daysSinceToday;
-                      //interpolatedValue = scenarioValue;
-                      //console.log("recalculateDatapoints PUT ratio",item.ratio);
-                      //console.log("recalculateDatapoints PUT stocks_owned",item.stocks_owned);
-                      interpolatedValue = (scenarioValue * item.ratio) * item.stocks_owned;
-                      //console.log("recalculateDatapoints PUT interpolatedValue",interpolatedValue);
-                    }
-                    total += interpolatedValue;
-                  }
-                }
-              }else{
-                //total += item.total_value;
-                total += item.total_value * expectationMultiplier;
-                //console.log("recalculateDatapoints Not have valuation_date");
-              }
-            }else{
-              //total += item.future_total_value ?? item.total_value;
-              total = NaN;
-              //console.log("recalculateDatapoints Not in date condition");
-            }*/
-          
-            // new
             let scenarioFutureTotal = getScenarioItemFutureTotal(item, scenario, dateObj); 
             if(!isNaN(scenarioFutureTotal)){
               total += scenarioFutureTotal;
@@ -1686,20 +1317,12 @@ const recalculateDatapoints = async() => {
               total = NaN;
             }
           
-            //console.log("recalculateDatapoints activeScenarios scenario  item ================================");
-            //console.log("recalculateDatapoints activeScenarios scenario  item",item);
-            //console.log("recalculateDatapoints activeScenarios scenario  item wkn",item.wkn,"total",total);
 
           });
-          //console.log("recalculateDatapoints dateTotal total",total);
 
-          //return Math.round(total);
           return total;
-          //return {x: dateObj.toISOString(),y: Math.round(total)};
-          //return {x: date.toISOString(),y: Math.round(total)};
         });
       
-        //console.log("recalculateDatapoints activeScenarios adjustedData",adjustedData);
         // Scenario model differs from the forecast even at 0% (puts, cash), so only its delta vs 0% is added.
         const neutralScenario = { ...scenario, market: 0 };
         const anchoredData = adjustedData.map((value:any, i:any) =>
@@ -1707,15 +1330,11 @@ const recalculateDatapoints = async() => {
         const formattedEndDate = end.toLocaleString('en-US', { month: 'short', year: 'numeric' });
         chartData.value.datasets.push({
           label: `${t('scenario')} ${index + 1} (${market > 0 ? '+' : ''}${market}%) ${t('until')} ${formattedEndDate}`,
-          //label: `${t('scenario')} ${index + 1}`,
 
-          //data: adjustedData,
           data: anchoredData,
           scenario: scenario,
           fill: false,
           tension: 0.4,
-          //borderColor: customColors[(index + 2) % customColors.length],
-          //backgroundColor: customColors[(index + 2) % customColors.length],
           borderColor: market > 0 ? '#16a34a' : '#ef4444',
           backgroundColor: market > 0 ? '#16a34a' : '#ef4444',
           cubicInterpolationMode: 'monotone',
@@ -1724,30 +1343,12 @@ const recalculateDatapoints = async() => {
           baseData: anchorBase,
           todayTotal: newDatapoints[0],
         
-          /*
-          pointRadius: adjustedData.map((value, i) => {
-            //const date = new Date(dates[i]);
-            const date = new Date(allDates[i]);
-            const isFirst = i === 0;
-            const isLast = i === adjustedData.length - 1;
-            // Check if this date is the last day of the month
-            const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
-            const isEndOfMonth = date.getDate() === lastDayOfMonth; 
-            //console.log("scenario ponts value",value);
-            //console.log("scenario ponts date",date);
-            //console.log("scenario ponts isFirst",isFirst);
-            //console.log("scenario ponts isLast",isLast);
-            //console.log("scenario ponts isEndOfMonth",isEndOfMonth);
-            return isFirst || isLast || isEndOfMonth ? 4 : 0;
-          }),*/
         });
       });
     });
     datapoints.value = allBase;
     
   chartKey.value++;
-  //console.log("recalculateDatapoints chartData",chartData);
-  //console.log("recalculateDatapoints chartData",chartOptions);
   }else if (selectedType.value === 'multi') {
     const rangeStart = rangeStartStr(selectedRange.value);
     const groups = chartAccountGroups();
@@ -1762,11 +1363,8 @@ const recalculateDatapoints = async() => {
         historyMap.set(date, total);
       }); 
 
-      const todayData = new Date();
-      const todayDataStr = todayData.toISOString().split('T')[0];
+      const todayDataStr = todayIso();
       const todayTotal = scopedTodayTotal(group.key);
-      //newDatapoints.unshift(todayTotal);
-      //dates.unshift(today);
       forecastMap.set(todayDataStr, todayTotal);
 
       const forecastDates = dates;
@@ -1789,8 +1387,6 @@ const recalculateDatapoints = async() => {
       const { historyMap, forecastMap } = groupMaps[groupIndex];
       const historyDataset = allDates.map(date => historyMap.get(date) ?? null);
       const forecastDataset = allDates.map(date => forecastMap.get(date) ?? null);
-      //console.log("Forecast multi historyDataset",historyDataset);
-      //console.log("Forecast multi forecastDataset",forecastDataset);
       return [
         {
           label: t('history'),
@@ -1818,18 +1414,11 @@ const recalculateDatapoints = async() => {
       ];
     });
 
-    //chartOptions.scales.x.min = new Date(allDates[0]).toISOString().split('T')[0];
     // First-of-month would open a short range with an empty gap; allDates[0] is already clamped to the range.
     chartOptions.scales.x.min = rangeStart ? allDates[0] : getMinDate(allDates[0]);
     chartOptions.scales.x.ticks.source = "auto";
     chartOptions.scales.x.ticks.autoSkip = false;
     
-    
-    //today line
-    const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    const endOfMonthStr = endOfMonth.toISOString().split('T')[0];
     
     chartKey.value++;
   }
@@ -1841,8 +1430,6 @@ const recalculateDatapoints = async() => {
     const rangePadding = (maxValue - minValue) * 0.05;
     chartOptions.scales.y.suggestedMin = Math.floor(minValue - rangePadding);
     chartOptions.scales.y.suggestedMax = Math.ceil(maxValue + rangePadding);
-    //const maxValue = Math.max(...datapoints.value);
-    //chartOptions.scales.y.suggestedMax = Math.ceil(maxValue * 1.1);
 
     // Ensure suggestedMax is at least slightly larger than suggestedMin
     if (chartOptions.scales.y.suggestedMax <= chartOptions.scales.y.suggestedMin) {
@@ -1851,7 +1438,6 @@ const recalculateDatapoints = async() => {
   }
 
   // several lines are only told apart by colour, so name them
-  //chartOptions.plugins.legend.display = (chartData.value.datasets || []).length > 1;
   chartPanels.value = buildChartPanels();
   isLoading.value = false;
 };
@@ -1897,7 +1483,6 @@ function buildChartPanels() {
     };
   });
 }
-
 
 
 /***************/
@@ -2041,18 +1626,11 @@ const scenarioLabel = (scenario:any) =>
   `${formatMarket(scenario.market)} · ${formatDate(scenario.timeframe.start)} – ${formatDate(scenario.timeframe.end)}`;
 
 // Persist changes
-/*watch(scenarios, async () => {
-    const clonedData = deepCloneReactiveData(scenarios.value);
-    await storage.setItem('local:scenarios',clonedData)
-  },
-  { deep: true }
-)*/
 
 // Save scenario
 async function saveScenario() {
   const original = { ...form.value }
   const newScenario = JSON.parse(JSON.stringify(original));
-  //console.log("saveScenario newScenario",newScenario)
   // Typed input arrives as a string, presets as numbers; normalise so the duplicate check compares like with like.
   if (newScenario.market !== null && newScenario.market !== '') newScenario.market = Number(newScenario.market);
   if (newScenario.market === null || newScenario.market === '' ||
@@ -2076,9 +1654,6 @@ async function saveScenario() {
   const formattedEnd = formatDateToYMD(newScenario.timeframe.end);
   newScenario.timeframe.start = formattedStart;
   newScenario.timeframe.end = formattedEnd;
-  //newScenario.timeframe.start = startDate;
-  //newScenario.timeframe.end = endDate;
-  //console.log("forcast saveScenario formattedStart",formattedStart);
 
   // Check for duplicate scenario
   const isDuplicate = scenarios.value.some((scenario, index) => {
@@ -2098,8 +1673,6 @@ async function saveScenario() {
     return;
   }
 
-  //console.log("forcast save scenarios",scenarios.value);
-  //console.log("forcast save newScenario",newScenario);
   if (editingIndex.value !== null) {
     scenarios.value[editingIndex.value] = newScenario
     editingIndex.value = null
@@ -2111,7 +1684,6 @@ async function saveScenario() {
   
   updateScenarios();
   resetForm();
-  //console.log("forcast save scenarios 2",scenarios.value);
 }
 
 function toCalendarDate(isoDate: string): CalendarDate {
@@ -2121,28 +1693,15 @@ function toCalendarDate(isoDate: string): CalendarDate {
 
 // Edit existing scenario
 function editSenario(index: number) {
-  //console.log("forcast editSenario index",index);
-  //console.log("forcast editSenario scenarios",scenarios.value);
   const original = scenarios.value[index];
   
-  //const cloned = JSON.parse(JSON.stringify(original));
   const cloned = deepCloneReactiveData(original);
-  //cloned.timeframe.start = fromDate(new Date(cloned.timeframe.start), getLocalTimeZone()).toCalendarDate();
-  //cloned.timeframe.end = fromDate(new Date(cloned.timeframe.end), getLocalTimeZone());
   cloned.timeframe.start = toCalendarDate(cloned.timeframe.start);
   cloned.timeframe.end = toCalendarDate(cloned.timeframe.end);
   
   
-  
-
   form.value = cloned;
   editingIndex.value = index;
-  //scenariosKeys.value++;
-  //console.log("forcast editSenario cloned",cloned);
-  //console.log("forcast editSenario timeframe",cloned.timeframe);
-  //console.log("forcast editSenario timeframe start",cloned.timeframe.start);
-  //console.log("forcast editSenario scenarios 2",scenarios.value);
-  //console.log("forcast editSenario scenarios form",form.value);
 }
 
 function toggleScenarioStatus(index:number) {
@@ -2154,7 +1713,6 @@ function toggleScenarioStatus(index:number) {
     scenarios.value[index] = newScenario
     updateScenarios();
     toast({ title: t(newScenario.active ? 'scenarios.shown' : 'scenarios.hidden'), description: scenarioLabel(newScenario) });
-    //console.log("forcast toggleScenarioStatus scenarios",scenarios.value);
   }
 }
 
@@ -2183,24 +1741,13 @@ function clearAllScenarios(){
 
 // Reset form
 function resetForm() {
-  const defaultStart = today(getLocalTimeZone());
-  const defaultEnd = defaultStart.add({ days: 7 });
-  
-  /*form.value = {
-    market: null,
-    timeframe: { start: defaultStart, end: defaultEnd },
-    active: true,
-  };*/
   form.value.market = null;
 
   editingIndex.value = null;
-  //scenariosKeys.value++;
-  //console.log("resetForm form",form.value);
 }
 
 async function updateScenarios(){
   const clonedData = deepCloneReactiveData(scenarios.value);
-  //console.log("updateScenarios clonedData",clonedData);
   await storage.setItem('local:scenarios',clonedData)
   recalculateDatapoints();
 }
@@ -2226,7 +1773,7 @@ function scopedDailyTotals(key:any = null) {
 }
 
 function scopedTodayTotal(key:any = null) {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayIso();
   const todayEntry = scopedDailyTotals(key).find(entry => entry.date === todayStr);
   if (todayEntry) return todayEntry.total;
   // Layout saves today's entry after this child mounts, so the first open of a day found none and plotted 0.
@@ -2247,82 +1794,8 @@ function historyEntryBefore(dateStr:any, key:any = null) {
 }
 
 const isExportSheet = ref(false)
-const defaultExportDate = new Date().toISOString().split("T")[0];
+const defaultExportDate = todayIso();
 const exportDate = ref(defaultExportDate);
-
-const oldexportForecast2 = async() =>{
-  const rows = [];
-
-  // Forecast Row
-  if (listData.value && listData.value.length > 0) {
-    listData.value.forEach(item => {
-      rows.push({
-        Title: t("forecast"),
-        Date: exportDate.value,
-        //StartDate: "-",
-        //EndDate: "-",
-        StockName: item.stock_name ?? "",
-        Type: item.type ?? "",
-        WKN: item.wkn ?? "",
-        ISIN: item.isin ?? "",
-        Bid: item.bid ?? "",
-        UnderlyingPrice: item.underlying_price ?? "",
-        CurrencyRate: item.currency_rate ?? "",
-        ImpliedVolatility: item.implied_volatility ?? "",
-        FutureTotalValue: item.future_total_value ?? item.total_value ?? 0
-      });
-    });
-  }
-  
-  const savedScenarios = await storage.getItem('local:scenarios') || [];
-  const activeScenarios = savedScenarios.filter((item) => item.active === true);
-
-  // Scenario Rows
-  if (activeScenarios && activeScenarios.length > 0) {
-    activeScenarios.forEach((scenario, index) => {
-      const { market, timeframe } = scenario;
-      const dateCurrent = toDate(exportDate.value);
-      const dateStart = toDate(timeframe.start);
-      const dateEnd = toDate(timeframe.end);
-      // console.log("exportForecast dateCurrent date",exportDate.value);
-      // console.log("exportForecast dateCurrent",dateCurrent);
-      // console.log("exportForecast dateStart",dateStart);
-      // console.log("exportForecast dateEnd",dateEnd);
-
-      if (dateCurrent >= dateStart && dateCurrent <= dateEnd) {
-        listData.value.forEach(item => {
-
-          const futureTotalValue = getScenarioItemFutureTotal(item, scenario, exportDate.value);
-          //console.log("exportForecast loop futureTotalValue",futureTotalValue,"wkn",item.wkn);
-          rows.push({
-            Title: `${t('scenario')} ${market}% ${timeframe.start}- ${timeframe.end}`,
-            Date: exportDate.value,
-            //StartDate: timeframe.start,
-            //EndDate: timeframe.end,
-            StockName: item.stock_name ?? "",
-            Type: item.type ?? "",
-            WKN: item.wkn ?? "",
-            ISIN: item.isin ?? "",
-            Bid: item.bid ?? "",
-            UnderlyingPrice: item.underlying_price ?? "",
-            CurrencyRate: item.currency_rate ?? "",
-            ImpliedVolatility: item.implied_volatility ?? "",
-            FutureTotalValue: futureTotalValue
-          });
-        });
-      }
-
-    });
-  }
-
-  // Build Worksheet & Workbook
-  const worksheet = XLSX.utils.json_to_sheet(rows);
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Forecast-Scenario");
-
-  // Export file
-  XLSX.writeFile(workbook, `Forecast_Scenario_${exportDate.value}.xlsx`);
-}
 
 
 // 
@@ -2351,7 +1824,6 @@ const table = useVueTable({
   onColumnVisibilityChange: updaterOrValue => valueUpdater(updaterOrValue, columnVisibility),
   onRowSelectionChange: updaterOrValue => valueUpdater(updaterOrValue, rowSelection),
   onExpandedChange: updaterOrValue => valueUpdater(updaterOrValue, expanded),
-  //getSubRows: row => row.items?.length>0 ? row.items : [],
   state: {
     get sorting() { return sorting.value },
     get columnFilters() { return columnFilters.value },
@@ -2362,7 +1834,6 @@ const table = useVueTable({
 });
 
 const getFutureValueFromFutureTotal = (item, targetDate,scenario=null) => {
-  let bid = 0;
   let future_bid = 0;
   let future_underlying_price = item.underlying_price ?? 0;
   
@@ -2374,12 +1845,9 @@ const getFutureValueFromFutureTotal = (item, targetDate,scenario=null) => {
   let futureTotalValue = todayValue;
   let expectationMultiplier = 1;
   
-  //console.log("getFutureValueFromFutureTotal ============================================")
-  //console.log("getFutureValueFromFutureTotal item wkn",item.wkn)
 
   if(scenario){
     futureTotalValue = getScenarioItemFutureTotal(item, scenario, targetDate);
-    //console.log("getFutureValueFromFutureTotal item wkn",item.wkn)
   }else{
     if (item.type === "put") {
       const bs = new BlackScholes();
@@ -2420,8 +1888,6 @@ const getFutureValueFromFutureTotal = (item, targetDate,scenario=null) => {
     futureTotalValue = todayValue + targetProfitUntilDate;
     future_bid = futureTotalValue / ownedStocks;
   } else {
-    //futureTotalValue = todayValue;
-    //future_bid = bid;
   }
   
   const underlyingChange = ((item.future_underlying_price ?? item.underlying_price) - item.underlying_price) || 0;
@@ -2429,9 +1895,6 @@ const getFutureValueFromFutureTotal = (item, targetDate,scenario=null) => {
   future_underlying_price = item.underlying_price + totalUnderlyingChange;
 
   
-  //console.log("getFutureValueFromFutureTotal futureTotalValue",futureTotalValue)
-  //console.log("getFutureValueFromFutureTotal future_bid",future_bid)
-  //console.log("getFutureValueFromFutureTotal future_underlying_price",future_underlying_price)
   return {
     futureTotalValue,
     future_bid,
@@ -2448,7 +1911,6 @@ const prepareForecastData = async () => {
   // Get active scenarios
   const savedScenarios = await storage.getItem('local:scenarios') || [];
   const activeScenarios = savedScenarios.filter((item) => item.active === true);
-  //const scenarioHeaders = activeScenarios.map(s => `${s.market}%`);
   const scenarioHeaders = activeScenarios.map((s) => {
     const start = s.timeframe.start.replace(/-/g, "").slice(2); // YYMMDD
     const end = s.timeframe.end.replace(/-/g, "").slice(2);     // YYMMDD
@@ -2458,9 +1920,6 @@ const prepareForecastData = async () => {
     };
   });
 
-  //console.log("prepareForecastData savedScenarios",savedScenarios);
-  //console.log("prepareForecastData activeScenarios",activeScenarios);
-  //console.log("prepareForecastData mainList",mainList);
   
   const rows = [];
   if (mainList && mainList.length > 0) {
@@ -2473,7 +1932,6 @@ const prepareForecastData = async () => {
       const forecastValue = calculateTotalValueForDate(exportDay, [item]);
       const scenarioValues = Object.fromEntries(
         activeScenarios.map((scenario,index) => [
-            //scenarioHeaders[index].id, getScenarioItemFutureTotal(item, scenario, exportDate.value)
             scenarioHeaders[index].id, forecastValue + getScenarioItemFutureTotal(item, scenario, exportDate.value)
               - getScenarioItemFutureTotal(item, { ...scenario, market: 0 }, exportDate.value)
         ])
@@ -2496,28 +1954,9 @@ const prepareForecastData = async () => {
       };
 
       
-      /*let items = [];
-      if(item.stock_name != "Cash"){
-        activeScenarios.forEach(scenario => {
-          const {futureTotalValue,
-            future_bid,future_underlying_price
-          } = getFutureValueFromFutureTotal(item,exportDate.value,scenario);
-          scenario = {
-            ...item,
-            ...scenario,
-            future_total_value: futureTotalValue ?? 0,
-            bid: future_bid ?? "",
-            underlying_price: future_underlying_price ?? "",
-          }
-          items.push(scenario);
-        });
-      }
-      base.items = items;
-      */
       rows.push(base);
     });
   }
-  //console.log("prepareForecastData rows",rows);
   return { rows, scenarioHeaders };
 };
 
@@ -2538,31 +1977,12 @@ const getColumnTotal = (columnId: string) => {
 }
 
 
-const forecastTablePriceFields = [
-  'bid','underlying_price','currency_rate',
-  'implied_volatility','future_total_value'
-];
 const forecastTableNonPriceFields = [
   'stock_name','wkn','isin'
 ];
 
-function getSortingHeader(column, label) {
-  return h(Button, {
-    variant: 'ghost',
-    // header is bg-primary, so the hover must tint with its own foreground to stay readable
-    class : 'hover:bg-primary-foreground/10 hover:text-primary-foreground',
-    onClick: () => {
-      column.toggleSorting(column.getIsSorted() === 'asc');
-      },
-  }, () => [
-    t(label),
-    column.getIsSorted() === 'asc'
-      ? h(ArrowUpNarrowWide, { class: 'ml-2 h-4 w-4' })
-      : column.getIsSorted() === 'desc'
-        ? h(ArrowDownWideNarrow, { class: 'ml-2 h-4 w-4' })
-        : h(ArrowUpDown, { class: 'ml-2 h-4 w-4 ' })
-  ]);
-}
+// header is bg-primary, so the hover must tint with its own foreground to stay readable
+const getSortingHeader = (column, label) => sortableHeader(column, t(label), 'hover:bg-primary-foreground/10 hover:text-primary-foreground');
 
 const isTableLoading = ref(false);
 const isExporting = ref(false);
@@ -2582,9 +2002,6 @@ const loadForecastData = async () => {
   }
   const { rows, scenarioHeaders } = prepared;
   forecastTableData.value = deepCloneReactiveData(rows);
-  //console.log("loadForecastData rows",rows)
-  //console.log("loadForecastData forecastTableData",forecastTableData.value)
-  //console.log("loadForecastData scenarioHeaders",scenarioHeaders)
 
   // Build table columns dynamically
   columns.value = [
@@ -2592,9 +2009,6 @@ const loadForecastData = async () => {
     { accessorKey: "type", header: ({ column }) => getSortingHeader(column, 'type') },
     { accessorKey: "wkn", header: t("wkn") },
     { accessorKey: "isin", header: t("isin") },
-    //{ accessorKey: "bid", header: ({ column }) => getSortingHeader(column, 'bid') },
-    //{ accessorKey: "underlying_price", header: ({ column }) => getSortingHeader(column, 'underlying_price') },
-    //{ accessorKey: "future_total_value", header: ({ column }) => getSortingHeader(column, 'future_total_value') },
     { accessorKey: "currency_rate", header: ({ column }) => getSortingHeader(column, 'currency_rate') },
     { accessorKey: "implied_volatility", header: ({ column }) => getSortingHeader(column, 'implied_volatility') },
     
@@ -2614,13 +2028,7 @@ const exportForecast = async() =>{
   isExporting.value = true;
   try {
     const { rows } = await prepareForecastData();
-    // Build Worksheet & Workbook
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Forecast-Scenario");
-
-    // Export file
-    XLSX.writeFile(workbook, `Forecast_Scenario_${exportDate.value}.xlsx`);
+    downloadXlsx(rows, "Forecast-Scenario", `Forecast_Scenario_${exportDate.value}.xlsx`);
   } catch (err) {
     // the user is told, instead of a click that does nothing
     console.error('exportForecast error:', err);
@@ -2643,7 +2051,6 @@ const loadForecast = async() => {
 
       recalculateDatapoints();
       scenarios.value = (await storage.getItem('local:scenarios')) || [];
-      //console.log("onMounted forcast scenarios",scenarios.value);
     } else {
       // no MAIN_LIST yet: without this the skeleton never went away
       isLoading.value = false;
@@ -2654,10 +2061,9 @@ const loadForecast = async() => {
     isLoading.value = false;
     notifyError(t('forecast_load_failed'));
   }
-  //console.log("onMounted form",form.value); 
 };
 
-// dvh like List and eqad /horses; 170 leaves room for the API-key banner above the chart.
+// dvh like List; 170 leaves room for the API-key banner above the chart.
 const chartHeightClass = computed(() => apiKeyLoaded.value && (!apiKey.value || apiAuthFailed.value)
   ? 'h-[calc(100dvh-170px)]'
   : 'h-[calc(100dvh-100px)]');

@@ -113,7 +113,7 @@ import { Camera, CircleCheck, Eraser, EyeOff, Highlighter, LifeBuoy, Loader2, Mo
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog';
-import { apiAuthFailed, apiKey, getApiKey, sendSupportMessage } from '~/utils/helper';
+import { apiAuthFailed, apiKey, getApiKey, sendSupportMessage, sleep } from '~/utils/helper';
 
 const { t, locale } = useI18n();
 
@@ -160,7 +160,6 @@ let drawing: any = null;
 // Must match sendSupportMessage: a dead key is not sent, so the user needs name/email to be reachable.
 const hasValidKey = computed(() => !!apiKey.value && !apiAuthFailed.value);
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const openSupport = async (delay = 0) => {
   console.log('openSupport', delay);

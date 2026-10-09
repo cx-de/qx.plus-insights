@@ -174,7 +174,6 @@ const emptyState = computed(() => {
 });
 
 const load = async () => {
-  //console.log("ApiUsagePanel load");
   if (!props.apiKey) return;
   loading.value = true;
   const result: any = await fetchApiUsage(props.apiKey);

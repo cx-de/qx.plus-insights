@@ -35,7 +35,6 @@
           <a href="https://github.com/cx-de/qx.plus-insights" target="_blank" rel="noopener noreferrer"
              aria-label="GitHub" title="GitHub"
              class="inline-flex h-11 w-11 items-center justify-center rounded-full text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <!-- <Github /> -->
             <svg xmlns="http://www.w3.org/2000/svg"
               width="30" height="30" 
               viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -55,14 +54,8 @@ import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import pkg from '@/package.json'
 
-import { Card, CardContent, 
-  CardDescription, CardFooter, 
-  CardHeader, CardTitle
-  } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 
-import {
-    Github,
-} from 'lucide-vue-next'
 
 const { t } = useI18n();
 document.title = t('help');

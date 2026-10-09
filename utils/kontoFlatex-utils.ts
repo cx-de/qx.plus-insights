@@ -16,7 +16,7 @@
     Public API is small on purpose: everything not consumed by another file is
     module-private, because WXT turns every export into a project-wide global.
 */
-import { germanToNumer, parseGermanDateOnly } from "./helper";
+import { germanToNumer, parseGermanDateOnly, todayIso, sleep } from "./helper";
 
 const broker = "Flatex";
 
@@ -55,18 +55,6 @@ export function getIdFromRow(row) {
 }
 
 // Getting all stock Id numbers visible in the table
-/*
-function getAllIdAvailableOnPage() {
-  let allWkn = document.querySelectorAll(".WKN");
-  if (allWkn.length === 0) {
-    console.log("Couldn't find any rows to extract the ISIN...");
-  }
-  return Array.from(allWkn).map((wknText) => {
-    const row = wknText.parentElement;
-    return row.innerText.split(" ")[0];
-  });
-}
-*/
 
 // Creating empty rows to fill
 export function createEmptyRowsToFill() {
@@ -76,7 +64,6 @@ export function createEmptyRowsToFill() {
     ".I2.Last.DetailsAvailable:not(.hasExtraData):not(.extraData)"
   );
   for (let x = 0; x < rowsThatNeedExtraData.length; x++) {
-    const id = rowsThatNeedExtraData[x].id || x;
     rowsThatNeedExtraData[x].classList.add("hasExtraData");
     const rowElement = document.createElement("tr");
     setAttributesForRowWrapper(rowElement);
@@ -125,20 +112,13 @@ function setAttributesForRowWrapper(rowElement) {
 
 // The columns that are inside the container
 function createRowHTMLStructure(rowElement) {
-  const columns = [
-    "type", 
-    "valuation_date", "cap", "future_total_value",
-    "na","profit_loss_target", "profit_loss_target_pa", 
-    "underlying_price"];
-  
-  rowElement.innerHTML = `${columns.map(cls => `<td class="${cls} ${cls=='type' ? 'C0' : 'C1'}"></td>`).join('')}`;
+  rowElement.innerHTML = `${FLATEX_EXTRA_ROW_COLUMNS.map(cls => `<td class="${cls} ${cls=='type' ? 'C0' : 'C1'}"></td>`).join('')}`;
 }
 
 
 export async function flatexUpdateCustomRowData() {
     try {
     const extraDataRow = document.querySelector(".extraData");
-    //console.log("updateData extraDataRow",extraDataRow);
     
     if (!extraDataRow) {
       console.log("No rows available, No Data Needed To Fetch");
@@ -147,7 +127,6 @@ export async function flatexUpdateCustomRowData() {
     
     const result = await chrome.storage.local.get(['MAIN_LIST']);
     const data = await accountOwnRows(result.MAIN_LIST || [], broker, currentAccountId);
-    //console.log("updateData data",data);
     data.forEach((currentStock) => {
       const { isin } = currentStock;
       const currentStockRowElement = document.querySelector(".row" + isin);
@@ -172,8 +151,8 @@ export async function flatexUpdateCustomRowData() {
 }
 
 // Example: call flatex overview API
-async function fetchOverview() {
-  const url = "https://konto.flatex.de/next-desktop/overviewFormAction.do";
+async function fetchOverview(tokenId:any, windowId:any) {
+  const url = DEPOT_URL;
   const formData = new FormData();
   formData.append("selectedViewWidget.overviewEntryBlockSelectionWidget.selecteditemindex","3");
   formData.append("selectedViewWidget.cbxTableType.selecteditemindex","1");
@@ -187,8 +166,8 @@ async function fetchOverview() {
       "accept": "application/json",
       "x-ajax": "true",
       "x-requested-with": "XMLHttpRequest",
-      "x-tokenid":  localStorage.getItem('tokenId'),
-      "x-windowid":  localStorage.getItem('windowId'),
+      "x-tokenid":  tokenId,
+      "x-windowid":  windowId,
     },
     credentials: "include"
   });
@@ -199,45 +178,27 @@ async function fetchOverview() {
   }
 
   const text = await res.text(); // can also use .json() if JSON
-  //console.log("Overview response:", text);
   
   const match = text.match(/Kundennummer\s+(\d+)/);
   const accountNumber = match ? match[1] : null;
-  console.log("fetchOverview Account Number:", accountNumber);
 
 
-  //cancel request
-  const formData2 = new FormData();
-  formData.append("selectedViewWidget.overviewEntryBlockSelectionWidget.selecteditemindex","0");
-  formData.append("btnRemoveAllFullScreenSecondLevelWidgets.clicked","true");
-  
-  /*
-  const res2 = await fetch(url, {
-    method: "POST",
-    body: formData2,
-    headers: {
-      "accept": "application/json",
-      "x-ajax": "true",
-      "x-requested-with": "XMLHttpRequest",
-      "x-tokenid":  localStorage.getItem('tokenId'),
-      "x-windowid":  localStorage.getItem('windowId'),
-    },
-    credentials: "include"
-  });
-  console.error("fetchOverview api", res2.status);  
-  */
-  
-  //open/close account model
-  //document.querySelector('.OpenUserSettings')?.click(); 
-  //setTimeout(()=>{ document.querySelector('.BtnAbort')?.click(); },500);
   return accountNumber;
 }
 
 
+// Older versions copied the bank session token into flatex's localStorage; remove it once, never touch it again.
+async function flatexPurgeLegacyToken() {
+  const { flatexLegacyTokenPurged } = await chrome.storage.local.get({ flatexLegacyTokenPurged: false });
+  if (flatexLegacyTokenPurged) return;
+  localStorage.removeItem('windowId');
+  localStorage.removeItem('tokenId');
+  await chrome.storage.local.set({ flatexLegacyTokenPurged: true });
+}
 
 async function syncFlatexUser() {
   console.log("syncFlatexUser");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIso();
   
   try{
 
@@ -246,22 +207,13 @@ async function syncFlatexUser() {
     const lastSync = flatexUserSession.flatexUserSync;
     const lastSyncDay = lastSync ? lastSync.slice(0, 10) : null;
 
-    //const storedSessionId = localStorage.getItem('CUR_FLATEXID');
-    const storedSession = await chrome.storage.local.get({ CUR_FLATEXID: null });
-    const storedSessionId = storedSession.CUR_FLATEXID;
-    console.log('syncFlatexUser storedSessionId',storedSessionId);
-    
     let currentSessionId = null;
     const scripts = Array.from(document.querySelectorAll("script"));
     const matchScript = scripts.find(s => (s.textContent || "").includes("setCurrentWindowId"));
     if (matchScript) {
       let windowId = matchScript.textContent!.match(/setCurrentWindowId\s*\(\s*["']([^"']+)["']\s*\)/)?.[1] || null;
       let tokenId = matchScript.textContent!.match(/setTokenId\s*\(\s*["']([^"']+)["']\s*\)/)?.[1] || null;
-      localStorage.setItem('windowId',windowId);
-      localStorage.setItem('tokenId',tokenId);
-      console.log("syncFlatexUser matchScript windowId:", windowId);
-      console.log("syncFlatexUser matchScript tokenId:", tokenId);
-      //console.log("syncFlatexUser matchScript textContent:", matchScript.textContent);
+      await flatexPurgeLegacyToken();
 
       // Throttle only the network probe, never the detection below. Returning here
       // left currentAccountId on the PREVIOUS account, so a second login's positions
@@ -271,10 +223,9 @@ async function syncFlatexUser() {
         && flatexUserSession.flatexProbedAccount;
 
       if (sameSession) {
-        //console.log("✅ Already probed this session, reusing the id.");
         currentSessionId = flatexUserSession.flatexProbedAccount;
       } else if(windowId && tokenId){
-        currentSessionId = await fetchOverview();
+        currentSessionId = await fetchOverview(tokenId, windowId);
         // Cache the result with its token so an accepted account is picked up on the
         // very next tick instead of waiting for tomorrow's probe.
         await chrome.storage.local.set({
@@ -285,22 +236,12 @@ async function syncFlatexUser() {
     
     // Adoption is accountDetect's job now; writing the id here persisted accounts
     // the user had not accepted yet.
-    //if(!storedSessionId && currentSessionId){
-    //  console.log("syncFlatexUser first time set currentSessionId",currentSessionId);
-    //  await chrome.storage.local.set({ CUR_FLATEXID: currentSessionId });
-    //}
 
     if (currentSessionId) {
-      console.log('syncFlatexUser if currentSessionId',currentSessionId);
-      console.log('syncFlatexUser if storedSessionId',storedSessionId);
       // null while a prompt is pending, which is what freezes this broker's writes.
       currentAccountId = await accountDetect(broker, String(currentSessionId));
       if (currentAccountId) await chrome.storage.local.set({ CUR_FLATEXID: currentAccountId });
-      //await chrome.storage.local.set({ hasNewAccount: 'flatex' });
-      //await chrome.storage.local.set({ NEW_FLATEXID: currentSessionId });
       // Purchase dates are cleared on Replace, not on detection: the other account still needs them.
-      //await flatexClearPurchaseDateCache();
-      //localStorage.removeItem('flatexSnoozeUntil');
     } else {
       console.log('syncFlatexUser not found in cookies');
     }
@@ -312,16 +253,12 @@ async function syncFlatexUser() {
 
 // Checks whether the user is on stocks page data can be stored locally & accurately
 function isOnStocksPage() {
-  // const stockLink = document.querySelector(".DepositStatementOverallOverviewWidgetContent");
-  // return stockLink;
-  const stockLink = document.getElementById("__1551384479");
+  const stockLink = document.getElementById(LEGACY_DEPOT_TAB_ID);
   return !!stockLink && stockLink.className.includes("Selected");
 }
 
 function isOnDashboardPage(){
-  //const stockLink = document.querySelector(".DepositAndBalanceOverviewWidget .ValueLine");
   const stockLink = document.querySelector(".DepositAndBalanceOverviewWidget .ValueRows");
-  //console.log("isOnDashboardPage stockLink",stockLink);
   return !!stockLink;
 }
 
@@ -350,22 +287,7 @@ export async function flatexSaveDataToLocalStorage() {
 
     // Superseded: accountDetect returns null while a prompt is pending, and the
     // currentAccountId guard above is what now freezes this broker's writes.
-    //const storedSession = await chrome.storage.local.get({ hasNewAccount: null });
-    //const hasNewAccount = storedSession.hasNewAccount;
-    //if (hasNewAccount === 'flatex') {
-    //  console.log("flatexSaveDataToLocalStorage hasNewAccount")
-    //  return false;
-    //}
     
-    /*
-    if (!isOnDashboardPage()) {
-      console.log("Can't update data, not on dashboard page...");
-      return false;
-    }
-    if (!isOnStocksPage()) {
-      console.log("dash Can't update data, not on stocks page...");
-      return false;
-    }*/
     
     if (isOnDashboardPage()) {
       console.log("flatexSaveDataToLocalStorage isOnDashboardPage");
@@ -374,13 +296,10 @@ export async function flatexSaveDataToLocalStorage() {
         
         // Kontosaldo/ Account balance
         let accountBalance = 0;
-        //const values = document.querySelectorAll(".DepositAndBalanceOverviewWidget .ValueLine .Value");
         const values = document.querySelectorAll(".DepositAndBalanceOverviewWidget .ValueRows .Value");
-        //console.log("dash values",values);
         if (values.length >= 2) {
           accountBalance = values[1]?.textContent?.trim().split(' ')[0];
           accountBalance = germanToNumer(accountBalance);
-          console.log("dash accountBalance",accountBalance);
         }
 
         const now = new Date();
@@ -412,7 +331,6 @@ export async function flatexSaveDataToLocalStorage() {
         }
         
         chrome.storage.local.set({ KONTO_FLATEX: currentData }, () => {
-          console.log("dash Updated KONTO_FLATEX with newStockData:", currentData);
         });
         
       });
@@ -446,7 +364,6 @@ export async function flatexSaveDataToLocalStorage() {
 }
 
 function parseStockTimestamp(input) {
-  //console.log("parseStockTimestamp input",input);
   
   if(input=="-"){ return; }
   
@@ -517,7 +434,6 @@ function parseStockTimestamp(input) {
 
     // Format as ISO-8601 string
     const pad = n => String(n).padStart(2, '0');
-    //return `${resultDate.getUTCFullYear()}-${pad(resultDate.getUTCMonth() + 1)}-${pad(resultDate.getUTCDate())}T${pad(resultDate.getUTCHours())}:${pad(resultDate.getUTCMinutes())}:${pad(resultDate.getUTCSeconds())}Z`;
     return `${resultDate.getFullYear()}-${pad(resultDate.getMonth() + 1)}-${pad(resultDate.getDate())}T${pad(resultDate.getHours())}:${pad(resultDate.getMinutes())}:${pad(resultDate.getSeconds())}`;
 
   } catch (err) {
@@ -532,7 +448,6 @@ function getAllStockData(accountId:any) {
   const typetRowOfAllStocks = document.querySelectorAll(".I0.DetailsAvailable");
   const firstRowOfAllStocks = document.querySelectorAll(".I1.DetailsAvailable");
   const secondRowOfAllStocks = document.querySelectorAll(".I2.DetailsAvailable:not(.ariba)");
-  //console.log("getAllStockData firstRowOfAllStocks",firstRowOfAllStocks);
   
   if (!firstRowOfAllStocks.length || firstRowOfAllStocks.length !== secondRowOfAllStocks.length) {
     return [];
@@ -564,14 +479,12 @@ function getAllStockData(accountId:any) {
     let bid = secondRowOfAllStocks[x].querySelector(".C2").textContent.trim();
     bid = bid.substring(0, bid.length - 1).trim();
     bid = germanToNumer(bid);
-    //console.log("getAllStockData bid",bid);
 
     let buy_price = secondRowOfAllStocks[x].querySelector(".C4").textContent.trim();
     buy_price = buy_price.substring(0, buy_price.length - 1).trim();
     buy_price = germanToNumer(buy_price);
 
     
-    //let total_entry_value = row.querySelector(".C4 .PositiveAmount").textContent.trim().split(' ')[0];
     let total_entry_value = row.querySelector(".C4").textContent.trim().split(' ')[0];
     total_entry_value = germanToNumer(total_entry_value);
 
@@ -581,12 +494,9 @@ function getAllStockData(accountId:any) {
     let profit_loss_percentage = row.querySelector(".C5").textContent.trim();
     profit_loss_percentage = profit_loss_percentage.replace('%', '');
     profit_loss_percentage = germanToNumer(profit_loss_percentage);
-    //.replace(/\s+/g, '');
     
     let timestamp = secondRowOfAllStocks[x].querySelector(".C1").textContent?.trim();
-    //console.log("getAllStockData timestamp",timestamp);
     let page_timestamp = parseStockTimestamp(timestamp);
-    //console.log("getAllStockData timestamp",timestamp);
 
     // Kaufdatum comes from the cache the sync run fills, not from this table.
     const purchaseEntry = purchaseDateCache[flatexPurchaseKey(isin, accountId)];
@@ -603,8 +513,6 @@ function getAllStockData(accountId:any) {
 
   });
 }
-
-
 
 
 /* =========================================================================== *
@@ -1309,16 +1217,13 @@ async function flatexCloseDetail(
       break;
     }
 
-    await settle(150);
+    await sleep(150);
   }
 
   flatexDebugLog('could not close the detail overlay');
   return false;
 }
 
-function settle(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 // Zero extra round trips on the happy path: webcore remembers the selected category index.
 async function flatexOpenPositionDetail(
@@ -2079,7 +1984,7 @@ export async function flatexMaybeAutoSync() {
 
 /* ------------------------------------------------------------------------- *
  *  Debug helpers — attached to window only when qxSyncDebug is set.
- *  With no test framework in this repo, these are the regression surface.
+ *  The DOM-driven sync can't run under vitest, so these are its manual regression surface.
  * ------------------------------------------------------------------------- */
 
 export function flatexAttachDebugHelpers() {

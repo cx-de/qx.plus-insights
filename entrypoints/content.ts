@@ -1,4 +1,3 @@
-import { storage } from '#imports';
 import { i18n } from '~/entrypoints/home/main';
 import {
   flatexSyncState,
@@ -6,47 +5,21 @@ import {
   flatexMaybeAutoSync,
   flatexAttachDebugHelpers,
 } from '~/utils/kontoFlatex-utils';
+import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from '~/utils/constants';
 
 export default defineContentScript({
   matches: [
     'https://konto.flatex.de/*', 
-    //'https://www.flatex.de/*', 
     'https://app.smartbrokerplus.de/*',
     'https://www.consorsbank.de/*',
     'https://www.wikifolio.com/*',
     'https://webtrading.justtrade.com/*',
   ],
-  //runAt: 'document_start',
   async main(ctx) {
     console.log('Hello content.');
 
-    const MINUTE = 60 * 1000;
-    //let updateDuration = 30 * MINUTE;
-    let updateDuration = 1 * MINUTE;
-    /*
-    const settings = await storage.getItem('local:settings');
-    let priceUpdateDuration = 30;
-    if(settings) {
-      priceUpdateDuration = settings.price_duration;
-    }
+    const updateDuration = BROKER_REFRESH_MS;
 
-    const stocks = await storage.getItem('local:KONTO_FLATEX');
-    if(stocks && stocks.length>0) {
-      updateDuration = priceUpdateDuration * MINUTE;
-    }*/
-    updateDuration = 10000;
-    
-    //console.log("priceUpdateDuration ",priceUpdateDuration)
-    //console.log("updateDuration ",updateDuration)
-
-    // await injectScript('/kontoFlatex.js',{
-    //   keepInDom: true,
-    // });
-
-    //console.log('injectScript kontoFlatex');
-    //console.log('content ctx',ctx);
-    
-    
     const kontoFlatexWebsite = 'konto.flatex.de';
     const flatexWebsite = 'flatex.de';
     const consorsBankWebsite = 'consorsbank.de';
@@ -67,13 +40,13 @@ export default defineContentScript({
     let syncResetTimer:any;
 
     const SYNC_STYLES:any = {
-      idle:       { bg: '#fcaf2c', opacity: '1' },
-      saving:     { bg: '#fcaf2c', opacity: '0.7' },
-      fetching: { bg: '#fcaf2c', opacity: '0.7' },
-      done:       { bg: '#57a658', opacity: '1' },
-      partial:    { bg: '#57a658', opacity: '1' },
-      error:      { bg: '#d24b4b', opacity: '1' },
-      busy:       { bg: '#fcaf2c', opacity: '1' },
+      idle:       { bg: SYNC_COLOR_IDLE, opacity: '1' },
+      saving:     { bg: SYNC_COLOR_IDLE, opacity: '0.7' },
+      fetching: { bg: SYNC_COLOR_IDLE, opacity: '0.7' },
+      done:       { bg: SYNC_COLOR_DONE, opacity: '1' },
+      partial:    { bg: SYNC_COLOR_DONE, opacity: '1' },
+      error:      { bg: SYNC_COLOR_ERROR, opacity: '1' },
+      busy:       { bg: SYNC_COLOR_IDLE, opacity: '1' },
     };
 
     function syncLabel() {
@@ -184,20 +157,11 @@ export default defineContentScript({
 
     async function mainFlatex() {
       console.log("mainFlatex")
-      //antiSessionTimeout();
       addThirdRowHeader("Derivatetyp (Basiswert / Lieferung / Quanto / Ratio)",
         "Bewertungstag", "Cap", "Zielwert",
         "", "G/V Ziel €", "G/V Ziel p.a. (abs.) %", "Basiswert-Kurs");
       
-      /*
-      const stocks = document.querySelector("table.Data tbody");
-      if (!stocks) {
-        console.log("HTML Structure changed or stocks haven't loaded yet...");
-        //setTimeout(mainFlatex, 1000);
-        //return false;
-      }*/
 
-      
       if (!window.location.href.includes("overviewFormAction.do")) {
         console.log("HTML Structure changed or not on the right page...");
         return false;
@@ -209,32 +173,10 @@ export default defineContentScript({
       await flatexUpdateCustomRowData();
     }
 
-    async function mainConsorBank() {
-      console.log("mainConsorBank")
-      
-      //const selectWrapper = document.querySelector('.select-dropdown-wrapper--white .select-dropdown');
-      
-      
-      consorsBankAddHeaderRow("Derivatetyp (Basiswert / Lieferung / Quanto / Ratio)","");
-      consorsBankUpdateCustomRowData();
-
-      await consorsBankSaveDataToLocalStorage();
-      setTimeout(() => mainConsorBank(), updateDuration);
-      //setTimeout(() => mainConsorBank(), 10000);
-    }
-
     async function mainSmartBrokerPlus() {
       console.log("mainSmartBrokerPlus")
       
-      /*if (!checkIfStocksLoaded()) {
-        console.log("HTML Structure changed or stocks haven't loaded yet...");
-        setTimeout(() => mainSmartBrokerPlus(), 1000);
-        return false;
-      }*/
 
-      // createEmptyRowsToFill();
-      // await updateData();
-      
       await smartBrokerSaveDataToLocalStorage();
       setTimeout(() => mainSmartBrokerPlus(), updateDuration);
     }
@@ -242,20 +184,11 @@ export default defineContentScript({
     async function mainWikiFolio() {
       console.log("mainWikiFolio")
       
-      /*if (!checkIfStocksLoaded()) {
-        console.log("HTML Structure changed or stocks haven't loaded yet...");
-        setTimeout(() => mainSmartBrokerPlus(), 1000);
-        return false;
-      }*/
 
-      // createEmptyRowsToFill();
-      // await updateData();
-      
       await mainWikiFolioSaveDataToLocalStorage();
       setTimeout(() => mainWikiFolio(), updateDuration);
     }
 
-    //await storage.getItem('local:flatexUserSync'); use storage instead chrome
 
     // Top frame only: the flatex Kaufdatum sync runs a hidden iframe, and two frames
     // migrating at once both read-modify-write ACCOUNTS and lose each other's entries.
@@ -273,11 +206,9 @@ export default defineContentScript({
         //reset
         await chrome.storage.local.set({ flatexUserSync: '' });
         // Cleared a pending prompt for ANY broker just because the user opened www.flatex.de.
-        //await chrome.storage.local.set({ hasNewAccount: '' });
         return;
       }
 
-      // window.qxSync.* — only when localStorage.qxSyncDebug is set.
       flatexAttachDebugHelpers();
 
       mainFlatex();
@@ -305,7 +236,6 @@ export default defineContentScript({
     } else if (window.location.href.includes(consorsBankWebsite)) {
       mainConsorsBank();
       setTimeout(() => mainConsorsBank(), updateDuration);
-      //setInterval(saveDataToLocalStorage, updateDuration);
       document.addEventListener('change', () => {
         const selectEl = document.querySelector('select[data-type="accountSelect"]');
         if (selectEl) {
@@ -317,11 +247,8 @@ export default defineContentScript({
       });
 
     } else if (window.location.href.includes(smartBrokerPlusBankWebsite)) {
-      chrome.runtime.sendMessage({ website: "smartBrokerPlus", action: "initial" }, () => {
-        mainSmartBrokerPlus();
-      });
-      //setInterval(saveDataToLocalStorage, 10000);
-     } else if (window.location.href.includes(wikifolioWebsite)) {
+      mainSmartBrokerPlus();
+    } else if (window.location.href.includes(wikifolioWebsite)) {
         addCustomRowHeaderWikifolio();
         addSyncButtonOnWikifolio();
         updateCustomRowDataWikifolio();

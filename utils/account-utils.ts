@@ -16,15 +16,6 @@ const SCHEMA_VERSION = 1;
 const SNOOZE_MS = 15 * 60 * 1000;
 const LAST_SEEN_THROTTLE_MS = 60 * 60 * 1000;
 
-// consorsBank is camelCase while the rest are SCREAMING_SNAKE - that is the stored contract, not a typo.
-const BROKER_KEYS:any = {
-  'Flatex': 'local:KONTO_FLATEX',
-  'Consors Bank': 'local:consorsBank',
-  'Smart Broker +': 'local:SMART_BROKER_PLUS',
-  'Wikifolio': 'local:WIKIFOLIO',
-  'justTRADE': 'local:JUSTTRADE',
-};
-
 // Pre-2.8 single-account identity keys. Read only to seed the registry during migration.
 // Consors kept its id in the broker page's localStorage, which the popup cannot read.
 const LEGACY_ID_KEYS:any = {
@@ -284,7 +275,6 @@ async function accountRegister(broker:any, accountId:any) {
   if (existing) {
     const label = accountLabel(broker, accountId);
     // The scrapers call this every 10s tick. Writing every time fires
-    // storage.onChanged, which reloads every open page - throttle the last_seen churn.
     const stale = !existing.last_seen
       || (Date.now() - Date.parse(existing.last_seen)) > LAST_SEEN_THROTTLE_MS;
     if (!stale && existing.label === label) return rows;

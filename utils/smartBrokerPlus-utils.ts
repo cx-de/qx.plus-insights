@@ -40,7 +40,7 @@ async function smartBrokerSyncUser() {
   return currentAccountId;
 }
 
-export async function addSyncButtonOnSmartBroker() {
+async function addSyncButtonOnSmartBroker() {
   console.log("addSyncButtonOnSmartBroker");
 
   const exportBtn = document.querySelector('[data-testid="PageHeaderFinance"]');
@@ -50,39 +50,15 @@ export async function addSyncButtonOnSmartBroker() {
   let syncBtn = container.querySelector('[data-testid="sync-button"]');
   if (syncBtn) return;
 
-  const btnText = "Sync QX+";
   syncBtn = document.createElement("button");
   syncBtn.setAttribute("data-testid", "sync-button");
-  
   syncBtn.className ="flex justify-center gap-x-1.5 p-1  font-semibold text-onSurface-primary text-10 text-label-xs inline-block mt-2";
-  syncBtn.textContent = btnText;
-  syncBtn.style.backgroundColor = "#fcaf2c";
-
-  syncBtn.addEventListener("click", async () => {
-    await smartBrokerSaveDataToLocalStorage();
-    syncBtn.style.backgroundColor = "#57a658";
-    syncBtn.textContent = "Synced";
-
-    setTimeout(() => {
-      syncBtn.style.backgroundColor = "#fcaf2c";
-      syncBtn.textContent = btnText;
-    }, 1000);
-  });
-
+  attachSyncFeedback(syncBtn, smartBrokerSaveDataToLocalStorage);
   container.appendChild(syncBtn);
 }
 
-export function addCustomRowHeaderSmartBroker() {
+function addCustomRowHeaderSmartBroker() {
   console.log("addCustomRowHeaderSmartBroker");
-  const rowHeaders = [
-    "Derivatetyp (Basiswert / Lieferung / Quanto / Ratio)",
-    "", 
-    "Cap", 
-    "Zielwert",
-    "G/V Ziel €", 
-    "G/V Ziel p.a. (abs.) %", 
-    "Basiswert-Kurs"
-  ];
   
   const header = document.querySelector('[data-testid="depot-sorting-header"]');
   if (!header) return;
@@ -91,7 +67,7 @@ export function addCustomRowHeaderSmartBroker() {
   if (header.querySelector('[data-qx="custom-extra-row"]')) return;
 
   cols.forEach((col, i) => {
-    const text = rowHeaders[i] ?? "";
+    const text = EXTRA_ROW_HEADERS[i] ?? "";
     const row = document.createElement("p");
     row.setAttribute("data-qx", "custom-extra-row");
     row.className = "text-onSurface-secondary";
@@ -101,47 +77,35 @@ export function addCustomRowHeaderSmartBroker() {
   });
 }
 
-export async function updateCustomRowDataSmartBroker(){
+async function updateCustomRowDataSmartBroker(){
   console.log("updateCustomRowDataSmartBroker");
 
   const result = await chrome.storage.local.get(['MAIN_LIST']) || [];
-  console.log("updateCustomRowDataSmartBroker result",result.MAIN_LIST);
   if (!result.MAIN_LIST.length) return;
 
   const ownRows = await accountOwnRows(result.MAIN_LIST, broker, currentAccountId);
 
-  const columns = [
-    "type", 
-    "",
-    "cap", 
-    "future_total_value",
-    "profit_loss_target",
-    "profit_loss_target_pa", 
-    //"underlying_price"
-  ];
     
   const cards = document.querySelectorAll('a[data-testid="depot-asset-card"]');
   cards.forEach(card => {
     if (card.nextElementSibling?.classList?.contains("custom-extra-row")) return;
     
     const isin = getIdFromRow(card);
-    //console.log("updateCustomRowDataSmartBroker isin",isin);
     if (!isin) return;
 
     const rowData = ownRows.find( x => x.isin?.toUpperCase() === isin.toUpperCase());
-    //console.log("updateCustomRowDataSmartBroker rowData",rowData);
     if (!rowData) return;
     
     const extra = document.createElement("div");
     extra.className =
       "[grid-template-columns:minmax(0,1fr)_minmax(0,0.8fr)_minmax(140px,auto)_minmax(140px,auto)_minmax(140px,auto)] grid gap-3 border-onSurface-quaternary border-b p-4 text-onSurface-primary bg-surface-5 custom-extra-row";
 
-    extra.innerHTML = columns
+    extra.innerHTML = EXTRA_ROW_COLUMNS
     .slice(0, 5)  // grid has 5 columns
     .map((col, index) => `
         <div class="flex flex-col ${index === 0 ? '' : 'items-end'}">
           <p class="text-label-sm text-onSurface-secondary">
-            ${updateColumnValue(rowData, col)}
+            ${updateColumnValueHtml(rowData, col)}
           </p>
         </div>
       `).join("");
@@ -159,110 +123,6 @@ const getIdFromRow = (aTag) =>{
     return ISIN;
 }
 
-//Getting all ISIN of stocks visible in the table
-const getAllIdAvailableOnPage = () =>{
-    //Using anchor tags to get ISIN as it's stored in the href
-    const allISINAnchorTags = document.querySelectorAll("main > div div a")
-    if(allISINAnchorTags.length == 0){
-        console.log("couldn't find any rows to extract the ISIN...");
-    }
-    
-    let allISIN = Array.from(allISINAnchorTags).map(aTag=>{
-        //Extracting ISIN from anchor tag href link
-        const ISIN = getIdFromRow(aTag);
-        return ISIN;
-    })
-    return allISIN;
-}
-
-const createEmptyRowsToFill = () =>{
-    //Grab all currently available rows
-    const rowsThatNeedExtraData = document.querySelectorAll("main > div div.flex.flex-col.gap-4.py-5 a:not(.hasExtraData):not(.extraData)");
-    
-    //
-    for(let x = 0; x < rowsThatNeedExtraData.length; x++){
-        const ISIN = getIdFromRow(rowsThatNeedExtraData[x]) || x;
-        rowsThatNeedExtraData[x].classList.add("hasExtraData");
-        //Create row
-        const rowElement = document.createElement("div");
-        rowElement.className = `row${ISIN} detailsNotAvailable flex space-x-5 extraDataWrapper flex-row pt-1 extraData`;
-        createRowHTMLStructure(rowElement);
-        rowsThatNeedExtraData[x].querySelector("div").firstChild.appendChild(rowElement);
-    }
-
-}
-
-
-//Create a row to fill data with
-function createRowHTMLStructure(rowElement){
-    rowElement.innerHTML = `
-    <style>
-        .extraDataWrapper p{
-        min-width:50px !important;
-        }
-        .extraDataWrapper div:nth-child(2){
-            margin: 0 !important;
-        }
-    </style>
-        <div class="flex  flex-col">
-            <p class="text-label-xs text-onSurface-tertiary">
-            Zeit
-            </p>
-            <p class="a  text-label-xs text-onSurface-primary">
-            
-            </p>
-        </div>
-        <div class="flex  flex-col">
-            <p class="text-label-xs text-onSurface-tertiary">
-            Kurs
-            </p>
-            <p class="b   text-label-xs text-onSurface-primary">
-            
-            </p>
-        </div>
-        <div class="flex  flex-col">
-            <p class="text-label-xs text-onSurface-tertiary">
-            Gesamtwert
-            </p>
-            <p class="c   text-label-xs text-onSurface-primary">
-            
-            </p>
-        </div>
-        <div class="flex  flex-col">
-            <p class="text-label-xs text-onSurface-tertiary">
-            Einstandswert
-            </p>
-            <p class="d   text-label-xs text-onSurface-primary">
-            
-            </p>
-        </div>
-        <div class="flex  flex-col">
-            <p class="text-label-xs text-onSurface-tertiary">
-            Entw. %
-            </p>
-            <p class="e   text-label-xs text-onSurface-primary">
-            
-            </p>
-        </div>
-        <div class="flex  flex-col">
-            <p class="text-label-xs text-onSurface-tertiary">
-            Gesamt Vortag
-            </p>
-            <p class="f   text-label-xs text-onSurface-primary">
-            
-            </p>
-        </div>
-        <div class="flex  flex-col">
-            <p class="text-label-xs text-onSurface-tertiary">
-            Tagesentw. %
-            </p>
-            <p class="g   text-label-xs text-onSurface-primary">
-            
-            </p>
-        </div>
-    `
-}
-
 export function checkIfStocksLoaded(){
   console.log("checkIfStocksLoaded")
     const stockRow = document.querySelector("main > div div a");
@@ -275,79 +135,9 @@ export function checkIfStocksLoaded(){
     return false;
 }
 
-// Get more detailed data from a specific stock by using the stock link
-async function getSingleStockData(stockLink) {
-    let iframe = document.createElement("iframe");
-    iframe.id = "singlePriceStockFrame";
-    iframe.style.display = "none";
-    iframe.src = stockLink;
-    
-    let data = null;
-    document.body.appendChild(iframe); // Add iframe to the page so it loads the page
-
-    return new Promise((res,rej)=>{
-
-    iframe.onload = async function () {
-      try {
-        let dataContainer = await waitForElementToLoadInsideIFrame(
-          iframe,
-          ".flex.flex-row.gap-6.cursor-pointer.bg-surface-0"
-        );
-        if(!dataContainer){
-          console.log("The container for stock data didn't load in time...");
-          return;
-        }
-        
-        let individualStockPrice = dataContainer.children[1].lastChild.innerText;
-        let nmbOfStocksPurchased = dataContainer.children[2].lastChild.innerText;
-
-        
-        if(individualStockPrice && nmbOfStocksPurchased){
-          res({
-            individualStockPrice,nmbOfStocksPurchased
-          })
-        }else{
-          console.log("The container loaded but couldn't find single stock price...");
-        }
-      } catch (e) {
-        console.log(e);
-      } finally {
-        iframe.remove();
-      }
-    };
-    })
-}
-  
-//Wait for an element to load inside an iframe
-function waitForElementToLoadInsideIFrame(IFrame, elementPath) {
-  console.log("running..;.")
-    if (!IFrame || !elementPath) {
-      console.log("Please fill all the required arguments...");
-      return ;
-    }
-  
-    return new Promise((res, rej) => {
-      let steps = 0;
-      let interval = setInterval(() => {
-        let element = IFrame.contentDocument.querySelector(elementPath);
-        if (steps >= 6) {
-          clearInterval(interval);
-          rej({ error: "Single Price Stock Didn't load..." });
-          return;
-        }
-  
-        if (element) {
-          res(element);
-          clearInterval(interval);
-          return;
-        }
-      }, 1000);
-    });
-}
-
 
 //Get All Stock Data
-export function smartBrokerGetAllStockData(){
+function smartBrokerGetAllStockData(){
     console.log("getAllStockData")
     //all stocks in an array
     const allStocksPurchased = Array.from(document.querySelectorAll("[data-testid='depot-asset-card']"));
@@ -364,8 +154,6 @@ export function smartBrokerGetAllStockData(){
       const depotAt = urlParts.indexOf('depot');
       const deposite_number = depotAt !== -1
         ? urlParts[depotAt + 1] : urlParts[urlParts.length-1];
-      //console.log("smartBrokerGetAllStockData url",url);
-      //console.log("smartBrokerGetAllStockData deposite_number",deposite_number);
 
       const cols = stock.querySelectorAll(":scope > div > div");
       
@@ -441,16 +229,11 @@ export async function smartBrokerSaveDataToLocalStorage(){
       return false;
     }
 
-    //if(!isOnStocksPage()){
     if(checkIfStocksLoaded()){
       addSyncButtonOnSmartBroker();
       addCustomRowHeaderSmartBroker();
       updateCustomRowDataSmartBroker();
       
-      /*smartBrokerGetAllStockData().then(data=>{
-        chrome.storage.local.set({ [`SMART_BROKER_PLUS`]: data});
-      });  
-      */
       
       const freshSmartBroker = smartBrokerGetAllStockData();
       // Never persist an empty scrape: getLatestData would read every position as sold.
@@ -503,8 +286,6 @@ export async function smartBrokerSaveDataToLocalStorage(){
         }
 
         chrome.storage.local.set({ SMART_BROKER_PLUS: currentData }, () => {
-          //console.log("dash Updated SMART_BROKER_PLUS with newStockData:", currentData);
-          console.log("smartbroker accountBalance:",accountBalance);
         });
         
       });
@@ -515,15 +296,4 @@ export async function smartBrokerSaveDataToLocalStorage(){
   }catch (err) {
     console.error('smartBrokerSaveDataToLocalStorage error:', err);
   }
-}
-
-//Checks whether the user is on stocks page data can be stored locally & accurately
-function isOnStocksPage(){
-  const url = window.location.href;
-  //Check the url for specific keywords
-  return(url.includes("/depot/") &&
-    //Check for specific element in stocks page
-    //!!document.querySelector("[data-testid='investmentTab-Heute']")
-    !!document.querySelector('id="tabpanel-investments"]')
-  ); 
 }

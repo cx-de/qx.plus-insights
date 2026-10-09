@@ -528,7 +528,7 @@
 import { ref, reactive, computed, onMounted, h, defineComponent } from 'vue';
 
 
-import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman } from '~/utils/helper'
+import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman, todayIso } from '~/utils/helper'
 import { storage } from '#imports';
 import { useI18n } from "vue-i18n";
 
@@ -554,7 +554,7 @@ import {
 } from "lucide-vue-next";
 
 const { toast } = useToast()
-const { t, locale } = useI18n();
+const { t } = useI18n();
 document.title = t('settings');
 
 // --- Tab definition (single source of truth) ---
@@ -688,7 +688,6 @@ const saveApiKey = async () => {
 
 // --- Telegram visibility toggles ---
 const isTelegramBotTokenHidden = ref(true);
-const isTelegramChannelHidden = ref(true);
 
 // --- Form state ---
 const formFields = reactive({
@@ -779,7 +778,6 @@ const saveSettings = async () => {
 const clearData = async () => {
   await clearAllStockData();
   await storage.setItem('local:scenarios', []);
-  // localStorage.clear() also wiped theme and language, flipping the UI back to defaults
   const keepTheme = localStorage.getItem('theme');
   const keepLang = localStorage.getItem('lang');
   localStorage.clear();
@@ -864,7 +862,7 @@ async function handleImport() {
 async function handleExport() {
   isExportingBackup.value = true;
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayIso();
     await exportAll(`backup_${today}.json`);
     toast({ title: t('backup_data.export_success') });
   } catch (err) {

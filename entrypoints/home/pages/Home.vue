@@ -25,19 +25,6 @@
       </div>
     </div>
 
-    <!-- <div v-if="listUpdatedAt" class="flex justify-end items-center space-x-4 mt-2">
-      <Button @click="reloadProductData()" variant="outline"
-        class="flex items-center" :disabled="isPriceLoading">
-        <RefreshCcw class="h-3.5 w-3.5"
-          :class="{ 'animate-spin opacity-50': isPriceLoading }" />
-        <span class="ml-2 sm:whitespace-nowrap">
-          {{ isPriceLoading ? $t('loading') : $t('reload') }}
-        </span>
-      </Button>
-      <span class="text-sm text-muted-foreground">
-        {{ $t('update_at') }} : {{ formatTimestamp(listUpdatedAt) }}
-      </span>
-    </div> -->
 
     <!-- Hero strip -->
     <div class="mt-3 rounded-lg border bg-card text-card-foreground shadow-sm">
@@ -142,38 +129,6 @@
               </div>
 
               <TabsContent value="gainers" class="flex-1">
-                    <!-- <li v-for="(item, index) in gainers" :key="index"
-                        class="flex justify-between items-center py-2 border-b last:border-none p-2"
-                        :class="{
-                          'bg-gray-100 rounded-lg mt-2 font-semibold text-gray-800': item.isTotal
-                        }">
-                      
-                      <div>
-                        <p class="font-medium text-gray-800"
-                        :class="{'text-gray-500': item.isTotal}">
-                          {{ item.name }}
-                        </p>
-                        <p class="font-medium text-gray-800">
-                          <a v-if="isinLink" :href="formattedISINLink(item.isin)" 
-                          class="text-blue-600" target="_blank">
-                          {{ item.isin }}
-                          </a>
-                          <span v-else>{{ item.isin }}</span>
-                        </p>
-                        <p class="text-sm text-gray-500">
-                          {{ numberToGerman(item.currentValue) }}
-                        </p>
-                      </div>
-
-                      <div class="text-right">
-                        <p class="text-green-600 font-semibold">
-                          +{{ numberToGerman(item.change) }}
-                        </p>
-                        <p class="text-green-500 text-sm">
-                          ({{ numberToGerman(item.changePercent, false, 2) }}%)
-                        </p>
-                      </div>
-                    </li> -->
                 <MoversList :items="gainers" :is-empty="allGainers.length==0" tone="gain" :loading="isPriceLoading"
                   :isin-link="isinLink" :link-for="formattedISINLink" @reload="reloadProductData()" />
               </TabsContent>
@@ -223,25 +178,14 @@ import ChartCard from '~/components/ChartCard.vue'
 import MoversList from '~/components/MoversList.vue'
 import { useToast } from '@/components/ui/toast/use-toast'
 
-import { apiAuthFailed, getApiKey, getLatestData,
-  numberToGerman,germanToNumer,formatDate,formatMonthYear,
-} from '~/utils/helper'
+import { apiAuthFailed, getApiKey, getLatestData, numberToGerman, formatMonthYear, todayIso } from '~/utils/helper';
 import { reloadPriceData } from '~/utils/price-data-utils'
 
-//import { Chart } from "highcharts-vue";
-import { Doughnut } from 'vue-chartjs'
 import { Skeleton } from '@/components/ui/skeleton'
 import {useI18n} from "vue-i18n";
 import { Button } from '@/components/ui/button'
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card";
 
 import {
   Tabs,
@@ -263,16 +207,7 @@ import {
   Minus,
  } from 'lucide-vue-next';
 
-import {
-  Chart as ChartJS,
-  Title,
-  Tooltip,
-  Legend,
-  ArcElement,
-  ChartData,
-  ChartOptions,
-  registerables,
-} from 'chart.js'
+import { Chart as ChartJS, Title, Tooltip, Legend, ArcElement, registerables } from 'chart.js';
 
 import {
   BubbleMapController,
@@ -400,7 +335,6 @@ const centerTextPlugin = {
   }
 }
 
-//ChartJS.register(Title, Tooltip, Legend, ArcElement)
 ChartJS.register(Title, Tooltip, Legend, ArcElement, centerTextPlugin)
 
 const { t } = useI18n();
@@ -532,17 +466,13 @@ const chartOptions = ref({
    const el = elements?.[0];
     if (el) {
       const datasetIndex = el.datasetIndex;
-      //const dataset = chart.data.datasets?.[0];
       const dataset = chart.data.datasets?.[datasetIndex];
-      //console.log("dataset",dataset);
       
       const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
       const value = (dataset?.data as number[])[el.index];
       const percentage = total ? (value / total) * 100 : 0;
-      //const label = chart.data.labels?.[el.index] ?? '';
       let label = '';
 
-      //console.log("onHover dataset",dataset);
       if (loanCapital.value==0){
         label = chart.data.labels?.[el.index] ?? '';
       }else{
@@ -553,17 +483,13 @@ const chartOptions = ref({
         }
       }
       
-      //centerText.value = `${label}<br>${numberToGerman(percentage)}%<br>€ ${numberToGerman(value)}`;
       centerText.value = `${label}\n${numberToGerman(percentage, false, 2)}%\n€ ${numberToGerman(value)}`;
     } else {
       console.log("chartOptions onHover else");
-      //centerText.value = '100%';
       centerText.value = computeTopSliceText(chartData.value);
     }
 
     //update chart plugin text
-    //chart.options.plugins.centerTextOption.text = centerText.value;
-    //chart.update();
   }
 });
 
@@ -671,7 +597,7 @@ const updateChartData = async () => {
         total: accountViewSelected.value.reduce((sum: any, key: any) => sum + (entry.accounts[key] || 0), 0),
       }));
   // Last day before today, not [length - 2]: today may not be saved yet, which would compare against two days ago.
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = todayIso();
   const yesterdayEntry = scopedTotals.filter((entry: any) => entry.date < todayStr).pop();
 
   if (yesterdayEntry) {
@@ -736,163 +662,144 @@ watch(centerText, (newValue) => {
 });
 
 
-/* type chart start */
-const typeCenterText = ref('');
-const typeChartData = ref({
-  labels: [],
-  datasets: [
-    {
-      label: t('positions'),
-      data: [],
-      backgroundColor: [],
-      borderWidth: 0,
-    }
-  ]
-});
+/* breakdown charts (type, issuer, currency, valuation date) */
 
-const typeChartOptions = ref({
-  responsive: true,
-  maintainAspectRatio: false,
-  cutout: '64%',
-  plugins: {
-    legend: { display: false },
-    tooltip: { enabled: false },
-    centerTextOption: {
-      text: typeCenterText.value,
+// One doughnut splitting portfolio value by a key; with a loan it adds an own-vs-loan outer ring.
+function createBreakdownChart({
+  name,                       // used in log lines only
+  datasetLabel,               // internal Chart.js dataset label
+  initialLabel = datasetLabel,
+  keyOf,                      // (row) => bucket key, falsy to skip the row
+  compare = (a:any, b:any) => b.y - a.y, // order of non-cash slices; default biggest first
+  lastLabel = () => null,     // a bucket that always goes last, before Cash (e.g. "No date")
+  translateHoverLabel = false, // type keys are i18n keys, the others are shown as-is
+  refreshAfterUpdate = false, // the type chart needs an explicit redraw after new data
+}: any) {
+  const centerText = ref('');
+  const chartRef = ref<any>(null);
+  const chartData = ref<any>({
+    labels: [],
+    datasets: [{ label: initialLabel, data: [], backgroundColor: [], borderWidth: 0 }],
+  });
+
+  const sliceColors = (sorted:any) => sorted.map((item:any, idx:number) =>
+    isCash(item.label) ? '#fe4d4d' : customColors[idx % customColors.length]);
+
+  const update = () => {
+    console.log(`update${name}ChartData =====`);
+    chartData.value = { labels: [], datasets: [] };
+
+    const netCash = netCashOf(listData.value);
+    const buckets = new Map<string, number>();
+    for (const item of listData.value as any[]) {
+      const value = (item.bid * item.stocks_owned) || 0;
+      // Cash is netted once above; per-account rows must not reach the bucket map
+      if (isCash(item.stock_name)) continue;
+      const key = keyOf(item);
+      if (!key || isNaN(value)) continue;
+      buckets.set(key, (buckets.get(key) || 0) + value);
     }
-  },
-  onHover(event, elements, chart) {
-    const el = elements?.[0];
-    if (el) {
-      const datasetIndex = el.datasetIndex;
-      const dataset = chart.data.datasets?.[datasetIndex];
+    if (netCash > 0) buckets.set('Cash', (buckets.get('Cash') || 0) + netCash);
+
+    const last = lastLabel();
+    // Cash always last, then the optional "last" bucket, the rest by `compare`
+    const sorted = Array.from(buckets.entries())
+      .map(([label, y]) => ({ label, y }))
+      .sort((a, b) => {
+        if (isCash(a.label)) return 1;
+        if (isCash(b.label)) return -1;
+        if (last && a.label === last) return 1;
+        if (last && b.label === last) return -1;
+        return compare(a, b);
+      });
+
+    if (sorted.length === 0) {
+      console.log(`update${name}ChartData: no data after processing`);
+      return;
+    }
+
+    const positionsRing = {
+      label: datasetLabel,
+      data: sorted.map(i => i.y),
+      backgroundColor: sliceColors(sorted),
+      borderWidth: 0,
+    };
+    chartData.value.labels = sorted.map(i => i.label);
+    chartData.value.datasets = loanCapital.value === 0
+      ? [positionsRing]
+      : [
+          {
+            label: 'Capital Structure',
+            data: [totalAmount.value ?? 0, loanCapital.value ?? 0],
+            backgroundColor: ['#4caf50', '#f44336'],
+            borderWidth: 0,
+          },
+          positionsRing,
+        ];
+
+    centerText.value = computeTopSliceText(chartData.value);
+
+    if (refreshAfterUpdate) {
+      nextTick(() => chartRef.value?.chart?.update());
+    }
+  };
+
+  const sliceLabel = (chart:any, index:number) => {
+    const label = chart.data.labels?.[index] ?? '';
+    return translateHoverLabel ? t(label) : label;
+  };
+
+  const chartOptions = ref({
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '64%',
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: false },
+      centerTextOption: { text: centerText.value },
+    },
+    // Hovering a slice shows its name, share and value in the middle of the ring.
+    onHover(event:any, elements:any, chart:any) {
+      const el = elements?.[0];
+      if (!el) {
+        centerText.value = computeTopSliceText(chartData.value);
+        return;
+      }
+      const dataset = chart.data.datasets?.[el.datasetIndex];
       const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
       const value = (dataset?.data as number[])[el.index];
       const percentage = total ? (value / total) * 100 : 0;
-      //const label = chart.data.labels?.[datasetIndex] ?? '';
 
       let label = '';
-      if (loanCapital.value==0){
-        label = t(chart.data.labels?.[el.index]) ?? '';
-      }else{
-        if (datasetIndex === 0) {
-          label = el.index === 0 ? t('own_capital') : t('loan_capital');
-        } else if (datasetIndex === 1) {
-          label = t(chart.data.labels?.[el.index]) ?? '';
-        }
+      if (loanCapital.value == 0) {
+        label = sliceLabel(chart, el.index);
+      } else if (el.datasetIndex === 0) {
+        label = el.index === 0 ? t('own_capital') : t('loan_capital');
+      } else if (el.datasetIndex === 1) {
+        label = sliceLabel(chart, el.index);
       }
-
-      // countryCenterText.value = `${label}<br>${numberToGerman(percentage)}%<br>€ ${numberToGerman(value)}`;
-      typeCenterText.value = `${label}\n${numberToGerman(percentage, false, 2)}%\n€ ${numberToGerman(value)}`;
-    } else {
-      //const total = (chart.data.datasets?.[0].data as number[]).reduce((acc, val) => acc + val, 0);
-      typeCenterText.value = computeTopSliceText(typeChartData.value);
-    }
-  }
-});
-
-
-
-const typeChartRef = ref(null);
-const updateTypeChartData = () => {
-  console.log("updateTypeChartData =====");
-  
-  // Reset chart data structure
-  typeChartData.value = {
-    labels: [],
-    datasets: []
-  };
-
-  // Calculate type distribution
-  const netCash = netCashOf(listData.value);
-  const typeMap = new Map<string, number>();
-  for (const item of listData.value) {
-    let type = item.type;
-    let value = (item.bid * item.stocks_owned) || 0;
-    
-    // Cash is netted once above; per-account rows must not reach the bucket map
-    if (isCash(item.stock_name)) continue;
-
-    if (!type || isNaN(value)) continue;
-    typeMap.set(type, (typeMap.get(type) || 0) + value);
-  }
-
-  if (netCash > 0) typeMap.set('Cash', (typeMap.get('Cash') || 0) + netCash);
-    
-  // Sort types: Cash always last, others by value descending
-  const sorted = Array.from(typeMap.entries())
-    .map(([type, y]) => ({ type, y }))
-    .sort((a, b) => {
-      if (isCash(a.type)) return 1;
-      if (isCash(b.type)) return -1;
-      return b.y - a.y;
-    });
-
-  if (sorted.length === 0) {
-    console.log('No valid type chart data after processing');
-    return;
-  }
-  
-  // Get capital values
-  const own = totalAmount.value ?? 0;
-  const loan = loanCapital.value ?? 0;
-
-  // Build chart data based on loan presence
-  if (loanCapital.value === 0) {
-    // Single ring - just positions
-    typeChartData.value.labels = sorted.map(i => i.type);
-    typeChartData.value.datasets = [
-      {
-        label: 'Positions',
-        data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) => 
-          isCash(item.type) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
-        borderWidth: 0
-      }
-    ];
-  } else {
-    // Double ring - capital structure (outer) + positions (inner)
-    typeChartData.value.labels = sorted.map(i => i.type);
-    typeChartData.value.datasets = [
-      {
-        label: 'Capital Structure',
-        data: [own, loan],
-        backgroundColor: ['#4caf50', '#f44336'],
-        borderWidth: 0
-      },
-      {
-        label: 'Positions',
-        data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) =>
-          isCash(item.type) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
-        borderWidth: 0
-      }
-    ];
-  }
-
-  // Update center text
-  typeCenterText.value = computeTopSliceText(typeChartData.value);
-
-  // Trigger chart update
-  nextTick(() => {
-    if (typeChartRef.value?.chart) {
-      console.log("nextTick typeChartRef update");
-      typeChartRef.value.chart.update();
-    }
+      centerText.value = `${label}\n${numberToGerman(percentage, false, 2)}%\n€ ${numberToGerman(value)}`;
+    },
   });
-};
 
-watch(typeCenterText, (newValue) => {
-  console.log("watch typeCenterText",newValue);
-  typeChartOptions.value.plugins.centerTextOption.text = newValue;
-  if (typeChartRef.value?.chart) {
-    typeChartRef.value.chart.update();
-  }
+  watch(centerText, (newValue) => {
+    chartOptions.value.plugins.centerTextOption.text = newValue;
+    chartRef.value?.chart?.update();
+  });
+
+  return { chartData, chartOptions, centerText, chartRef, update };
+}
+
+const {
+  chartData: typeChartData, chartOptions: typeChartOptions, chartRef: typeChartRef, update: updateTypeChartData,
+} = createBreakdownChart({
+  name: 'Type',
+  datasetLabel: 'Positions',
+  initialLabel: t('positions'),
+  keyOf: (item:any) => item.type,
+  translateHoverLabel: true,
+  refreshAfterUpdate: true,
 });
-
-/* type chart end */
 
 
 /* country chart start */
@@ -928,7 +835,6 @@ const countryChartOptions = ref({
       const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
       const value = (dataset?.data as number[])[el.index];
       const percentage = total ? (value / total) * 100 : 0;
-      //const label = chart.data.labels?.[datasetIndex] ?? '';
 
       let label = '';
       if (loanCapital.value==0){
@@ -941,16 +847,12 @@ const countryChartOptions = ref({
         }
       }
 
-     // countryCenterText.value = `${label}<br>${numberToGerman(percentage)}%<br>€ ${numberToGerman(value)}`;
       countryCenterText.value = `${label}\n${numberToGerman(percentage, false, 2)}%\n€ ${numberToGerman(value)}`;
     } else {
-      //const total = (chart.data.datasets?.[0].data as number[]).reduce((acc, val) => acc + val, 0);
       countryCenterText.value = computeTopSliceText(countryChartData.value);
     }
 
     //update chart plugin text
-    //chart.options.plugins.centerTextOption.text = countryCenterText.value;
-    //chart.update();
   }
 });
 
@@ -1049,7 +951,6 @@ const updateCountryChartData = () => {
 };
 
 watch(countryCenterText, (newValue) => {
-  //console.log("watch countryCenterText",newValue);
   countryChartOptions.value.plugins.centerTextOption.text = newValue;
   if (countryChartRef.value?.chart) {
     countryChartRef.value.chart.update();
@@ -1058,451 +959,36 @@ watch(countryCenterText, (newValue) => {
 /* country chart end */
 
 
-/* issuer chart start */
-const issuerChartData = ref({
-  labels: [],
-  datasets: [
-    {
-      label: 'Issuer Distribution',
-      data: [],
-      backgroundColor: [],
-      borderWidth: 0,
-    }
-  ]
+const {
+  chartData: issuerChartData, chartOptions: issuerChartOptions, chartRef: issuerChartRef, update: updateIssuerChartData,
+} = createBreakdownChart({
+  name: 'Issuer',
+  datasetLabel: 'Issuer Distribution',
+  keyOf: (item:any) => item.issuer || 'Unknown',
 });
 
-const issuerCenterText = ref('');
-const issuerChartRef = ref();
+const {
+  chartData: currencyChartData, chartOptions: currencyChartOptions, chartRef: currencyChartRef, update: updateCurrencyChartData,
+} = createBreakdownChart({
+  name: 'Currency',
+  datasetLabel: 'Currency Distribution',
+  keyOf: (item:any) => item.currency || 'Unknown',
+});
 
-const updateIssuerChartData = () => {
-  console.log("updateIssuerChartData =====");
-  
-  // Reset chart data structure
-  issuerChartData.value = {
-    labels: [],
-    datasets: []
-  };
-
-  const netCash = netCashOf(listData.value);
-  const issuerMap = new Map<string, number>();
-
-  // Build issuer distribution data
-  for (const item of listData.value) {
-    let issuer = item.issuer || 'Unknown';
-    let value = (item.bid * item.stocks_owned) || 0;
-    
-    // Cash is netted once above; per-account rows must not reach the bucket map
-    if (isCash(item.stock_name)) continue;
-    
-    if (!issuer || isNaN(value)) continue;
-    issuerMap.set(issuer, (issuerMap.get(issuer) || 0) + value);
-  }
-
-  if (netCash > 0) issuerMap.set('Cash', (issuerMap.get('Cash') || 0) + netCash);
-
-  // Sort issuers: Cash always last, others by value descending
-  const sorted = Array.from(issuerMap.entries())
-    .map(([issuer, y]) => ({ issuer, y }))
-    .sort((a, b) => {
-      if (isCash(a.issuer)) return 1;
-      if (isCash(b.issuer)) return -1;
-      return b.y - a.y;
-    });
-    
-  if (sorted.length === 0) {
-    console.log('updateIssuerChartData: No valid issuer chart data after processing');
-    return;
-  }
-
-  // Get capital values
-  const own = totalAmount.value ?? 0;
-  const loan = loanCapital.value ?? 0;
-
-  // Build chart data based on loan presence
-  if (loanCapital.value === 0) {
-    // Single ring - just issuer distribution
-    issuerChartData.value.labels = sorted.map(i => i.issuer);
-    issuerChartData.value.datasets = [
-      {
-        label: 'Issuer Distribution',
-        data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) => 
-          isCash(item.issuer) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
-        borderWidth: 0
-      }
-    ];
-  } else {
-    // Double ring - capital structure (outer) + issuer distribution (inner)
-    issuerChartData.value.labels = sorted.map(i => i.issuer);
-    issuerChartData.value.datasets = [
-      {
-        label: 'Capital Structure',
-        data: [own, loan],
-        backgroundColor: ['#4caf50', '#f44336'],
-        borderWidth: 0
-      },
-      {
-        label: 'Issuer Distribution',
-        data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) =>
-          isCash(item.issuer) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
-        borderWidth: 0
-      }
-    ];
-  }
-
-  // Update center text
-  issuerCenterText.value = computeTopSliceText(issuerChartData.value);
-};
-
-const issuerChartOptions = ref({
-  responsive: true,
-  maintainAspectRatio: false,
-  cutout: '64%',
-  plugins: {
-    legend: { display: false },
-    tooltip: { enabled: false },
-    centerTextOption: {
-      text: issuerCenterText.value,
-    }
+// Valuation dates read "MM/YYYY" and sort chronologically; positions without one go last.
+const {
+  chartData: valuationDateChartData, chartOptions: valuationDateChartOptions, chartRef: valuationDateChartRef, update: updateValuationDateChartData,
+} = createBreakdownChart({
+  name: 'ValuationDate',
+  datasetLabel: 'Valuation Date Distribution',
+  keyOf: (item:any) => formatMonthYear(item.valuation_date) || t('no_date') || 'No date',
+  lastLabel: () => t('no_date') || 'No date',
+  compare: (a:any, b:any) => {
+    const [am, ay] = a.label.split('/').map(Number);
+    const [bm, by] = b.label.split('/').map(Number);
+    return (ay - by) || (am - bm);
   },
-  onHover(event, elements, chart) {
-    const el = elements?.[0];
-    if (el) {
-      const datasetIndex = el.datasetIndex;
-      const dataset = chart.data.datasets?.[datasetIndex];
-      const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
-      const value = (dataset?.data as number[])[el.index];
-      const percentage = total ? (value / total) * 100 : 0;
-      //const label = chart.data.labels?.[el.index] ?? '';
-      let label = '';
-
-      //console.log("onHover dataset",dataset);
-      if (loanCapital.value==0){
-        label = chart.data.labels?.[el.index] ?? '';
-      }else{
-        if (datasetIndex === 0) {
-          label = el.index === 0 ? t('own_capital') : t('loan_capital');
-        } else if (datasetIndex === 1) {
-          label = chart.data.labels?.[el.index] ?? '';
-        }
-      }
-
-      //issuerCenterText.value = `${label}<br>${numberToGerman(percentage)}%<br>€ ${numberToGerman(value)}`;
-      issuerCenterText.value = `${label}\n${numberToGerman(percentage, false, 2)}%\n€ ${numberToGerman(value)}`;
-    } else {
-      //const total = (chart.data.datasets?.[0].data as number[]).reduce((acc, val) => acc + val, 0);
-      issuerCenterText.value = computeTopSliceText(issuerChartData.value);
-    }
-  }
 });
-
-watch(issuerCenterText, (newValue) => {
-  //console.log("watch issuerCenterText",newValue);
-  issuerChartOptions.value.plugins.centerTextOption.text = newValue;
-  if (issuerChartRef.value?.chart) {
-    issuerChartRef.value.chart.update();
-  }
-});
-/* issuer chart end */
-
-
-/* currency chart start */
-const currencyChartData = ref({
-  labels: [],
-  datasets: [
-    {
-      label: 'Issuer Distribution',
-      data: [],
-      backgroundColor: [],
-      borderWidth: 0,
-    }
-  ]
-});
-
-const currencyCenterText = ref('');
-const currencyChartRef = ref();
-
-const updateCurrencyChartData = () => {
-  console.log("updateCurrencyChartData =====");
-  
-  // Reset chart data structure
-  currencyChartData.value = {
-    labels: [],
-    datasets: []
-  };
-
-  const netCash = netCashOf(listData.value);
-  const currencyMap = new Map<string, number>();
-
-  // Build currency distribution data
-  for (const item of listData.value) {
-    let currency = item.currency || 'Unknown';
-    let value = (item.bid * item.stocks_owned) || 0;
-    
-    // Cash is netted once above; per-account rows must not reach the bucket map
-    if (isCash(item.stock_name)) continue;
-    
-    if (!currency || isNaN(value)) continue;
-    currencyMap.set(currency, (currencyMap.get(currency) || 0) + value);
-  }
-
-  if (netCash > 0) currencyMap.set('Cash', (currencyMap.get('Cash') || 0) + netCash);
-
-  // Sort currencies: Cash always last, others by value descending
-  const sorted = Array.from(currencyMap.entries())
-    .map(([currency, y]) => ({ currency, y }))
-    .sort((a, b) => {
-      if (isCash(a.currency)) return 1;
-      if (isCash(b.currency)) return -1;
-      return b.y - a.y;
-    });
-    
-  if (sorted.length === 0) {
-    console.log('updateCurrencyChartData: No valid currency chart data after processing');
-    return;
-  }
-
-  // Get capital values
-  const own = totalAmount.value ?? 0;
-  const loan = loanCapital.value ?? 0;
-
-  // Build chart data based on loan presence
-  if (loanCapital.value === 0) {
-    // Single ring - just currency distribution
-    currencyChartData.value.labels = sorted.map(i => i.currency);
-    currencyChartData.value.datasets = [
-      {
-        label: 'Currency Distribution',
-        data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) => 
-          isCash(item.currency) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
-        borderWidth: 0
-      }
-    ];
-  } else {
-    // Double ring - capital structure (outer) + currency distribution (inner)
-    currencyChartData.value.labels = sorted.map(i => i.currency);
-    currencyChartData.value.datasets = [
-      {
-        label: 'Capital Structure',
-        data: [own, loan],
-        backgroundColor: ['#4caf50', '#f44336'],
-        borderWidth: 0
-      },
-      {
-        label: 'Currency Distribution',
-        data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) =>
-          isCash(item.currency) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
-        borderWidth: 0
-      }
-    ];
-  }
-
-  // Update center text
-  currencyCenterText.value = computeTopSliceText(currencyChartData.value);
-};
-
-const currencyChartOptions = ref({
-  responsive: true,
-  maintainAspectRatio: false,
-  cutout: '64%',
-  plugins: {
-    legend: { display: false },
-    tooltip: { enabled: false },
-    centerTextOption: {
-      text: currencyCenterText.value,
-    }
-  },
-  onHover(event, elements, chart) {
-    const el = elements?.[0];
-    if (el) {
-      const datasetIndex = el.datasetIndex;
-      const dataset = chart.data.datasets?.[datasetIndex];
-      const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
-      const value = (dataset?.data as number[])[el.index];
-      const percentage = total ? (value / total) * 100 : 0;
-      //const label = chart.data.labels?.[el.index] ?? '';
-      let label = '';
-
-      //console.log("onHover dataset",dataset);
-      if (loanCapital.value==0){
-        label = chart.data.labels?.[el.index] ?? '';
-      }else{
-        if (datasetIndex === 0) {
-          label = el.index === 0 ? t('own_capital') : t('loan_capital');
-        } else if (datasetIndex === 1) {
-          label = chart.data.labels?.[el.index] ?? '';
-        }
-      }
-
-      //currencyCenterText.value = `${label}<br>${numberToGerman(percentage)}%<br>€ ${numberToGerman(value)}`;
-      currencyCenterText.value = `${label}\n${numberToGerman(percentage, false, 2)}%\n€ ${numberToGerman(value)}`;
-    } else {
-      //const total = (chart.data.datasets?.[0].data as number[]).reduce((acc, val) => acc + val, 0);
-      currencyCenterText.value = computeTopSliceText(currencyChartData.value);
-    }
-  }
-});
-
-watch(currencyCenterText, (newValue) => {
-  //console.log("watch currencyCenterText",newValue);
-  currencyChartOptions.value.plugins.centerTextOption.text = newValue;
-  if (currencyChartRef.value?.chart) {
-    currencyChartRef.value.chart.update();
-  }
-});
-/* issuer chart end */
-
-/* valuation date chart start */
-const valuationDateChartData = ref({
-  labels: [],
-  datasets: [
-    {
-      label: 'Valuation Date Distribution',
-      data: [],
-      backgroundColor: [],
-      borderWidth: 0,
-    }
-  ]
-});
-
-const valuationDateCenterText = ref('');
-const valuationDateChartRef = ref();
-
-const updateValuationDateChartData = () => {
-  console.log("updateValuationDateChartData =====");
-
-  valuationDateChartData.value = {
-    labels: [],
-    datasets: []
-  };
-
-  const noDateLabel = t('no_date') || 'No date';
-  const netCash = netCashOf(listData.value);
-  const map = new Map<string, number>();
-
-  for (const item of listData.value) {
-    let key: string;
-    let value = (item.bid * item.stocks_owned) || 0;
-
-    // Cash is netted once above; per-account rows must not reach the bucket map
-    if (isCash(item.stock_name)) continue;
-
-    key = formatMonthYear(item.valuation_date) || noDateLabel;
-
-    if (!key || isNaN(value)) continue;
-    map.set(key, (map.get(key) || 0) + value);
-  }
-
-  if (netCash > 0) map.set('Cash', (map.get('Cash') || 0) + netCash);
-
-  // Sort: Cash always last, then "No date", others chronologically by MM/YYYY
-  const sorted = Array.from(map.entries())
-    .map(([label, y]) => ({ label, y }))
-    .sort((a, b) => {
-      if (isCash(a.label)) return 1;
-      if (isCash(b.label)) return -1;
-      if (a.label === noDateLabel) return 1;
-      if (b.label === noDateLabel) return -1;
-      const [am, ay] = a.label.split('/').map(Number); // "MM/YYYY"
-      const [bm, by] = b.label.split('/').map(Number);
-      return (ay - by) || (am - bm);
-    });
-
-  if (sorted.length === 0) {
-    console.log('updateValuationDateChartData: No valid valuation date chart data after processing');
-    return;
-  }
-
-  const own = totalAmount.value ?? 0;
-  const loan = loanCapital.value ?? 0;
-
-  valuationDateChartData.value.labels = sorted.map(i => i.label);
-
-  if (loanCapital.value === 0) {
-    valuationDateChartData.value.datasets = [
-      {
-        label: 'Valuation Date Distribution',
-        data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) =>
-          isCash(item.label) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
-        borderWidth: 0
-      }
-    ];
-  } else {
-    valuationDateChartData.value.datasets = [
-      {
-        label: 'Capital Structure',
-        data: [own, loan],
-        backgroundColor: ['#4caf50', '#f44336'],
-        borderWidth: 0
-      },
-      {
-        label: 'Valuation Date Distribution',
-        data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) =>
-          isCash(item.label) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
-        borderWidth: 0
-      }
-    ];
-  }
-
-  valuationDateCenterText.value = computeTopSliceText(valuationDateChartData.value);
-};
-
-const valuationDateChartOptions = ref({
-  responsive: true,
-  maintainAspectRatio: false,
-  cutout: '64%',
-  plugins: {
-    legend: { display: false },
-    tooltip: { enabled: false },
-    centerTextOption: {
-      text: valuationDateCenterText.value,
-    }
-  },
-  onHover(event, elements, chart) {
-    const el = elements?.[0];
-    if (el) {
-      const datasetIndex = el.datasetIndex;
-      const dataset = chart.data.datasets?.[datasetIndex];
-      const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
-      const value = (dataset?.data as number[])[el.index];
-      const percentage = total ? (value / total) * 100 : 0;
-      let label = '';
-
-      if (loanCapital.value == 0) {
-        label = chart.data.labels?.[el.index] ?? '';
-      } else {
-        if (datasetIndex === 0) {
-          label = el.index === 0 ? t('own_capital') : t('loan_capital');
-        } else if (datasetIndex === 1) {
-          label = chart.data.labels?.[el.index] ?? '';
-        }
-      }
-
-      valuationDateCenterText.value = `${label}\n${numberToGerman(percentage, false, 2)}%\n€ ${numberToGerman(value)}`;
-    } else {
-      valuationDateCenterText.value = computeTopSliceText(valuationDateChartData.value);
-    }
-  }
-});
-
-watch(valuationDateCenterText, (newValue) => {
-  valuationDateChartOptions.value.plugins.centerTextOption.text = newValue;
-  if (valuationDateChartRef.value?.chart) {
-    valuationDateChartRef.value.chart.update();
-  }
-});
-/* valuation date chart end */
 
 
 const allGainers = ref([]);
@@ -1563,12 +1049,6 @@ async function getTopGainersAndLosers() {
     : (i: any) => i.name;
 
   // Convert yesterday's data to a map for quick lookup
-  /*const yesterdayMap = new Map(
-    yesterdayData.map((item: { isin: string; total_value: number }) => [
-      item.isin,
-      item.total_value
-    ])
-  );*/
 
   // Scoped rows are per account, so the same ISIN appears twice and needs the account in its key.
   // Combined keys on broker|isin both days: a product held in one account yesterday and two
@@ -1720,8 +1200,6 @@ async function getTopGainersAndLosers() {
     }
   ];
 
-  //console.log("Gainers with Rest & Total:", gainers.value);
-  //console.log("Losers with Rest & Total:", losers.value);
 }
 
 
@@ -1729,12 +1207,6 @@ const formattedISINLink = (isin) =>{
   return isinLink.value.replace('$ISIN', isin);
 }
 
-/*const brokers = ref([
-  'Flatex',
-  'Consors Bank',
-  'Smart Broker +',
-  'Wikifolio',
-]);*/
 
 const allRecords = ref<any[]>([]);
 
@@ -1841,7 +1313,6 @@ const loadCount = ref(0);
 const isPriceLoading = ref(false);
 const reloadProductData = async() =>{
   isPriceLoading.value = true;
-  let currentGainers = gainers.value;
 
   try {
     await reloadPriceData();
@@ -1857,30 +1328,6 @@ const reloadProductData = async() =>{
     isPriceLoading.value = false;
   }
 
-  /*
-  const priceFields = [
-    'currentValue',
-    'change',
-    'changePercent',
-  ];
-  gainers.value.forEach(item => {
-    priceFields.forEach(key => {
-      const oldItem = currentGainers.find(currentItem => currentItem.isin === item.isin);
-      if (!oldItem) return;
-      const oldValue = oldItem[key] ?? 0;
-      const newValue = item[key] ?? oldValue;
-      if (newValue !== oldValue) {
-        const rowEl = document.querySelector(`[data-wkn="${item.isin}"][data-field="${key}"]`);
-        if (rowEl) {
-          rowEl.classList.remove('up', 'down');
-          void rowEl.offsetWidth; // ✅ Force reflow to restart animation
-          rowEl.classList.add(newValue > oldValue ? 'up' : 'down');
-          setTimeout(() => rowEl.classList.remove('up', 'down'), 2000);
-        }
-      }
-    });
-  });
-  */
 
   loadCount.value++;
 }
@@ -1894,7 +1341,6 @@ const worldChartData = shallowRef<any>(null);
 const isDarkTheme = () => document.documentElement.classList.contains('dark');
 
 const loadCountryChart = async () =>{
-  //const worldData = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json").then((r) => r.json());
   const worldData = countriesData;
   const countries = topojson.feature(worldData,worldData.objects.countries).features;
   
@@ -1906,7 +1352,6 @@ const loadCountryChart = async () =>{
     let countryCode = isin.substring(0, 2).toUpperCase();
     let value = (item.bid * item.stocks_owned) || 0;
     if (!countryCode || isNaN(value)) continue;
-    //console.log("loadCountryChart countryCode",countryCode);
 
     if (!countryCode || isNaN(value)) continue;
     countryMap.set(countryCode, (countryMap.get(countryCode) || 0) + value);
@@ -1914,11 +1359,8 @@ const loadCountryChart = async () =>{
 
   let points = [];
   Array.from(countryMap.entries()).map(([countryCode, countryValue]) => {
-    //console.log("loadCountryChart countryCode",countryCode);
-    //console.log("loadCountryChart countryValue",countryValue);
     
     let countryData = countryCodes.find(c => c.alpha2 === countryCode);
-    //console.log("loadCountryChart countryData",countryData);
     if(countryData){
       points.push({ 
         name: countryData.name, 
@@ -1928,8 +1370,6 @@ const loadCountryChart = async () =>{
       });
     }
   });
-  //console.log("loadCountryChart points2",points);
-  //console.log("loadCountryChart listData",listData.value);
   
   const countriesPoints = points.map((p) => ({
     latitude: p.lat,
@@ -1990,7 +1430,6 @@ const loadCountryChart = async () =>{
       scales: {
         projection: {
           axis: "x",
-          //projection: "naturalEarth1",
           projection: "equirectangular",
         },
         size: {
