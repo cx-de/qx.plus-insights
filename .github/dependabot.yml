@@ -11,9 +11,7 @@ updates:
           - "minor"
           - "patch"
     ignore:
-      # Major upgrades need manual migration work (Tailwind v4, vue-i18n, TypeScript).
-      - dependency-name: "tailwindcss"
-        update-types: ["version-update:semver-major"]
+      # Major upgrades need manual migration work (vue-i18n, TypeScript).
       - dependency-name: "vue-i18n"
         update-types: ["version-update:semver-major"]
       - dependency-name: "typescript"

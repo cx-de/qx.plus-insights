@@ -13,9 +13,14 @@
     "zip2": "wxt zip && wxt zip -b edge",
     "zip:firefox": "wxt zip -b firefox",
     "zip:edge": "wxt zip -b edge",
+    "zip:all": "wxt zip && wxt zip -b firefox && wxt zip -b edge",
     "compile": "vue-tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "preversion": "npm test",
+    "release": "npm version patch -m \"Release v%s\" && git push --follow-tags",
+    "release:minor": "npm version minor -m \"Release v%s\" && git push --follow-tags",
+    "release:major": "npm version major -m \"Release v%s\" && git push --follow-tags",
     "postinstall": "wxt prepare"
   },
   "dependencies": {

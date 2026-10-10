@@ -16,6 +16,11 @@ export default defineConfig({
     plugins: [tailwindcss()],
   }),
   manifestVersion: 3,
+  // packageVersion, not version: WXT 0.21 changed what {{version}} resolves to
+  zip: {
+    artifactTemplate: 'qx-insights-v{{packageVersion}}-{{browser}}.zip',
+    sourcesTemplate: 'qx-insights-v{{packageVersion}}-sources.zip',
+  },
   // A function, not an object: WXT loads .env only after reading this file, so process.env is empty at top level.
   manifest: () => ({
     name: 'QX+ Insights',
