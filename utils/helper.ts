@@ -1,9 +1,9 @@
 import { storage } from '#imports';
 import {useI18n} from "vue-i18n";
+import { API_BASE_URL, PORTAL_URL } from './constants';
 
-// Build-time values from .env (WXT_ prefix); see .env.example for local overrides.
-export const apiBaseUrl = import.meta.env.WXT_API_BASE_URL;
-export const portalUrl = import.meta.env.WXT_PORTAL_URL;
+export const apiBaseUrl = API_BASE_URL;
+export const portalUrl = PORTAL_URL;
 export const apiKey = ref('');
 export const apiAuthFailed = ref(false);
 export const apiKeyLoaded = ref(false);

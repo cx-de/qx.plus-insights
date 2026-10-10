@@ -15,13 +15,12 @@ QX+ Insights provides real-time market data and in-depth financial analysis with
 ## Building from source
 
 ```bash
-cp .env.example .env   # fill in the public API and portal URLs
 npm ci
 npm run build          # Chrome; use build:firefox for Firefox
 npm test
 ```
 
-The build output lands in `.output/`. Values in `.env` are baked into the bundle at build time, so only public URLs belong there.
+The build output lands in `.output/`. The API and portal URLs are constants in `utils/constants.ts`.
 
 ## Third-party data and libraries
 

@@ -10,10 +10,6 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      # Set under Settings → Secrets and variables → Actions → Variables; baked into the bundle at build time
-      WXT_API_BASE_URL: ${{ vars.WXT_API_BASE_URL }}
-      WXT_PORTAL_URL: ${{ vars.WXT_PORTAL_URL }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,12 +25,6 @@ jobs:
             echo "::error::Tag $GITHUB_REF_NAME does not match package.json version ($expected)"
             exit 1
           fi
-
-      - name: Check build variables are set
-        run: |
-          for v in WXT_API_BASE_URL WXT_PORTAL_URL; do
-            if [ -z "${!v}" ]; then echo "::error::Repository variable $v is not set"; exit 1; fi
-          done
 
       - run: npm ci
 

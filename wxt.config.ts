@@ -1,13 +1,7 @@
 import { defineConfig } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
 import pkg from './package.json'
-
-// Derived from WXT_API_BASE_URL so a staging/local build can't call a host the manifest doesn't allow.
-function apiHostPermission() {
-  const apiBaseUrl = process.env.WXT_API_BASE_URL;
-  if (!apiBaseUrl) throw new Error('WXT_API_BASE_URL is missing — copy .env.example to .env');
-  return `${new URL(apiBaseUrl).origin}/*`;
-}
+import { API_BASE_URL } from './utils/constants';
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -21,7 +15,6 @@ export default defineConfig({
     artifactTemplate: 'qx-insights-v{{packageVersion}}-{{browser}}.zip',
     sourcesTemplate: 'qx-insights-v{{packageVersion}}-sources.zip',
   },
-  // A function, not an object: WXT loads .env only after reading this file, so process.env is empty at top level.
   manifest: () => ({
     name: 'QX+ Insights',
     version: pkg.version,
@@ -29,7 +22,8 @@ export default defineConfig({
       'Mehr Durchblick an der Börse: Mit zusätzlichen Insights und Details behalten Sie jederzeit die volle Kontrolle über Ihre Depots.',
     permissions: ['storage', 'unlimitedStorage'],
     minimum_chrome_version: '116',
-    host_permissions: [apiHostPermission()],
+    // Derived from API_BASE_URL so the code can never call a host the manifest doesn't allow
+    host_permissions: [`${new URL(API_BASE_URL).origin}/*`],
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'self';"
     },
