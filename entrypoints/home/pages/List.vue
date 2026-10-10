@@ -2699,7 +2699,9 @@ function setAlertFields(){
       { value: 'sideways_return', label: t('sideways_return') },
       { value: 'sideways_return_pa', label: t('sideways_return_pa') },
       { value: 'underlying_price', label: t('underlying_price') },
-
+      { value: 'yield_pa_since_purchase', label: t('yield_pa_since_purchase') },
+      { value: 'dc_dist_cap', label: t('dc_dist_cap') },
+      { value: 'dc_dist_barrier', label: t('dc_dist_barrier') },
     ];
   }else if(alertType.value=='total'){
     fieldOptions.value = [

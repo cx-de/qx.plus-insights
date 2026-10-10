@@ -512,6 +512,25 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
         break;
     }
 
+    // Kept apart from distance_to_the_cap (merges cap/barrier, defaults to 0) so alarms skip products without the level.
+    let dc_dist_cap: any = undefined;
+    let dc_dist_barrier: any = undefined;
+    if (comparableUnderlying > 0) {
+      switch (item.type) {
+        case 'discountCertificate':
+          if (itemCap) dc_dist_cap = (itemCap / comparableUnderlying - 1) * 100;
+          break;
+        case 'cappedBonusCertificate':
+          if (itemCap) dc_dist_cap = (itemCap / comparableUnderlying - 1) * 100;
+          if (strike) dc_dist_barrier = (strike / comparableUnderlying - 1) * 100;
+          break;
+        case 'reverseCappedBonusCertificate':
+          if (itemCap) dc_dist_cap = (itemCap / comparableUnderlying - 1) * 100;
+          if (barrier_knockout) dc_dist_barrier = (barrier_knockout / comparableUnderlying - 1) * 100;
+          break;
+      }
+    }
+
     let  daysUntilValuation = 0;
     let daysUntilPayout = 0;
     if (item.valuation_date) {
@@ -616,6 +635,8 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
       // Set even when undefined so a stale value never survives the spread; undefined also sorts last like purchase_date.
       days_since_purchase: days_since_purchase,
       yield_pa_since_purchase: yield_pa_since_purchase,
+      dc_dist_cap: dc_dist_cap,
+      dc_dist_barrier: dc_dist_barrier,
     };
     return newFields ? { ...item, ...newFields } : item;
   });
