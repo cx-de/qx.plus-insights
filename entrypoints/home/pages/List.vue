@@ -49,13 +49,13 @@
                     {{ $t('combine') }}
                   </Button>
 
-                  <template v-if="Object.keys(rowSelection).length === 1">
+                  <template v-if="Object.keys(rowSelection).length === 1 && !isCashRow(currentRow)">
                     <Button size="sm" variant="outline" class="h-8 sm:ml-auto" @click="openModal(currentRow, 'stock')">
                       {{ $t('set_alert') }}
                     </Button>
                   </template>
 
-                  <Button size="sm" variant="ghost" class="h-8" :class="{ 'sm:ml-auto': Object.keys(rowSelection).length > 1 }"
+                  <Button size="sm" variant="ghost" class="h-8" :class="{ 'sm:ml-auto': Object.keys(rowSelection).length > 1 || isCashRow(currentRow) }"
                     @click="rowSelection = {}">
                     <X class="mr-1 h-4 w-4" />
                     {{ $t('clear_selection') }}
@@ -301,7 +301,9 @@
 
                                   <!-- Cash is a balance, not a position: only the two value columns mean anything. -->
                                   <template v-if="isCashRow(row.original)">
-                                    <template v-if="cell.column.id === 'stock_name'">
+                                    <!-- Selectable so cash lines can be grouped, with each other or with positions. -->
+                                    <FlexRender v-if="cell.column.id === 'select'" :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                                    <template v-else-if="cell.column.id === 'stock_name'">
                                       {{ cashLabel(row.original) }}
                                     </template>
                                     <template v-else-if="cell.column.id === 'total_entry_value' || cell.column.id === 'total_value'">
@@ -564,6 +566,15 @@
                                     :title="$t('delete_from_group')" :aria-label="$t('delete_from_group')">
                                     <X class="h-4 w-4 text-red-600 dark:text-red-400" />
                                   </Button>
+                                </template>
+
+                                <!-- Same as the top-level cash line: only the two value columns mean anything. -->
+                                <template v-else-if="isCashRow(item.original)">
+                                  <template v-if="column.id === 'stock_name'">{{ cashLabel(item.original) }}</template>
+                                  <template v-else-if="column.id === 'total_entry_value' || column.id === 'total_value'">
+                                    {{ numberToGerman(cashAmount(item.original)) }}
+                                  </template>
+                                  <template v-else>&nbsp;</template>
                                 </template>
 
                                 <!-- v-else-if: a plain v-if restarted the chain, so the select cell also fell through to FlexRender -->
@@ -1572,9 +1583,8 @@ const table = useVueTable({
   getSubRows: row => row.isGroup ? row.items : [],
   debugTable: false,
 
-  // Neither is a stored row: selection feeds combineRows and alerts, which look rows up in
-  // listData, so a selected combined or Cash row would silently act on nothing.
-  enableRowSelection: row => !row.original?.isCombined && !isCashRow(row.original),
+  // Combined rows are not stored, so combineRows would find nothing in listData; Cash rows are.
+  enableRowSelection: row => !row.original?.isCombined,
   enableSubRowSelection: true,
 });
 
@@ -1608,7 +1618,8 @@ watch(rowSelection, (newVal) => {
     }
   });
   
-  const wknValues = selectedProducts.value.map(item => item.wkn);
+  // Cash has no wkn, so name it by its label or a cash-only group gets the name ", ".
+  const wknValues = selectedProducts.value.map(item => isCashRow(item) ? cashLabel(item) : item.wkn);
   groupName.value = wknValues.join(', ');
 
   currentRow.value = selectedProducts.value[0];
@@ -1841,6 +1852,14 @@ function computeGroupTotals(items:any, totalAll:any) {
   let profit_loss_target_per_day = 0;
 
   for (const item of items) {
+    // Cash has no units or bid; its balance is both entry and value, so it adds no P/L.
+    if (isCashRow(item)) {
+      const balance = Number(item.total_entry_value) || 0;
+      total_value += balance;
+      total_entry_value += balance;
+      continue;
+    }
+
     const totalValue = (item.stocks_owned || 0) * (item.bid || 0);
     total_value += totalValue;
 

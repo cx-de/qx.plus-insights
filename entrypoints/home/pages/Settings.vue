@@ -227,6 +227,9 @@
                     @change="handleImportFileChange"
                   />
                   <p class="text-xs text-muted-foreground mt-2">{{ $t('backup_data.import_note') }}</p>
+                  <p v-if="importPreview" class="text-xs mt-2" :class="importPreview.valid ? 'text-foreground' : 'text-destructive'">
+                    {{ importPreview.valid ? $t('backup_data.summary', importPreview.summary) : $t('backup_data.import_validating') }}
+                  </p>
                   <div class="mt-4">
                     <Button @click="handleImport" :disabled="!selectedFile || isImporting">
                       <Loader2 v-if="isImporting" class="w-4 h-4 animate-spin" />
@@ -245,7 +248,8 @@
                       <p class="text-xs text-muted-foreground mt-0.5">{{ $t('backup_data.export_title') }}</p>
                     </div>
                   </div>
-                  <p class="text-xs text-muted-foreground mt-3">{{ $t('backup_data.export_note') }}</p>
+                  <p class="text-xs text-muted-foreground mt-3">{{ $t('backup_data.contents') }}</p>
+                  <p class="text-xs text-muted-foreground mt-2">{{ $t('backup_data.export_note') }}</p>
                   <div class="mt-4">
                     <Button @click="handleExport" variant="outline" :disabled="isExportingBackup">
                       <Loader2 v-if="isExportingBackup" class="w-4 h-4 animate-spin" />
@@ -544,7 +548,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
-import { exportAll, importAll } from '@/lib/storage-utils';
+import { exportAll, importAll, previewBackup } from '@/lib/storage-utils';
 import ApiUsagePanel from '@/components/ApiUsagePanel.vue';
 
 import {
@@ -833,21 +837,28 @@ const selectedFile = ref<File | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const isImporting = ref(false);
 const isExportingBackup = ref(false);
-function handleImportFileChange(e: Event) {
+const importPreview = ref<any>(null);
+async function handleImportFileChange(e: Event) {
   const input = e.target as HTMLInputElement;
   selectedFile.value = input.files?.[0] ?? null;
+  importPreview.value = null;
+  if (!selectedFile.value) return;
+  try {
+    importPreview.value = await previewBackup(selectedFile.value);
+  } catch (err) {
+    /* unreadable JSON: show it as invalid instead of failing at import time */
+    console.error('handleImportFileChange error:', err);
+    importPreview.value = { valid: false };
+  }
 }
 
 async function handleImport() {
   isImporting.value = true;
   try {
-    const importData = await importAll(selectedFile.value);
-    if (!importData.valid) {
-      toast({ title: t('backup_data.import_validating'), variant: 'destructive' });
-      return;
-    }
-    toast({ title: t('backup_data.import_success'), description: t('settings_page.reloading') });
+    const { summary } = await importAll(selectedFile.value);
+    toast({ title: t('backup_data.import_success'), description: `${t('backup_data.summary', summary)} ${t('settings_page.reloading')}` });
     selectedFile.value = null;
+    importPreview.value = null;
     // the input kept showing the old file name after a successful import
     if (fileInputRef.value) fileInputRef.value.value = '';
     setTimeout(() => { location.reload(); }, 1500);
@@ -863,8 +874,8 @@ async function handleExport() {
   isExportingBackup.value = true;
   try {
     const today = todayIso();
-    await exportAll(`backup_${today}.json`);
-    toast({ title: t('backup_data.export_success') });
+    const summary = await exportAll(`backup_${today}.json`);
+    toast({ title: t('backup_data.export_success'), description: t('backup_data.summary', summary) });
   } catch (err) {
     // a failed export used to be silent
     console.error('handleExport error:', err);

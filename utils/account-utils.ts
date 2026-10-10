@@ -27,8 +27,8 @@ const LEGACY_ID_KEYS:any = {
 const CUR_ID_KEYS:any = {
   'Flatex': 'local:CUR_FLATEXID',
   'Wikifolio': 'local:CUR_WIKIFOLIO',
-  'Consors Bank': 'local:CUR_CONSORSBANKID',
-  'Smart Broker +': 'local:CUR_SMARTBROKERID',
+  'Consorsbank': 'local:CUR_CONSORSBANKID',
+  'Smartbroker+': 'local:CUR_SMARTBROKERID',
   'justTRADE': 'local:CUR_JUSTTRADEID',
 };
 
@@ -142,7 +142,7 @@ export function accountKeyOf(item:any) {
 // its depot number comes from the row, not the URL, so it is stable enough to key on.
 // SmartBroker+ and Wikifolio derive theirs from the path, which changes per sub-route.
 function accountDepotPart(item:any) {
-  return item?.broker === 'Consors Bank' && item?.deposite_number
+  return item?.broker === 'Consorsbank' && item?.deposite_number
     ? `|${item.deposite_number}` : '';
 }
 

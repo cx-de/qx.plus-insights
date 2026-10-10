@@ -24,7 +24,7 @@ describe('saveDailyTotal', () => {
   const mainList = [
     { broker: 'flatex', account_id: 'A', total_value: 100 },
     { broker: 'flatex', account_id: 'A', total_value: '50' },
-    { broker: 'Consors Bank', account_id: 'C', total_value: '25.5' },
+    { broker: 'Consorsbank', account_id: 'C', total_value: '25.5' },
     { broker: 'flatex', account_id: 'A', total_value: 'n/a' },
   ];
 
@@ -32,7 +32,7 @@ describe('saveDailyTotal', () => {
     await storage.setItem('local:MAIN_LIST', mainList);
     await saveDailyTotal();
     expect(await storage.getItem('local:DAILY_TOTAL')).toEqual([
-      { date: '2026-09-24', total: 175.5, accounts: { 'flatex::A': 150, 'Consors Bank::C': 25.5 } },
+      { date: '2026-09-24', total: 175.5, accounts: { 'flatex::A': 150, 'Consorsbank::C': 25.5 } },
     ]);
   });
 
@@ -78,7 +78,7 @@ describe('accountDetect', () => {
   });
 
   it('folds Consors depot ids into the real customer id and adds their history', async () => {
-    const broker = 'Consors Bank';
+    const broker = 'Consorsbank';
     await storage.setItem('local:ACCOUNTS', [
       { broker, account_id: 'D1', label: 'D1' },
       { broker, account_id: 'D2', label: 'D2' },

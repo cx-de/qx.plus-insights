@@ -365,8 +365,7 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
     mergedData.push(...newStockData);
   } else {
     mergedData = [];
-    // Derived, not hardcoded: the old list mislabelled Consors Bank and Smart Broker +,
-    // so their Cash rows matched nothing and were dropped on every merge.
+    // Derived, not hardcoded: a hand-kept broker list drifted from the payload names and dropped Cash rows.
     const cashAccounts = new Set(
       [...currentData, ...newStockData]
         .filter((item: any) => item.stock_name === "Cash")

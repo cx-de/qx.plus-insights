@@ -3,7 +3,7 @@
     as it depends on a specific HTML structure
 */
 
-const broker = "Smart Broker +";
+const broker = "Smartbroker+";
 
 // SmartBroker+ exposes no customer id anywhere, so the depot number is the account.
 let currentAccountId:any = null;

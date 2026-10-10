@@ -12,7 +12,7 @@
     
     "view_all": "View All",
     "flatex": "Flatex",
-    "smart_broker_plus": "Smart Broker +",
+    "smart_broker_plus": "Smartbroker+",
     
     "isin": "ISIN",
     "wkn": "WKN",
@@ -277,7 +277,7 @@
     "dark": "Dark",
     "theme_description": "Select the theme for the dashboard",
     "exchangeTradedFund": "ETF",
-    "consors_bank": "Consors Bank",
+    "consors_bank": "Consorsbank",
     "justtrade": "justTRADE",
     "backup": "Backup",
     "import": "Import",
@@ -291,7 +291,9 @@
         "export_title": "Download your data as a file for backup",
         "export_note": "It's recommended to regularly back up your data to prevent loss.",
         "export_button": "Export Data",
-        "export_success": "Data exported successfully"
+        "export_success": "Data exported successfully",
+        "contents": "Includes everything: settings, accounts, positions, cash lines, groups and notes, position history, daily totals, forecast scenarios, alerts and view preferences.",
+        "summary": "{positions} positions · {cash_lines} cash lines · {groups} groups · {history_days} history days · {daily_totals} daily totals · {scenarios} scenarios · {alerts} alerts · {accounts} accounts"
     },
     "implied_volatility": "Impl. Volatility",
     "account_switch":{

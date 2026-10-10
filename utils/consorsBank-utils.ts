@@ -5,7 +5,7 @@
 
 import { germanToNumer } from "./helper";
 
-const broker = "Consors Bank";
+const broker = "Consorsbank";
 
 let currentAccountId:any = null;
 

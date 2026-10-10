@@ -385,8 +385,7 @@ export const getLatestData = async () => {
     const scrapedAccounts = new Set(newStockData.map(item => accountKeyOf(item)));
 
     
-    // Derived, not hardcoded: the old list said "Consors"/"SmartBroker" while the
-    // payload says "Consors Bank"/"Smart Broker +", so their Cash rows were dropped.
+    // Derived, not hardcoded: a hand-kept broker list drifted from the payload names and dropped Cash rows.
     const cashAccounts = new Set(
       [...currentData, ...newStockData]
         .filter(item => item.stock_name === "Cash")

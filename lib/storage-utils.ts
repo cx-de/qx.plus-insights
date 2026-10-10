@@ -1,62 +1,39 @@
-import { storage } from '#imports';
+import { browser, storage } from '#imports';
 
-const storageKeys = [
-    //Dashboard
-    "local:DAILY_TOTAL", 
+// Values whose localStorage form is JSON text; everything else is restored as the plain string.
+const jsonLocalKeys = ['tableSortState', 'columnOrder', 'tableExpanded', 'accountViewSelected'];
 
-    //Settings
-    "local:api_key", 
-    "local:settings", 
+// At least one of these must be present, or the file is not a portfolio backup.
+const coreKeys = ['local:MAIN_LIST', 'local:LIST_DATA', 'local:settings'];
 
-    //List
-    "local:LIST_DATA", 
-    "local:MAIN_LIST", 
-    "local:portfolio_history", 
-    "local:PEER_PRODUCTS", 
-    "local:scenarios",
-    "local:SCENARIO_EXCLUDED_WKNS",
-    "local:ALERTS",
+const isCash = (row: any) => String(row?.stock_name ?? '').trim().toLowerCase() === 'cash';
+const countOf = (value: any) => (Array.isArray(value) ? value.length : 0);
 
-    //Brocker
-    "local:KONTO_FLATEX",
-    "local:FLATEX_PURCHASE_DATES",
-    "local:consorsBank", 
-    "local:SMART_BROKER_PLUS", 
-    "local:WIKIFOLIO", 
-    "local:JUSTTRADE",
-    "local:JUSTTRADE_ISINS",
+export function backupSummary(entries: any[]) {
+  const byKey: Record<string, any> = {};
+  for (const item of entries || []) {
+    if (item?.key) byKey[item.key] = item.value;
+  }
+  const mainList = Array.isArray(byKey['local:MAIN_LIST']) ? byKey['local:MAIN_LIST'] : [];
+  const listData = Array.isArray(byKey['local:LIST_DATA']) ? byKey['local:LIST_DATA'] : [];
+  return {
+    positions: mainList.filter((row: any) => !isCash(row)).length,
+    cash_lines: mainList.filter(isCash).length,
+    groups: listData.filter((row: any) => row?.isGroup).length,
+    history_days: countOf(byKey['local:portfolio_history']),
+    daily_totals: countOf(byKey['local:DAILY_TOTAL']),
+    scenarios: countOf(byKey['local:scenarios']),
+    alerts: countOf(byKey['local:ALERTS']),
+    accounts: countOf(byKey['local:ACCOUNTS']),
+    settings: !!byKey['local:settings'],
+  };
+}
 
-    //Accounts
-    "local:ACCOUNTS",
-    "local:ACCOUNTS_SCHEMA",
-    "local:NEW_ACCOUNTS",
-    "local:ACCOUNT_SNOOZE",
-    "local:CUR_FLATEXID",
-    "local:CUR_WIKIFOLIO",
-    "local:CUR_CONSORSBANKID",
-    "local:CUR_SMARTBROKERID",
-    "local:CUR_JUSTTRADEID",
-
-    //Legacy identity keys, kept so pre-2.8 backups still round-trip
-    "local:NEW_FLATEXID",
-    "local:NEW_WIKIFOLIO",
-    "local:hasNewAccount",
-    "local:flatexUserSync",
-
-    //Misc state that export was silently skipping
-    "local:list_updated_at",
-    "local:api_auth_failed",
-    "local:api_auth_failed_at",
-    "local:api_auth_fail_count",
-];
-
-/**
- * Get all data from WXT storage and localStorage
- */
 async function getAllData() {
-  const extData = await storage.getItems(storageKeys);
-  
-  // --- LocalStorage ---
+  // Every key, not an allowlist: a list kept by hand silently dropped each new store.
+  const snapshot = await storage.snapshot('local');
+  const extension = Object.entries(snapshot).map(([key, value]) => ({ key: `local:${key}`, value }));
+
   const localData: Record<string, any> = {};
   for (let i = 0; i < localStorage.length; i++) {
     const key = localStorage.key(i);
@@ -64,17 +41,23 @@ async function getAllData() {
       try {
         localData[key] = JSON.parse(localStorage.getItem(key) as string);
       } catch {
+        /* a plain string such as theme is not JSON; keep it as is */
         localData[key] = localStorage.getItem(key);
       }
     }
   }
 
-  return { extension: extData, local: localData };
+  return {
+    format: 'qx-insights-backup',
+    version: 2,
+    app_version: browser.runtime.getManifest().version,
+    created_at: new Date().toISOString(),
+    summary: backupSummary(extension),
+    extension,
+    local: localData,
+  };
 }
 
-/**
- * Export all data to JSON file
- */
 export async function exportAll(filename = 'backup.json') {
   const allData = await getAllData();
   const blob = new Blob([JSON.stringify(allData, null, 2)], {
@@ -86,8 +69,8 @@ export async function exportAll(filename = 'backup.json') {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+  return allData.summary;
 }
-
 
 function validateBackupFile(data: any): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
@@ -97,83 +80,24 @@ function validateBackupFile(data: any): { valid: boolean; errors: string[] } {
     return { valid: false, errors };
   }
 
-  // Collect keys from backup
-  const keysInBackup = data
-    .filter(item => item && item.key)
-    .map(item => item.key);
+  const keysInBackup = data.filter(item => item && item.key).map(item => item.key);
 
-  // Check if at least one required key exists
-  const hasValidKey = storageKeys.some(requiredKey => keysInBackup.includes(requiredKey));
-  if (!hasValidKey) {
-    errors.push("No valid storage keys found in backup.");
+  if (keysInBackup.some((key: any) => typeof key !== 'string' || !key.startsWith('local:'))) {
+    errors.push("Backup contains keys outside local storage.");
   }
-
-  // Validate entries
+  if (!coreKeys.some(key => keysInBackup.includes(key))) {
+    errors.push("No portfolio data found in backup.");
+  }
 
   return { valid: errors.length === 0, errors };
 }
 
-
-/**
- * Import all data from JSON file
- */
-export async function importAll(file: File) {
-  return new Promise<void>((resolve, reject) => {
+function readBackupFile(file: File) {
+  return new Promise<any>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = async () => {
+    reader.onload = () => {
       try {
-        const parsed = JSON.parse(String(reader.result));
-
-
-        const { valid, errors } = validateBackupFile(parsed.extension || parsed.local);
-        if (!valid) {
-            reject(errors);
-            return;
-        }
-
-        if (parsed.extension) {
-            if (parsed.extension && Array.isArray(parsed.extension)) {
-                for (const item of parsed.extension) {
-                    const { key, value } = item;
-                    // skip invalid entries
-                    if (!key || value === null || value === undefined) continue;
-                    await storage.setItem(key, value);
-                }
-            }
-        }
-
-
-        // Restore localStorage
-
-        if (parsed.local) {
-            for (const [key, value] of Object.entries(parsed.local)) {
-
-                try {
-                  
-
-                  let jsonKeys = ['tableSortState','columnOrder','tableExpanded','accountViewSelected'];
-                  if(jsonKeys.includes(key)){
-                    localStorage.setItem(key,JSON.stringify(value));
-                  }else{
-                    localStorage.setItem(key,value);
-                  }
-                  
-
-                } catch (err) {
-                    console.error(`Failed to import key "${key}":`, err);
-                }
-            }
-        }
-        
-        // Restored rows may predate account_id; clearing the flag lets accountMigrate
-        // stamp them on next load instead of leaving them keyed as "Broker::".
-        const restoredSchema = (parsed.extension || []).some(
-          (item: any) => item?.key === 'local:ACCOUNTS_SCHEMA' && item?.value
-        );
-        if (!restoredSchema) await storage.removeItem('local:ACCOUNTS_SCHEMA');
-
-        resolve({ valid: true });
-
+        resolve(JSON.parse(String(reader.result)));
       } catch (err) {
         reject(err);
       }
@@ -181,4 +105,42 @@ export async function importAll(file: File) {
     reader.onerror = reject;
     reader.readAsText(file);
   });
+}
+
+// Read-only preview, so the user sees what an import will put back before it overwrites anything.
+export async function previewBackup(file: File) {
+  const parsed = await readBackupFile(file);
+  const { valid, errors } = validateBackupFile(parsed?.extension);
+  return { valid, errors, summary: valid ? backupSummary(parsed.extension) : null, created_at: parsed?.created_at ?? null };
+}
+
+export async function importAll(file: File) {
+  const parsed = await readBackupFile(file);
+  const { valid, errors } = validateBackupFile(parsed?.extension);
+  if (!valid) throw errors;
+
+  // A restore, not a merge: keys absent from the backup would otherwise mix two portfolios.
+  await storage.clear('local');
+  const entries = parsed.extension.filter((item: any) => item?.key && item.value !== null && item.value !== undefined);
+  await storage.setItems(entries.map((item: any) => ({ key: item.key, value: item.value })));
+
+  if (parsed.local) {
+    localStorage.clear();
+    for (const [key, value] of Object.entries(parsed.local)) {
+      try {
+        localStorage.setItem(key, jsonLocalKeys.includes(key) ? JSON.stringify(value) : (value as any));
+      } catch (err) {
+        /* one unwritable preference must not abort the rest of the restore */
+        console.error(`importAll key "${key}" error:`, err);
+      }
+    }
+  }
+
+  // Restored rows may predate account_id; clearing the flag lets accountMigrate
+  // stamp them on next load instead of leaving them keyed as "Broker::".
+  if (!entries.some((item: any) => item.key === 'local:ACCOUNTS_SCHEMA')) {
+    await storage.removeItem('local:ACCOUNTS_SCHEMA');
+  }
+
+  return { valid: true, summary: backupSummary(entries) };
 }

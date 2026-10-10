@@ -47,7 +47,7 @@ describe('accountCombineRows', () => {
   });
 
   it('keeps the same ISIN at two brokers as two rows', () => {
-    const rows = [flatexRow('A'), { ...flatexRow('A'), broker: 'Consors Bank' }];
+    const rows = [flatexRow('A'), { ...flatexRow('A'), broker: 'Consorsbank' }];
     expect(accountCombineRows(rows)).toEqual(rows);
   });
 
@@ -65,7 +65,7 @@ describe('accountCombineRows', () => {
     const rows = [
       { broker: 'flatex', account_id: 'A', stock_name: 'Cash', total_value: 100 },
       { broker: 'flatex', account_id: 'B', stock_name: 'cash ', total_value: 50 },
-      { broker: 'Consors Bank', account_id: 'C', stock_name: 'Cash', total_value: 10 },
+      { broker: 'Consorsbank', account_id: 'C', stock_name: 'Cash', total_value: 10 },
     ];
     const result = accountCombineRows(rows);
     expect(result).toHaveLength(2);
@@ -90,8 +90,8 @@ describe('accountReplaceRows', () => {
   const stored = [
     flatexRow('A', { id: 'old-A' }),
     flatexRow('B', { id: 'B' }),
-    { broker: 'Consors Bank', account_id: 'C', deposite_number: '1', id: 'C1' },
-    { broker: 'Consors Bank', account_id: 'C', deposite_number: '2', id: 'C2' },
+    { broker: 'Consorsbank', account_id: 'C', deposite_number: '1', id: 'C1' },
+    { broker: 'Consorsbank', account_id: 'C', deposite_number: '2', id: 'C2' },
   ];
 
   it('replaces only the scraped account and keeps its siblings', () => {
@@ -100,12 +100,12 @@ describe('accountReplaceRows', () => {
   });
 
   it('narrows a Consors replace to one depot', () => {
-    const result = accountReplaceRows(stored, [], 'Consors Bank', 'C', '1');
+    const result = accountReplaceRows(stored, [], 'Consorsbank', 'C', '1');
     expect(result.map((r: any) => r.id)).toEqual(['old-A', 'B', 'C2']);
   });
 
   it('replaces every depot when no depot number is given', () => {
-    const result = accountReplaceRows(stored, [], 'Consors Bank', 'C');
+    const result = accountReplaceRows(stored, [], 'Consorsbank', 'C');
     expect(result.map((r: any) => r.id)).toEqual(['old-A', 'B']);
   });
 
@@ -122,7 +122,7 @@ describe('account keys', () => {
   });
 
   it('adds the depot suffix for Consors only', () => {
-    expect(accountPositionKey({ broker: 'Consors Bank', account_id: '1', deposite_number: 'D1', wkn: 'X' })).toBe('X|Consors Bank::1|D1');
+    expect(accountPositionKey({ broker: 'Consorsbank', account_id: '1', deposite_number: 'D1', wkn: 'X' })).toBe('X|Consorsbank::1|D1');
     expect(accountPositionKey({ broker: 'flatex', account_id: '1', deposite_number: 'D1', wkn: 'X' })).toBe('X|flatex::1');
   });
 
@@ -131,11 +131,11 @@ describe('account keys', () => {
   });
 
   it('keys List rows by ISIN', () => {
-    expect(accountRowKey({ broker: 'Consors Bank', account_id: '1', deposite_number: 'D1', isin: 'DE000X' })).toBe('DE000X|Consors Bank::1|D1');
+    expect(accountRowKey({ broker: 'Consorsbank', account_id: '1', deposite_number: 'D1', isin: 'DE000X' })).toBe('DE000X|Consorsbank::1|D1');
   });
 
   it('compares depots only where the depot is part of the key', () => {
-    const consors = { broker: 'Consors Bank', deposite_number: 'D1' };
+    const consors = { broker: 'Consorsbank', deposite_number: 'D1' };
     expect(accountSameDepot(consors, { ...consors })).toBe(true);
     expect(accountSameDepot(consors, { ...consors, deposite_number: 'D2' })).toBe(false);
     expect(accountSameDepot({ broker: 'flatex', deposite_number: 'D1' }, { broker: 'flatex', deposite_number: 'D2' })).toBe(true);
