@@ -25,12 +25,14 @@
       </AlertDialogContent>
     </AlertDialog>
 
+    <UpdateDialog :blocked="isNewAccount" />
   </Layout>
 
 </template>
 
 <script lang="ts" setup>
 import Layout from '@/components/Layout.vue';
+import UpdateDialog from '@/components/UpdateDialog.vue';
 import { todayIso } from "~/utils/helper";
 
 import { Button } from "@/components/ui/button"

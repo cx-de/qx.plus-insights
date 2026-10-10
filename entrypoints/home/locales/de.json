@@ -302,6 +302,14 @@
       "replace_account": "Konto ersetzen",
       "replace_warning": "Ersetzen löscht die Daten Ihrer anderen {broker}-Konten. Dies kann nicht rückgängig gemacht werden."
     },
+    "update_dialog": {
+      "title": "Update verfügbar",
+      "text": "QX+ Insights {latest} ist verfügbar. Sie nutzen {current}.",
+      "force_text": "Ihre Version wird nicht mehr unterstützt. Bitte aktualisieren Sie, um QX+ Insights weiter zu nutzen.",
+      "whats_new": "Was ist neu",
+      "later": "Später",
+      "update_now": "Jetzt aktualisieren"
+    },
     "settings_page": {
         "tab_has_errors": "Dieser Tab enthält Felder mit Fehlern",
         "usage_title": "API-Calls",

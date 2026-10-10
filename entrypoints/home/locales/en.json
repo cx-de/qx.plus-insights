@@ -302,6 +302,14 @@
         "replace_account": "Replace Account",
         "replace_warning": "Replace deletes the data of your other {broker} accounts. This cannot be undone."
     },
+    "update_dialog": {
+        "title": "Update available",
+        "text": "QX+ Insights {latest} is available. You are using {current}.",
+        "force_text": "Your version is no longer supported. Please update to keep using QX+ Insights.",
+        "whats_new": "What's new",
+        "later": "Later",
+        "update_now": "Update now"
+    },
     "settings_page": {
         "tab_has_errors": "This tab has fields to fix",
         "usage_title": "API calls",
