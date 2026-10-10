@@ -53,7 +53,7 @@
                       />
                       <button
                         type="button"
-                        class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                         @click="isHiddenApiKey = !isHiddenApiKey"
                         :title="isHiddenApiKey ? $t('show') : $t('hide')"
                         :aria-label="isHiddenApiKey ? $t('show') : $t('hide')"
@@ -222,7 +222,7 @@
                     ref="fileInputRef"
                     type="file"
                     :aria-label="$t('backup_data.import_title')"
-                    class="block w-full mt-4 text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-input file:bg-background file:text-foreground file:text-sm file:font-medium hover:file:bg-muted cursor-pointer"
+                    class="block w-full mt-4 text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-input file:bg-background file:text-foreground file:text-sm file:font-medium file:hover:bg-muted cursor-pointer"
                     accept="application/json"
                     @change="handleImportFileChange"
                   />
@@ -276,11 +276,11 @@
                       role="radio"
                       :aria-checked="theme === 'light'"
                       :class="[
-                        'group cursor-pointer border-2 rounded-lg p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                        'group cursor-pointer border-2 rounded-lg p-3 text-left transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                         theme === 'light' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-muted-foreground/40'
                       ]"
                     >
-                      <div class="aspect-[16/9] rounded-md bg-gradient-to-br from-gray-50 to-gray-200 mb-2 flex items-center justify-center border">
+                      <div class="aspect-video rounded-md bg-linear-to-br from-gray-50 to-gray-200 mb-2 flex items-center justify-center border">
                         <Sun class="h-6 w-6 text-amber-500" />
                       </div>
                       <div class="flex items-center justify-between">
@@ -294,11 +294,11 @@
                       role="radio"
                       :aria-checked="theme === 'dark'"
                       :class="[
-                        'group cursor-pointer border-2 rounded-lg p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                        'group cursor-pointer border-2 rounded-lg p-3 text-left transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
                         theme === 'dark' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-muted-foreground/40'
                       ]"
                     >
-                      <div class="aspect-[16/9] rounded-md bg-gradient-to-br from-gray-800 to-gray-950 mb-2 flex items-center justify-center border border-gray-700">
+                      <div class="aspect-video rounded-md bg-linear-to-br from-gray-800 to-gray-950 mb-2 flex items-center justify-center border border-gray-700">
                         <Moon class="h-6 w-6 text-slate-200" />
                       </div>
                       <div class="flex items-center justify-between">
@@ -347,7 +347,7 @@
                     </div>
                     <Dialog>
                       <DialogTrigger as-child>
-                        <button type="button" class="text-xs text-primary hover:underline inline-flex items-center gap-1 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                        <button type="button" class="text-xs text-primary hover:underline inline-flex items-center gap-1 rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                           <HelpCircle class="h-3.5 w-3.5" />
                           {{ $t('how_to_set_up_telegram') }}
                         </button>
@@ -419,7 +419,7 @@
                         />
                         <button
                           type="button"
-                          class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          class="absolute right-1 top-1/2 -translate-y-1/2 inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                           @click="isTelegramBotTokenHidden = !isTelegramBotTokenHidden"
                           :title="isTelegramBotTokenHidden ? $t('show') : $t('hide')"
                           :aria-label="isTelegramBotTokenHidden ? $t('show') : $t('hide')"

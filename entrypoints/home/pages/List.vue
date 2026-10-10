@@ -206,10 +206,10 @@
                            
                             <TableRow v-if="row.depth==0" 
                             :class="{ 'group-row' : row.original?.isGroup,
-                              '!bg-accent': row.getIsSelected() }">
+                              'bg-accent!': row.getIsSelected() }">
                               
                               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id"
-                                :class="cell.column.id === 'select' ? 'sticky_column z-[1] bg-muted' : ''">
+                                :class="cell.column.id === 'select' ? 'sticky_column z-1 bg-muted' : ''">
                                 
                                 <span :data-wkn="row.original.wkn" :data-position="accountPositionKey(row.original)" :data-field="cell.column.id"
                                 class="price_cell">
@@ -321,7 +321,7 @@
 
                                   <template v-else-if="cell.column.id === 'isin'">
                                     <a v-if="isinLink" :href="formattedISINLink(row.original.isin)" target="_blank"
-                                        class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                        class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                         <StockInfoCard :wkn="row.original.isin" 
                                           :info="row.original" 
                                           :columns="columnOrder" />
@@ -335,7 +335,7 @@
 
                                   <template v-else-if="cell.column.id === 'wkn'">
                                     <a v-if="wknLink" :href="formattedWKNLink(row.original.wkn)" target="_blank"
-                                        class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                        class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                       <StockInfoCard :wkn="row.original.wkn" 
                                         :info="row.original" 
                                         :columns="columnOrder" />
@@ -474,7 +474,7 @@
                                   <template v-else-if="cell.column.id === 'underlying_isin'">
                                     <template v-if="row.original.underlying_isin">
                                       <a v-if="isinLink" :href="formattedISINLink(row.original.underlying_isin)" target="_blank"
-                                          class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                          class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                           <StockInfoCard :wkn="row.original.underlying_isin" 
                                             :info="row.original" :columns="columnOrder" />
                                       </a>
@@ -557,7 +557,7 @@
                                 :class="{ 'group-child-last': index === visibleSubRows(row).length - 1 }"
                               >
                               <TableCell v-for="column in columns" :key="column.id"
-                                :class="column.id === 'select' ? 'sticky_column z-[1] bg-muted' : ''">
+                                :class="column.id === 'select' ? 'sticky_column z-1 bg-muted' : ''">
                                 <template v-if="column.id === 'select'">
                                   <Button @click="removeItemFromGroup(row.original.id,item.original.id)" class="mr-2 h-8 w-8"
                                     size="icon" variant="ghost"
@@ -568,7 +568,7 @@
 
                                 <!-- v-else-if: a plain v-if restarted the chain, so the select cell also fell through to FlexRender -->
                                 <template v-else-if="column.id === 'isin'">
-                                  <a v-if="isinLink" :href="formattedISINLink(item.original.isin)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                  <a v-if="isinLink" :href="formattedISINLink(item.original.isin)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                     <StockInfoCard :wkn="item.original.isin" 
                                       :info="item.original"  :columns="columnOrder" />
                                   </a>
@@ -579,7 +579,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'wkn'">
-                                  <a v-if="wknLink" :href="formattedWKNLink(item.original.wkn)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                  <a v-if="wknLink" :href="formattedWKNLink(item.original.wkn)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                     <StockInfoCard :wkn="item.original.wkn"
                                       :info="item.original" :columns="columnOrder" />
                                   </a>
@@ -591,7 +591,7 @@
 
                                 <template v-else-if="column.id === 'underlying_isin'">
                                   <template v-if="item.original.underlying_isin">
-                                    <a v-if="isinLink" :href="formattedISINLink(item.original.underlying_isin)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                                    <a v-if="isinLink" :href="formattedISINLink(item.original.underlying_isin)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                       <StockInfoCard :wkn="item.original.underlying_isin" 
                                         :info="item.original" :columns="columnOrder" />
                                     </a>
@@ -774,12 +774,12 @@
                       </TableBody>
 
                       <!-- Footer -->
-                      <TableFooter v-if="!isLoading && table.getRowModel().rows?.length>0 && listTotal && Object.keys(listTotal).length" class="sticky bottom-0 z-[5]">
+                      <TableFooter v-if="!isLoading && table.getRowModel().rows?.length>0 && listTotal && Object.keys(listTotal).length" class="sticky bottom-0 z-5">
                         <tr class="total-row sticky bottom-0">
                           <template v-for="header in table.getHeaderGroups()[0].headers" 
                             :key="'foot'+header.id">
                             
-                            <TableCell :class="header.id === 'select' ? 'sticky_column z-[1] bg-muted' : ''">
+                            <TableCell :class="header.id === 'select' ? 'sticky_column z-1 bg-muted' : ''">
                               <!-- one v-if chain: separate v-ifs let the trailing v-else add a stray &nbsp; to every cell -->
                               <template v-if="header.id === 'total_entry_value'">
                                 {{  numberToGerman(listTotal['total_entry_value']) }}

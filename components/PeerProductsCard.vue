@@ -51,7 +51,7 @@
         <template v-if="table.getRowModel().rows?.length">
           <template v-for="row in table.getRowModel().rows" :key="row.id">
             <TableRow :data-state="row.getIsSelected() && 'selected'"
-              :class="{'font-bold !bg-gray-400': wkn === row.original.wkn}">
+              :class="{'font-bold bg-gray-400!': wkn === row.original.wkn}">
               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
                 <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
               </TableCell>

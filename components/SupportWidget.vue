@@ -1,7 +1,7 @@
 <template>
   <div>
     <button type="button" data-support-ignore
-      class="fixed right-0 top-1/2 z-40 flex -translate-y-1/2 items-center gap-1.5 rounded-l-md bg-primary px-2.5 py-2 text-sm font-medium text-primary-foreground shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+      class="fixed right-0 top-1/2 z-40 flex -translate-y-1/2 items-center gap-1.5 rounded-l-md bg-primary px-2.5 py-2 text-sm font-medium text-primary-foreground shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
       :disabled="capturing" @click="openSupport()">
       <span v-if="countdown" class="h-4 w-4 text-center leading-4 tabular-nums">{{ countdown }}</span>
       <Loader2 v-else-if="capturing" class="h-4 w-4 animate-spin" />
@@ -40,7 +40,7 @@
                   :class="!includeScreenshot ? 'opacity-30' : tool === 'text' ? 'cursor-text' : 'cursor-crosshair'"
                   @pointerdown="startStroke" @pointermove="moveStroke" @pointerup="endStroke" @pointerleave="endStroke" @pointercancel="endStroke" />
                 <input v-if="pendingText" ref="textInputRef" v-model="pendingText.value" maxlength="80"
-                  class="absolute min-w-[8rem] rounded border border-input bg-background px-1.5 py-0.5 text-sm shadow"
+                  class="absolute min-w-32 rounded border border-input bg-background px-1.5 py-0.5 text-sm shadow-sm"
                   :style="{ left: `${pendingText.left}px`, top: `${pendingText.top}px`, color: pendingText.color }"
                   @keydown.enter.prevent="commitText" @keydown.esc.stop.prevent="pendingText = null" @blur="commitText" />
               </div>
@@ -85,7 +85,7 @@
               <label class="text-sm font-medium" for="support-message">{{ $t('support_message') }}</label>
               <textarea id="support-message" v-model="message" rows="5" maxlength="5000"
                 :placeholder="$t('support_message_placeholder')"
-                class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
+                class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring" />
               <p v-if="errors.message" class="text-xs text-destructive">{{ errors.message }}</p>
               <p v-if="errors.screenshot" class="text-xs text-destructive">{{ errors.screenshot }}</p>
             </div>

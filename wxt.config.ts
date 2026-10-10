@@ -1,4 +1,5 @@
 import { defineConfig } from 'wxt';
+import tailwindcss from '@tailwindcss/vite';
 import pkg from './package.json'
 
 // Derived from WXT_API_BASE_URL so a staging/local build can't call a host the manifest doesn't allow.
@@ -11,6 +12,9 @@ function apiHostPermission() {
 // See https://wxt.dev/api/config.html
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
+  vite: () => ({
+    plugins: [tailwindcss()],
+  }),
   manifestVersion: 3,
   // A function, not an object: WXT loads .env only after reading this file, so process.env is empty at top level.
   manifest: () => ({

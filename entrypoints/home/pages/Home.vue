@@ -27,7 +27,7 @@
 
 
     <!-- Hero strip -->
-    <div class="mt-3 rounded-lg border bg-card text-card-foreground shadow-sm">
+    <div class="mt-3 rounded-lg border bg-card text-card-foreground shadow-xs">
       <div class="flex flex-wrap items-center justify-between gap-4 px-6 py-3">
         <div>
           <div class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -113,7 +113,7 @@
     <div class="flex flex-col lg:flex-row gap-4 mt-3 lg:min-h-[400px]">
 
       <div class="w-full lg:flex-1 lg:min-w-0">
-        <Card class="shadow-sm border rounded-lg h-full">
+        <Card class="shadow-xs border rounded-lg h-full">
           <CardContent class="p-3 space-y-1 h-full flex flex-col">
             <Tabs default-value="gainers" class="flex h-full flex-col">
               <div class="flex items-center py-2">
@@ -145,7 +145,7 @@
       </div>
 
       <div class="w-full lg:w-2/5 lg:min-w-0">
-        <Card class="shadow-sm border rounded-lg h-full">
+        <Card class="shadow-xs border rounded-lg h-full">
           <CardContent class="p-3 h-full flex flex-col">
             <div class="flex items-center gap-2 py-2">
               <Globe class="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />

@@ -20,13 +20,13 @@
           <div class="flex justify-between gap-4">
             <dt class="font-medium text-foreground">{{ $t('email') }}</dt>
             <dd>
-              <a href="mailto:insights@qx.plus" class="rounded-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">insights@qx.plus</a>
+              <a href="mailto:insights@qx.plus" class="rounded-sm text-primary hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">insights@qx.plus</a>
             </dd>
           </div>
           <div class="flex justify-between gap-4">
             <dt class="font-medium text-foreground">{{ $t('feedback' )}}</dt>
             <dd>
-              <a href="https://vote.qx.plus" target="_blank" rel="noopener noreferrer" class="rounded-sm text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">vote.qx.plus</a>
+              <a href="https://vote.qx.plus" target="_blank" rel="noopener noreferrer" class="rounded-sm text-primary hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">vote.qx.plus</a>
             </dd>
           </div>
         </dl>
@@ -34,7 +34,7 @@
         <div class="flex justify-center mt-8">
           <a href="https://github.com/cx-de/qx.plus-insights" target="_blank" rel="noopener noreferrer"
              aria-label="GitHub" title="GitHub"
-             class="inline-flex h-11 w-11 items-center justify-center rounded-full text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+             class="inline-flex h-11 w-11 items-center justify-center rounded-full text-foreground hover:bg-muted focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
             <svg xmlns="http://www.w3.org/2000/svg"
               width="30" height="30" 
               viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

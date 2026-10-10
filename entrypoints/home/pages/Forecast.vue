@@ -77,7 +77,7 @@
               class="fixed top-[20%] right-0 z-50 shadow-lg rounded-l-full rounded-tr-none rounded-br-none p-2">
               <SlidersHorizontal class="w-4 h-4" />
               <!-- exclusions change every scenario line, so they must be noticeable with the sheet closed -->
-              <span v-if="excludedWkns.length" class="absolute -top-1 -left-1 min-w-[1rem] h-4 px-1 rounded-full bg-background text-foreground border text-[10px] leading-[14px] tabular-nums"
+              <span v-if="excludedWkns.length" class="absolute -top-1 -left-1 min-w-4 h-4 px-1 rounded-full bg-background text-foreground border text-[10px] leading-[14px] tabular-nums"
                 :title="$t('scenarios.exclude_summary', excludedWkns.length)">{{ excludedWkns.length }}</span>
             </Button>
 
@@ -161,7 +161,7 @@
                           </span>
                           <!-- diverging bar: length is relative to the largest scenario so the fan reads like the chart -->
                           <span class="relative w-16 h-1.5 rounded-full bg-muted" aria-hidden="true">
-                            <span class="absolute left-1/2 -top-[3px] w-px h-3 bg-border"></span>
+                            <span class="absolute left-1/2 top-[-3px] w-px h-3 bg-border"></span>
                             <span :class="['absolute top-0 h-full', Number(scenario.market) >= 0 ? 'left-1/2 rounded-r-full bg-emerald-500' : 'right-1/2 rounded-l-full bg-rose-500']"
                               :style="{ width: `${marketBarWidth(scenario.market)}%` }"></span>
                           </span>
@@ -309,7 +309,7 @@
 
                              
                             </template>
-                            <TableRow class="sticky bottom-0 !bg-muted font-semibold z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.1)]">
+                            <TableRow class="sticky bottom-0 bg-muted! font-semibold z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.1)]">
                               <TableCell v-for="col in table.getAllLeafColumns()" :key="col.id">
                                 <template v-if="col.id === 'type'">
                                   {{  $t('total') }}
@@ -342,8 +342,8 @@
           </template>
 
           <AlertDialog :open="!!confirmState" @update:open="(open) => { if (!open) confirmState = null }">
-            <!-- z-[60]: confirm opens from the Szenarien sheet (z-50), whose overlay would otherwise cover it -->
-            <AlertDialogContent class="z-[60]">
+            <!-- z-60: confirm opens from the Szenarien sheet (z-50), whose overlay would otherwise cover it -->
+            <AlertDialogContent class="z-60">
               <AlertDialogHeader>
                 <AlertDialogTitle>{{ confirmState?.title }}</AlertDialogTitle>
               </AlertDialogHeader>

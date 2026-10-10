@@ -13,7 +13,7 @@
             <Tooltip>
               <TooltipTrigger as-child>
                 <router-link :to="item.items[0]?.to"
-                  class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  class="flex h-9 w-9 items-center justify-center rounded-lg transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                   :class="checkActiveRoute(item.items[0]) ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
                   :aria-current="checkActiveRoute(item.items[0]) ? 'page' : undefined">
 
@@ -42,7 +42,7 @@
             <SheetContent side="left" class="w-64 p-4">
               <nav class="mt-6 flex flex-col gap-1">
                 <router-link v-for="item in menuItems" :key="item.label" :to="item.items[0]?.to"
-                  class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
                   :class="checkActiveRoute(item.items[0]) ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground'"
                   :aria-current="checkActiveRoute(item.items[0]) ? 'page' : undefined"
                   @click="isMobileNavOpen = false">

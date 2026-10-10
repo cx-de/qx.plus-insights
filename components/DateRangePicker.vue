@@ -123,7 +123,7 @@ function pagingFunc(date: DateValue, sign: -1 | 1) {
         />
     </div>
 
-    <DateRangePickerContent class="rounded-lg border bg-popover p-3 text-popover-foreground shadow-md z-[100]">
+    <DateRangePickerContent class="rounded-lg border bg-popover p-3 text-popover-foreground shadow-md z-100">
       <DateRangePickerArrow class="fill-popover" />
       <DateRangePickerCalendar v-slot="{ weekDays, grid }" class="space-y-4">
         <DateRangePickerHeader class="flex items-center justify-between">
@@ -184,7 +184,7 @@ function pagingFunc(date: DateValue, sign: -1 | 1) {
                   <DateRangePickerCellTrigger
                     :day="weekDate"
                     :month="month.value"
-                    class="relative flex h-9 w-9 items-center justify-center rounded-md p-0 text-sm ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 data-[selected]:bg-primary data-[selected]:text-primary-foreground data-[today]:before:bg-primary data-[outside-view]:text-muted-foreground/50 data-[disabled]:text-muted-foreground/50 data-[unavailable]:pointer-events-none data-[unavailable]:text-destructive/30 data-[unavailable]:line-through before:absolute before:bottom-1 before:h-1 before:w-1 before:rounded-full"
+                    class="relative flex h-9 w-9 items-center justify-center rounded-md p-0 text-sm ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 data-selected:bg-primary data-selected:text-primary-foreground data-today:before:bg-primary data-outside-view:text-muted-foreground/50 data-disabled:text-muted-foreground/50 data-unavailable:pointer-events-none data-unavailable:text-destructive/30 data-unavailable:line-through before:absolute before:bottom-1 before:h-1 before:w-1 before:rounded-full"
                   />
                 </DateRangePickerCell>
               </DateRangePickerGridRow>

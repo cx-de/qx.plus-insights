@@ -37,7 +37,7 @@
           </p>
           <p class="w-[100px] font-medium text-foreground truncate text-right">
             <a v-if="isinLink && item.isin" :href="linkFor(item.isin)" target="_blank" rel="noopener noreferrer"
-              class="rounded-sm text-blue-600 dark:text-blue-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              class="rounded-sm text-blue-600 dark:text-blue-400 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
               {{ item.isin }}
             </a>
             <span v-else>{{ item.isin }}</span>

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { fakeBrowser } from 'wxt/testing';
+import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { storage } from '#imports';
 import { getApiKey, setApiAuthFailed, fetchFeed, apiKey, apiAuthFailed,
   apiRateLimit, isApiRateLimited } from '@/utils/helper';
