@@ -12,8 +12,8 @@ export default defineConfig({
   manifestVersion: 3,
   // packageVersion, not version: WXT 0.21 changed what {{version}} resolves to
   zip: {
-    artifactTemplate: 'qx-insights-v{{packageVersion}}-{{browser}}.zip',
-    sourcesTemplate: 'qx-insights-v{{packageVersion}}-sources.zip',
+    artifactTemplate: 'qx-plus-insights-{{packageVersion}}-{{browser}}.zip',
+    sourcesTemplate: 'qx-plus-insights-{{packageVersion}}-sources.zip',
   },
   manifest: ({ browser }) => ({
     name: 'QX+ Insights',

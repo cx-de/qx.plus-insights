@@ -36,6 +36,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" .output/qx-insights-v*.zip \
+          gh release create "$GITHUB_REF_NAME" .output/qx-plus-insights-*.zip \
             --title "QX+ Insights $GITHUB_REF_NAME" \
             --generate-notes
