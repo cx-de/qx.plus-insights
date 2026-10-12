@@ -104,6 +104,12 @@ describe('accountReplaceRows', () => {
     expect(result.map((r: any) => r.id)).toEqual(['old-A', 'B', 'C2']);
   });
 
+  it('keeps the depot-less Consors Cash row on a depot replace', () => {
+    const cash = { broker: 'Consorsbank', account_id: 'C', stock_name: 'Cash', id: 'C-cash' };
+    const result = accountReplaceRows([...stored, cash], [], 'Consorsbank', 'C', '1');
+    expect(result.map((r: any) => r.id)).toEqual(['old-A', 'B', 'C2', 'C-cash']);
+  });
+
   it('replaces every depot when no depot number is given', () => {
     const result = accountReplaceRows(stored, [], 'Consorsbank', 'C');
     expect(result.map((r: any) => r.id)).toEqual(['old-A', 'B']);

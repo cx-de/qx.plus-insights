@@ -3,15 +3,39 @@
     as it depends on a specific HTML structure
 */
 
-import { germanToNumer } from "./helper";
+import { germanToNumer, sleep } from "./helper";
 
 const broker = "Consorsbank";
 
 let currentAccountId:any = null;
 
+const ACCOUNT_OVERVIEW_PATH = '/web/Mein-Konto-und-Depot/Konto/Kontouebersicht';
+const FRAME_TIMEOUT_MS = 20000;
+
+
+function consorsBankAppendSyncButton(parent:any) {
+  if (parent.querySelector('.sync-qx-button')) return;
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "sync-qx-button";
+  button.style.marginLeft = "10px";
+  button.style.padding = "5px 10px";
+  button.style.border = "none";
+  button.style.borderRadius = "6px";
+  button.style.cursor = "pointer";
+  button.style.color = "white";
+  attachSyncFeedback(button, consorsBankSyncWithCash);
+  parent.appendChild(button);
+}
 
 async function addSyncButtonOnConsorsBank(){
   console.log("addSyncButtonOnConsorsBank")
+  if (consorsBankIsAccountOverview()) {
+    // The empty flex box beside "Ihre Konten im Überblick" is the page's own action slot.
+    const slot = document.querySelector('h1.h2')?.parentElement?.querySelector('.flex.middle-xs.flex-gap-s');
+    if (slot) consorsBankAppendSyncButton(slot);
+    return;
+  }
   const selectWrapper = document.querySelector('.select-dropdown-wrapper--white .select-dropdown');
   if (selectWrapper) {
     const parent = selectWrapper.parentElement.parentElement;
@@ -19,21 +43,8 @@ async function addSyncButtonOnConsorsBank(){
       parent.style.display = 'flex';
       parent.style.alignItems = 'center';
       parent.style.gap = '10px'; // spacing between select and button
-
-      // Create the button
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "sync-qx-button";
-    button.style.marginLeft = "10px";
-    button.style.padding = "5px 10px";
-    button.style.border = "none";
-    button.style.borderRadius = "6px";
-    button.style.cursor = "pointer";
-    button.style.color = "white";
-    attachSyncFeedback(button, consorsBankSaveDataToLocalStorage);
-    parent.appendChild(button);
-  }
+      consorsBankAppendSyncButton(parent);
+    }
   }
 }
 
@@ -163,6 +174,96 @@ function consorsBankDepositPortfolio() {
   return !!stockLink && stockLink.textContent.trim().toLowerCase().includes("portfolio");
 }
 
+function consorsBankIsAccountOverview() {
+  return window.location.pathname.includes('/Konto/Kontouebersicht');
+}
+
+// Sum of every Verrechnungskonto: the merge keeps one Cash row per account, not per Kontoverbund.
+function consorsBankReadCash(doc:any = document) {
+  const links = doc.querySelectorAll('app-account-type-link[id^="KTO_"] a[title="Verrechnungskonto"]');
+  if (!links.length) return null;
+  let total = 0;
+  for (const link of Array.from(links)) {
+    const raw = link.closest('tr')?.querySelector('[data-account-balance]')?.getAttribute('data-account-balance');
+    const value = raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
+    // A half-rendered table must not save a partial sum over the real balance.
+    if (Number.isNaN(value)) return null;
+    total += value;
+  }
+  return total;
+}
+
+// Same-origin hidden frame: the depot page has no cash, and the Angular overview only renders in a browser.
+async function consorsBankReadCashViaFrame() {
+  console.log("consorsBankReadCashViaFrame");
+  const iframe = document.createElement('iframe');
+  iframe.setAttribute('aria-hidden', 'true');
+  iframe.setAttribute('tabindex', '-1');
+  // Off-screen, not display:none, so Angular still lays out and renders the tables.
+  iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:900px;opacity:0;pointer-events:none;border:0;';
+  iframe.src = `${window.location.origin}${ACCOUNT_OVERVIEW_PATH}`;
+  document.body.appendChild(iframe);
+  try {
+    const deadline = Date.now() + FRAME_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await sleep(500);
+      let doc:any = null;
+      try {
+        doc = iframe.contentDocument;
+      } catch (err) {
+        /* cross-origin means framing is blocked; no retry will change that */
+        console.log("consorsbank: overview frame blocked");
+        return null;
+      }
+      const balance = doc ? consorsBankReadCash(doc) : null;
+      if (balance !== null) return balance;
+    }
+    console.log("consorsbank: overview frame timed out");
+    return null;
+  } finally {
+    iframe.remove();
+  }
+}
+
+async function consorsBankSaveCash(balance:any = consorsBankReadCash()) {
+  console.log("consorsBankSaveCash");
+  if (balance === null) {
+    console.log("consorsbank: no Verrechnungskonto balance found, skipping cash save");
+    return;
+  }
+  const stored = await chrome.storage.local.get(['consorsBank']);
+  const currentData = stored.consorsBank || [];
+  const cashIndex = currentData.findIndex((item:any) => item.stock_name === 'Cash' && item.broker === broker
+    && item.account_id === currentAccountId);
+  const timestamp = new Date().toISOString();
+
+  if (cashIndex !== -1) {
+    currentData[cashIndex].total_entry_value = balance;
+    currentData[cashIndex].timestamp = timestamp;
+  } else {
+    // No deposite_number on purpose: the depot-scoped accountReplaceRows would otherwise delete it.
+    currentData.push({
+      id: crypto.randomUUID(),
+      broker,
+      account_id: currentAccountId,
+      stock_name: 'Cash',
+      total_entry_value: balance,
+      isGroup: false,
+      isin: '',
+      stocks_owned: 0,
+      buy_price: 0,
+      product_type: '',
+      wkn: '',
+      profit_loss_percentage: 0,
+      profit_loss_price: 0,
+      bid: 0,
+      timestamp,
+    });
+  }
+  await chrome.storage.local.set({ consorsBank: currentData });
+  console.log("consorsbank: Saved Cash To Local Storage!");
+}
+
 // Save data on Chrome Storage for the grouped page
 async function consorsBankSaveDataToLocalStorage() {
   console.log("consorsBankSaveDataToLocalStorage")
@@ -171,6 +272,11 @@ async function consorsBankSaveDataToLocalStorage() {
   // Rows with no account_id would merge into the wrong account.
   if (!currentAccountId) {
     console.log("consorsbank: account id unknown, skipping save");
+    return false;
+  }
+
+  if (consorsBankIsAccountOverview()) {
+    await consorsBankSaveCash();
     return false;
   }
 
@@ -198,6 +304,22 @@ async function consorsBankSaveDataToLocalStorage() {
     return false;
   }
 
+}
+
+// Button only: loading the overview frame on every 10s tick would hammer the bank.
+async function consorsBankSyncWithCash() {
+  console.log("consorsBankSyncWithCash");
+  await consorsBankSaveDataToLocalStorage();
+  if (!currentAccountId) return;
+  // The save above already read the page; only an unrendered table is left to report.
+  if (consorsBankIsAccountOverview()) {
+    if (consorsBankReadCash() === null) throw new Error('consorsbank: cash not read');
+    return;
+  }
+  const balance = await consorsBankReadCashViaFrame();
+  // Thrown so attachSyncFeedback shows "Sync failed" instead of a silent stale cash value.
+  if (balance === null) throw new Error('consorsbank: cash not read');
+  await consorsBankSaveCash(balance);
 }
 
 // Get All Stock Rows
