@@ -716,6 +716,7 @@ export const clearAllStockData = async () => {
   await storage.removeItem('local:hasNewAccount');
   await storage.removeItem('local:NEW_FLATEXID');
   await storage.removeItem('local:FLATEX_PURCHASE_DATES');
+  await storage.removeItem('local:WIKIFOLIO_PURCHASE_DATES');
 
   //ConsorsBank
   await storage.setItem('local:consorsBank', []);

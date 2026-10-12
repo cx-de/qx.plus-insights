@@ -697,6 +697,12 @@ export async function accountClearData(broker:any, accountId:any) {
       }
     }
     if (broker === 'Flatex' && !left.length) await storage.removeItem('local:FLATEX_PURCHASE_DATES');
+    if (broker === 'Wikifolio') {
+      // Keyed "account|isin"; a re-added account must not inherit stale Kaufdaten.
+      const dates:any = (await storage.getItem('local:WIKIFOLIO_PURCHASE_DATES')) || {};
+      for (const key of Object.keys(dates)) if (key.startsWith(`${accountId}|`)) delete dates[key];
+      await storage.setItem('local:WIKIFOLIO_PURCHASE_DATES', dates);
+    }
     if (broker === 'justTRADE') {
       // ISIN cache is keyed "account|name"; stale entries would re-key a re-added account's rows.
       const isins:any = (await storage.getItem('local:JUSTTRADE_ISINS')) || {};

@@ -183,7 +183,8 @@ export default defineContentScript({
 
     async function mainWikiFolio() {
       console.log("mainWikiFolio")
-      
+      // Every tick: the header renders late, and a one-shot add found no container.
+      addSyncButtonOnWikifolio();
 
       await mainWikiFolioSaveDataToLocalStorage();
       setTimeout(() => mainWikiFolio(), updateDuration);
@@ -250,7 +251,6 @@ export default defineContentScript({
       mainSmartBrokerPlus();
     } else if (window.location.href.includes(wikifolioWebsite)) {
         addCustomRowHeaderWikifolio();
-        addSyncButtonOnWikifolio();
         updateCustomRowDataWikifolio();
         mainWikiFolio();
     } else if (window.location.href.includes(justtradeWebsite)) {
