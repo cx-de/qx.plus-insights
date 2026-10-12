@@ -782,6 +782,7 @@ const saveSettings = async () => {
 const clearData = async () => {
   await clearAllStockData();
   await storage.setItem('local:scenarios', []);
+  await storage.setItem('local:SCENARIO_VIRTUAL_PUTS', []);
   const keepTheme = localStorage.getItem('theme');
   const keepLang = localStorage.getItem('lang');
   localStorage.clear();

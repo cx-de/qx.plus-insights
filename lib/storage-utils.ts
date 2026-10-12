@@ -23,6 +23,7 @@ export function backupSummary(entries: any[]) {
     history_days: countOf(byKey['local:portfolio_history']),
     daily_totals: countOf(byKey['local:DAILY_TOTAL']),
     scenarios: countOf(byKey['local:scenarios']),
+    virtual_puts: countOf(byKey['local:SCENARIO_VIRTUAL_PUTS']),
     alerts: countOf(byKey['local:ALERTS']),
     accounts: countOf(byKey['local:ACCOUNTS']),
     settings: !!byKey['local:settings'],

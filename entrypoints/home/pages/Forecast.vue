@@ -91,160 +91,339 @@
                   </SheetDescription>
                 </SheetHeader>
 
-                <!-- Add/Edit Form -->
-                <form @submit.prevent="saveScenario" class="mt-2 rounded-lg border bg-muted/40 p-3 space-y-2">
-                  <div class="grid grid-cols-[6.5rem_1fr] gap-2">
-                    <div class="space-y-1">
-                      <Label for="market" class="text-xs text-muted-foreground">{{ $t('market') }}</Label>
-                      <div class="relative">
-                        <Input v-model="form.market"
-                          id="market" type="number"
-                          placeholder="0"
-                          step=".01"
-                          class="pr-7 bg-background tabular-nums"
-                          required />
-                        <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">%</span>
-                      </div>
-                    </div>
-                    <div class="space-y-1 min-w-0">
-                      <Label class="text-xs text-muted-foreground">{{ $t('scenarios.date_range') }}</Label>
-                      <DateRangePicker v-model="form.timeframe"
-                        :minValue="minDate"
-                        :key="scenariosKeys" />
-                    </div>
-                  </div>
+                <!-- One job per tab: stacked collapsibles hid puts and exclusions below a long scenario list -->
+                <Tabs v-model="scenarioTab" class="mt-3 flex flex-col flex-1 min-h-0">
+                  <!-- sized by label: equal thirds cut off the long German "Ausgeschlossen" -->
+                  <TabsList class="flex w-full">
+                    <TabsTrigger value="scenarios" class="flex-auto px-2">
+                      {{ $t('scenarios.tab_scenarios') }} <span class="ml-1 text-xs tabular-nums text-muted-foreground">{{ scenarios.length }}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="puts" class="flex-auto px-2">
+                      {{ $t('scenarios.tab_puts') }} <span class="ml-1 text-xs tabular-nums text-muted-foreground">{{ virtualPuts.length }}</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="excluded" class="flex-auto px-2">
+                      {{ $t('scenarios.tab_excluded') }} <span class="ml-1 text-xs tabular-nums text-muted-foreground">{{ excludedWkns.length }}</span>
+                    </TabsTrigger>
+                  </TabsList>
 
-                  <div class="flex flex-wrap items-center gap-1">
-                    <div class="flex gap-1" role="group" :aria-label="$t('scenarios.presets')">
-                      <Button v-for="preset in marketPresets" :key="preset" type="button" size="sm" variant="outline"
-                        :class="['h-7 px-2 text-xs tabular-nums bg-background', Number(form.market) === preset ? 'border-primary' : '']"
-                        @click="form.market = preset">
-                        {{ preset > 0 ? `+${preset}` : `−${Math.abs(preset)}` }}
-                      </Button>
-                    </div>
-                    <!-- one key per action: "Add" + "Scenario" glued words broke German grammar -->
-                    <Button type="submit" size="sm" class="ml-auto h-7">
-                      {{ editingIndex !== null ? $t('scenarios.update') : $t('scenarios.add') }}
+                  <TabsContent value="scenarios" class="mt-3 flex flex-col flex-1 min-h-0 data-[state=inactive]:hidden">
+                    <!-- Collapsed by default so the list leads; the form opens in place of the button -->
+                    <Button v-if="!isScenarioFormOpen" type="button" variant="outline"
+                      class="w-full h-10 border-dashed text-muted-foreground hover:text-foreground"
+                      id="scenario-add-button" @click="openScenarioForm">
+                      <Plus class="w-4 h-4 mr-1" />
+                      {{ $t('scenarios.add') }}
                     </Button>
-                    <Button v-if="editingIndex !== null" type="button" size="sm" variant="ghost" class="h-7" @click="resetForm()">
-                      {{ $t('cancel') }}
-                    </Button>
-                  </div>
-                </form>
 
-                <!-- Scenario List -->
-                <div class="mt-5 flex flex-col flex-1 min-h-0">
-                  <div v-if="scenarios.length>0" class="flex items-center justify-between pb-2 border-b">
-                    <span class="text-sm font-medium">{{ $t('scenarios.count', { count: scenarios.length }) }}</span>
-                    <Button @click="clearAllScenarios" size="sm" variant="ghost" class="h-8 px-2 text-muted-foreground hover:text-destructive">
-                      <Trash2 class="w-4 h-4 mr-1" />
-                      {{ $t('scenarios.clear_all') }}
-                    </Button>
-                  </div>
+                    <form v-else @submit.prevent="saveScenario" class="rounded-lg border bg-muted/40 p-4 space-y-4">
+                      <h3 class="text-sm font-semibold">{{ editingIndex !== null ? $t('scenarios.form_edit') : $t('scenarios.form_new') }}</h3>
 
-                  <div v-if="scenarios.length === 0" class="flex flex-col items-center text-center gap-2 py-10 text-sm text-muted-foreground">
-                    <SlidersHorizontal class="w-5 h-5" />
-                    <p class="max-w-[16rem]">{{ $t('scenarios.empty') }}</p>
-                  </div>
-
-                  <ul v-else class="flex-1 min-h-0 overflow-y-auto divide-y">
-                    <li v-for="(scenario, index) in scenarios" :key="index"
-                      :class="[
-                        'flex items-center gap-3 py-3 px-2 transition-colors',
-                        editingIndex === index ? 'bg-muted shadow-[inset_2px_0_0_hsl(var(--primary))]' : '',
-                        !scenario.active ? 'opacity-50' : ''
-                      ]">
-                      <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-3">
-                          <span :class="['text-lg font-semibold tabular-nums w-20', marketTone(scenario.market)]">
-                            {{ formatMarket(scenario.market) }}
-                          </span>
-                          <!-- diverging bar: length is relative to the largest scenario so the fan reads like the chart -->
-                          <span class="relative w-16 h-1.5 rounded-full bg-muted" aria-hidden="true">
-                            <span class="absolute left-1/2 top-[-3px] w-px h-3 bg-border"></span>
-                            <span :class="['absolute top-0 h-full', Number(scenario.market) >= 0 ? 'left-1/2 rounded-r-full bg-emerald-500' : 'right-1/2 rounded-l-full bg-rose-500']"
-                              :style="{ width: `${marketBarWidth(scenario.market)}%` }"></span>
-                          </span>
+                      <div class="space-y-1.5">
+                        <Label for="market" class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.market_change') }}</Label>
+                        <div class="flex gap-2">
+                          <div class="relative w-28 shrink-0">
+                            <Input v-model="form.market"
+                              id="market" type="number"
+                              placeholder="0"
+                              step=".01"
+                              class="pr-7 bg-background tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                              required />
+                            <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">%</span>
+                          </div>
+                          <div class="flex flex-1 gap-1" role="group" :aria-label="$t('scenarios.presets')">
+                            <Button v-for="preset in marketPresets" :key="preset" type="button" variant="outline"
+                              :class="['flex-1 px-0 text-xs tabular-nums bg-background', Number(form.market) === preset ? 'border-primary text-foreground' : 'text-muted-foreground']"
+                              :aria-pressed="Number(form.market) === preset"
+                              @click="form.market = preset">
+                              {{ preset > 0 ? `+${preset}` : `−${Math.abs(preset)}` }}
+                            </Button>
+                          </div>
                         </div>
-                        <p class="mt-0.5 text-xs text-muted-foreground truncate">
-                          {{ $t('scenarios.timeframe_range', { start: formatDate(scenario.timeframe.start), end: formatDate(scenario.timeframe.end) }) }}
-                          · {{ $t('scenarios.days', scenarioDays(scenario)) }}
-                        </p>
                       </div>
 
-                      <div class="flex gap-0.5 shrink-0">
-                        <Button @click="toggleScenarioStatus(index)" size="icon" variant="ghost" class="h-8 w-8 text-muted-foreground"
-                          :aria-pressed="!!scenario.active" :aria-label="$t('scenarios.show_in_chart')" :title="$t('scenarios.show_in_chart')">
-                          <Eye v-if="scenario.active" class="w-4 h-4" />
-                          <EyeOff v-else class="w-4 h-4" />
-                        </Button>
-                        <Button @click="editSenario(index)" size="icon" variant="ghost" class="h-8 w-8 text-muted-foreground"
-                          :aria-label="$t('edit')" :title="$t('edit')">
-                          <Pencil class="w-4 h-4" />
-                        </Button>
-                        <Button @click="removeSenario(index)" size="icon" variant="ghost" class="h-8 w-8 text-muted-foreground hover:text-destructive"
-                          :aria-label="$t('delete')" :title="$t('delete')">
-                          <Trash class="w-4 h-4" />
+                      <div class="space-y-1.5">
+                        <Label class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.date_range') }}</Label>
+                        <DateRangePicker v-model="form.timeframe"
+                          :minValue="minDate"
+                          :key="scenariosKeys" />
+                      </div>
+
+                      <div class="flex justify-end gap-2 border-t pt-3">
+                        <Button type="button" size="sm" variant="ghost" @click="resetForm()">{{ $t('cancel') }}</Button>
+                        <!-- one key per action: "Add" + "Scenario" glued words broke German grammar -->
+                        <Button type="submit" size="sm">
+                          {{ editingIndex !== null ? $t('scenarios.update') : $t('scenarios.add') }}
                         </Button>
                       </div>
-                    </li>
-                  </ul>
-                </div>
+                    </form>
 
-                <!-- Excluded positions: market % is not applied to these WKNs in any scenario -->
-                <div class="mt-3 shrink-0 border-t pt-2">
-                  <button type="button" class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-sm hover:bg-muted"
-                    :aria-expanded="isExcludePanelOpen" aria-controls="exclude-panel" @click="toggleExcludePanel">
-                    <CircleSlash class="w-4 h-4 text-muted-foreground" />
-                    <span :class="['flex-1 text-left tabular-nums', excludedWkns.length ? 'font-medium' : 'text-muted-foreground']">
-                      {{ $t('scenarios.exclude_summary', excludedWkns.length) }}
-                    </span>
-                    <ChevronRight :class="['w-4 h-4 text-muted-foreground transition-transform motion-reduce:transition-none', isExcludePanelOpen ? 'rotate-90' : '']" />
-                  </button>
+                    <!-- Scenario List -->
+                    <div class="mt-5 flex flex-col flex-1 min-h-0">
+                      <div v-if="scenarios.length>0" class="flex items-center justify-between pb-2 border-b">
+                        <span class="text-sm font-medium">{{ $t('scenarios.count', scenarios.length) }}</span>
+                        <Button @click="clearAllScenarios" size="sm" variant="ghost" class="h-8 px-2 text-muted-foreground hover:text-destructive">
+                          <Trash2 class="w-4 h-4 mr-1" />
+                          {{ $t('scenarios.clear_all') }}
+                        </Button>
+                      </div>
 
-                  <div v-if="isExcludePanelOpen" id="exclude-panel" class="px-2 pt-1 pb-1 space-y-2">
-                    <p class="text-xs text-muted-foreground">{{ $t('scenarios.exclude_hint') }}</p>
-                    <div class="relative">
-                      <Input v-model="excludeSearch" :placeholder="$t('scenarios.exclude_search')" class="h-8 bg-background text-sm"
-                        role="combobox" :aria-expanded="isExcludeListOpen && excludeSuggestions.length > 0" aria-controls="exclude-suggestions"
-                        @focus="isExcludeListOpen = true" @blur="isExcludeListOpen = false" @input="isExcludeListOpen = true"
-                        @keydown.down.prevent="moveActiveSuggestion(1)" @keydown.up.prevent="moveActiveSuggestion(-1)"
-                        @keydown.enter.prevent="addExcludedFromInput" @keydown.esc="excludeSearch = ''; isExcludeListOpen = false" />
-                      <!-- opens upward: this block sits at the bottom of the sheet, a downward list would be cut off -->
-                      <ul v-if="isExcludeListOpen && excludeSuggestions.length" id="exclude-suggestions" role="listbox"
-                        class="absolute z-10 bottom-full mb-1 w-full max-h-56 overflow-y-auto rounded-md border bg-popover shadow-md">
-                        <li v-for="(position, i) in excludeSuggestions" :key="position.wkn" role="option" :aria-selected="i === activeSuggestion">
-                          <!-- mousedown: a click would lose the race against the input's blur -->
-                          <button type="button" tabindex="-1"
-                            :class="['flex w-full items-center gap-2 px-2 py-1.5 text-sm text-left hover:bg-muted', i === activeSuggestion ? 'bg-muted' : '']"
-                            @mouseenter="activeSuggestion = i" @mousedown.prevent="addExcludedWkn(position)">
-                            <span class="flex-1 min-w-0 truncate" :title="position.name">{{ position.name }}</span>
-                            <span class="text-xs text-muted-foreground tabular-nums">{{ position.wkn }}</span>
-                          </button>
+                      <div v-if="scenarios.length === 0" class="flex flex-col items-center text-center gap-2 py-10 text-sm text-muted-foreground">
+                        <SlidersHorizontal class="w-5 h-5" />
+                        <p class="max-w-[16rem]">{{ $t('scenarios.empty') }}</p>
+                      </div>
+
+                      <ul v-else class="flex-1 min-h-0 overflow-y-auto divide-y">
+                        <li v-for="(scenario, index) in scenarios" :key="index"
+                          :class="[
+                            'flex items-center gap-3 py-3 px-2 transition-colors',
+                            editingIndex === index ? 'bg-muted shadow-[inset_2px_0_0_hsl(var(--primary))]' : '',
+                            !scenario.active ? 'opacity-50' : ''
+                          ]">
+                          <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-3">
+                              <span :class="['text-lg font-semibold tabular-nums w-20', marketTone(scenario.market)]">
+                                {{ formatMarket(scenario.market) }}
+                              </span>
+                              <!-- diverging bar: length is relative to the largest scenario so the fan reads like the chart -->
+                              <span class="relative w-16 h-1.5 rounded-full bg-muted" aria-hidden="true">
+                                <span class="absolute left-1/2 top-[-3px] w-px h-3 bg-border"></span>
+                                <span :class="['absolute top-0 h-full', Number(scenario.market) >= 0 ? 'left-1/2 rounded-r-full bg-emerald-500' : 'right-1/2 rounded-l-full bg-rose-500']"
+                                  :style="{ width: `${marketBarWidth(scenario.market)}%` }"></span>
+                              </span>
+                            </div>
+                            <p class="mt-0.5 text-xs text-muted-foreground truncate">
+                              {{ $t('scenarios.timeframe_range', { start: formatDate(scenario.timeframe.start), end: formatDate(scenario.timeframe.end) }) }}
+                              · {{ $t('scenarios.days', scenarioDays(scenario)) }}
+                            </p>
+                            <!-- the client's question is how much the put saves, so it is answered here, not only on chart hover -->
+                            <p v-if="Number.isFinite(scenarioHedgeEffects[index])"
+                              :class="['mt-0.5 flex items-center gap-1 text-xs font-medium tabular-nums', marketTone(scenarioHedgeEffects[index])]">
+                              <ShieldCheck class="w-3.5 h-3.5" aria-hidden="true" />
+                              {{ $t('scenarios.virtual_puts.row_effect', { value: formatSigned(scenarioHedgeEffects[index]) }) }}
+                            </p>
+                          </div>
+
+                          <div class="flex gap-0.5 shrink-0">
+                            <Button @click="toggleScenarioStatus(index)" size="icon" variant="ghost" class="h-8 w-8 text-muted-foreground"
+                              :aria-pressed="!!scenario.active" :aria-label="$t('scenarios.show_in_chart')" :title="$t('scenarios.show_in_chart')">
+                              <Eye v-if="scenario.active" class="w-4 h-4" />
+                              <EyeOff v-else class="w-4 h-4" />
+                            </Button>
+                            <Button @click="editSenario(index)" size="icon" variant="ghost" class="h-8 w-8 text-muted-foreground"
+                              :aria-label="$t('edit')" :title="$t('edit')">
+                              <Pencil class="w-4 h-4" />
+                            </Button>
+                            <Button @click="removeSenario(index)" size="icon" variant="ghost" class="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              :aria-label="$t('delete')" :title="$t('delete')">
+                              <Trash class="w-4 h-4" />
+                            </Button>
+                          </div>
                         </li>
                       </ul>
                     </div>
+                  </TabsContent>
 
-                    <p v-if="!excludedWkns.length" class="py-2 text-xs text-muted-foreground">{{ $t('scenarios.exclude_empty') }}</p>
-                    <ul v-else class="max-h-48 overflow-y-auto divide-y">
-                      <li v-for="wkn in excludedWkns" :key="wkn"
-                        :class="['flex items-center gap-2 py-1', portfolioPositions.has(wkn) ? '' : 'opacity-50']">
-                        <span class="flex-1 min-w-0 truncate text-sm" :title="portfolioPositions.get(wkn) || wkn">{{ portfolioPositions.get(wkn) || wkn }}</span>
-                        <span class="shrink-0 text-xs text-muted-foreground tabular-nums">{{ wkn }}</span>
-                        <Button size="icon" variant="ghost" class="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
-                          :aria-label="$t('scenarios.exclude_remove', { wkn })" :title="$t('scenarios.exclude_remove', { wkn })"
-                          @click="removeExcludedWkn(wkn)">
-                          <X class="w-3.5 h-3.5" />
+                  <!-- Same layout as Scenarios: add box on top, then count + bulk action, then the list -->
+                  <TabsContent value="puts" class="mt-3 flex flex-col flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
+                    <!-- Collapsed by default, same as the scenario form -->
+                    <Button v-if="!isVirtualPutFormOpen" type="button" variant="outline"
+                      class="w-full h-10 border-dashed text-muted-foreground hover:text-foreground"
+                      id="vp-add-button" @click="openVirtualPutForm">
+                      <Plus class="w-4 h-4 mr-1" />
+                      {{ $t('scenarios.virtual_puts.add') }}
+                    </Button>
+
+                    <form v-else @submit.prevent="addVirtualPut" class="rounded-lg border bg-muted/40 p-4 space-y-4">
+                      <h3 class="text-sm font-semibold">{{ editingPutId ? $t('scenarios.virtual_puts.form_edit') : $t('scenarios.virtual_puts.form_new') }}</h3>
+
+                      <div class="-mt-2 text-xs text-muted-foreground">
+                        <p>{{ $t('scenarios.virtual_puts.hint') }}</p>
+                        <details class="mt-1">
+                          <summary class="cursor-pointer w-fit rounded-sm hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                            {{ $t('scenarios.virtual_puts.limits_title') }}
+                          </summary>
+                          <p class="mt-1">{{ $t('scenarios.virtual_puts.limits') }}</p>
+                        </details>
+                      </div>
+
+                      <fieldset class="grid grid-cols-2 gap-x-2 gap-y-3">
+                        <legend class="mb-2 text-xs font-semibold">{{ $t('scenarios.virtual_puts.group_underlying') }}</legend>
+                        <div class="space-y-1.5">
+                          <Label for="vp-underlying" class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.virtual_puts.underlying_name') }}</Label>
+                          <Input v-model="virtualPutForm.underlying_name" id="vp-underlying" maxlength="40" placeholder="DAX"
+                            class="bg-background" required />
+                        </div>
+                        <div class="space-y-1.5">
+                          <Label for="vp-underlying-price" class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.virtual_puts.underlying_price') }}</Label>
+                          <Input v-model="virtualPutForm.underlying_price" id="vp-underlying-price" type="number" min="0" step="any" class="bg-background tabular-nums" required />
+                        </div>
+                      </fieldset>
+
+                      <fieldset class="grid grid-cols-2 gap-x-2 gap-y-3">
+                        <legend class="mb-2 text-xs font-semibold">{{ $t('scenarios.virtual_puts.group_put') }}</legend>
+                        <div class="space-y-1.5">
+                          <Label for="vp-strike" class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.virtual_puts.strike') }}</Label>
+                          <Input v-model="virtualPutForm.strike" id="vp-strike" type="number" min="0" step="any" class="bg-background tabular-nums" required />
+                        </div>
+                        <div class="space-y-1.5">
+                          <Label for="vp-maturity" class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.virtual_puts.maturity') }}</Label>
+                          <Input v-model="virtualPutForm.maturity" id="vp-maturity" type="date" :min="tomorrowIso" class="bg-background" required />
+                        </div>
+                        <div class="space-y-1.5">
+                          <Label for="vp-ratio" class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.virtual_puts.ratio') }}</Label>
+                          <Input v-model="virtualPutForm.ratio" id="vp-ratio" type="number" min="0" step="any" class="bg-background tabular-nums" aria-describedby="vp-ratio-hint" required />
+                          <p id="vp-ratio-hint" class="text-xs text-muted-foreground">{{ $t('scenarios.virtual_puts.ratio_hint') }}</p>
+                        </div>
+                        <div v-if="virtualPutForm.iv_manual" class="space-y-1.5">
+                          <Label for="vp-iv" class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.virtual_puts.iv') }}</Label>
+                          <div class="relative">
+                            <Input v-model="virtualPutForm.implied_volatility" id="vp-iv" type="number" min="0" step="any" class="pr-7 bg-background tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" required />
+                            <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">%</span>
+                          </div>
+                        </div>
+                      </fieldset>
+
+                      <fieldset class="grid grid-cols-2 gap-x-2 gap-y-3">
+                        <legend class="mb-2 text-xs font-semibold">{{ $t('scenarios.virtual_puts.group_purchase') }}</legend>
+                        <div class="space-y-1.5">
+                          <Label for="vp-quantity" class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.virtual_puts.quantity') }}</Label>
+                          <Input v-model="virtualPutForm.quantity" id="vp-quantity" type="number" min="1" step="1" class="bg-background tabular-nums" required />
+                        </div>
+                        <div class="space-y-1.5">
+                          <Label for="vp-price" class="text-xs font-medium text-muted-foreground">{{ $t('scenarios.virtual_puts.price') }}</Label>
+                          <div class="relative">
+                            <Input v-model="virtualPutForm.price" id="vp-price" type="number" min="0" step="any" class="pr-7 bg-background tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" required />
+                            <span class="absolute right-2.5 top-1/2 -translate-y-1/2 text-sm text-muted-foreground pointer-events-none">€</span>
+                          </div>
+                        </div>
+                      </fieldset>
+
+                      <!-- strike distance catches a strike typed in a different unit than the underlying price -->
+                      <div class="flex flex-wrap justify-between gap-x-3 gap-y-1 rounded-md bg-background px-3 py-2 text-xs tabular-nums" aria-live="polite">
+                        <span>{{ $t('scenarios.virtual_puts.premium') }} <strong class="font-semibold">{{ virtualPutPreview.premium ? `${formatChartNumber(virtualPutPreview.premium, 2)} €` : '–' }}</strong></span>
+                        <span class="text-muted-foreground">{{ virtualPutDistanceText }}</span>
+                        <span v-if="virtualPutPreview.iv" class="w-full text-muted-foreground">{{ $t('scenarios.virtual_puts.iv_preview', { value: formatChartNumber(virtualPutPreview.iv, 1) }) }}</span>
+                        <span v-if="virtualPutIvWarning" class="w-full font-medium text-amber-700 dark:text-amber-400">{{ virtualPutIvWarning }}</span>
+                      </div>
+
+                      <div class="flex justify-end gap-2 border-t pt-3">
+                        <Button type="button" size="sm" variant="ghost" @click="closeVirtualPutForm">{{ $t('cancel') }}</Button>
+                        <Button type="submit" size="sm" :disabled="isVirtualPutSaving">{{ editingPutId ? $t('scenarios.virtual_puts.update') : $t('scenarios.virtual_puts.add') }}</Button>
+                      </div>
+                    </form>
+
+                    <!-- Put List -->
+                    <div class="mt-5 flex flex-col">
+                      <div v-if="virtualPuts.length" class="flex items-center justify-between pb-2 border-b">
+                        <span class="text-sm font-medium tabular-nums">{{ $t('scenarios.virtual_puts.count', virtualPuts.length) }}</span>
+                        <Button size="sm" variant="ghost" class="h-8 px-2 text-muted-foreground hover:text-destructive" @click="clearVirtualPuts">
+                          <Trash2 class="w-4 h-4 mr-1" />
+                          {{ $t('scenarios.clear_all') }}
                         </Button>
-                      </li>
-                    </ul>
-                    <div v-if="excludedWkns.length >= 2" class="flex justify-end">
-                      <Button size="sm" variant="ghost" class="h-7 px-2 text-xs text-muted-foreground hover:text-destructive" @click="clearExcludedWkns">
-                        {{ $t('scenarios.exclude_clear') }}
-                      </Button>
+                      </div>
+
+                      <div v-if="!virtualPuts.length" class="flex flex-col items-center text-center gap-2 py-10 text-sm text-muted-foreground">
+                        <ShieldCheck class="w-5 h-5" />
+                        <p class="max-w-[16rem]">{{ $t('scenarios.virtual_puts.empty') }}</p>
+                      </div>
+
+                      <ul v-else class="divide-y">
+                        <li v-for="put in virtualPuts" :key="put.id"
+                          :class="[
+                            'flex items-center gap-3 py-3 px-2 transition-colors',
+                            editingPutId === put.id ? 'bg-muted shadow-[inset_2px_0_0_hsl(var(--primary))]' : '',
+                            !put.active || isVirtualPutExpired(put) ? 'opacity-50' : ''
+                          ]">
+                          <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold truncate tabular-nums" :title="put.underlying_name">
+                              {{ formatChartNumber(put.quantity) }} × Put {{ put.underlying_name }}
+                              <span v-if="isVirtualPutExpired(put)" class="text-xs font-normal text-muted-foreground">· {{ $t('scenarios.virtual_puts.expired') }}</span>
+                            </p>
+                            <p class="mt-0.5 text-xs text-muted-foreground truncate tabular-nums">
+                              {{ $t('scenarios.virtual_puts.strike') }} {{ formatStrike(put.strike) }} · {{ formatDate(put.maturity) }}
+                            </p>
+                            <p class="text-xs text-muted-foreground tabular-nums">
+                              {{ $t('scenarios.virtual_puts.premium') }} {{ formatChartNumber(put.price * put.quantity, 2) }} €
+                            </p>
+                          </div>
+                          <div class="flex gap-0.5 shrink-0">
+                            <Button @click="toggleVirtualPut(put.id)" size="icon" variant="ghost" class="h-8 w-8 text-muted-foreground"
+                              :aria-pressed="!!put.active" :aria-label="$t('scenarios.show_in_chart')" :title="$t('scenarios.show_in_chart')">
+                              <Eye v-if="put.active" class="w-4 h-4" />
+                              <EyeOff v-else class="w-4 h-4" />
+                            </Button>
+                            <Button @click="editVirtualPut(put.id)" size="icon" variant="ghost" class="h-8 w-8 text-muted-foreground"
+                              :aria-label="$t('edit')" :title="$t('edit')">
+                              <Pencil class="w-4 h-4" />
+                            </Button>
+                            <Button @click="removeVirtualPut(put.id)" size="icon" variant="ghost" class="h-8 w-8 text-muted-foreground hover:text-destructive"
+                              :aria-label="$t('delete')" :title="$t('delete')">
+                              <Trash class="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </li>
+                      </ul>
                     </div>
-                  </div>
-                </div>
+                  </TabsContent>
+
+                  <!-- Excluded positions: market % is not applied to these WKNs in any scenario -->
+                  <TabsContent value="excluded" class="mt-3 flex flex-col flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
+                    <div class="rounded-lg border bg-muted/40 p-3 space-y-2">
+                      <p class="text-xs text-muted-foreground">{{ $t('scenarios.exclude_hint') }}</p>
+                      <div class="relative">
+                        <Input v-model="excludeSearch" :placeholder="$t('scenarios.exclude_search')" class="h-8 bg-background text-sm"
+                          role="combobox" :aria-expanded="isExcludeListOpen && excludeSuggestions.length > 0" aria-controls="exclude-suggestions"
+                          @focus="isExcludeListOpen = true" @blur="isExcludeListOpen = false" @input="isExcludeListOpen = true"
+                          @keydown.down.prevent="moveActiveSuggestion(1)" @keydown.up.prevent="moveActiveSuggestion(-1)"
+                          @keydown.enter.prevent="addExcludedFromInput" @keydown.esc="excludeSearch = ''; isExcludeListOpen = false" />
+                        <!-- opens downward: the search sits at the top of its own tab, with room below -->
+                        <ul v-if="isExcludeListOpen && excludeSuggestions.length" id="exclude-suggestions" role="listbox"
+                          class="absolute z-10 top-full mt-1 w-full max-h-56 overflow-y-auto rounded-md border bg-popover shadow-md">
+                          <li v-for="(position, i) in excludeSuggestions" :key="position.wkn" role="option" :aria-selected="i === activeSuggestion">
+                            <!-- mousedown: a click would lose the race against the input's blur -->
+                            <button type="button" tabindex="-1"
+                              :class="['flex w-full items-center gap-2 px-2 py-1.5 text-sm text-left hover:bg-muted', i === activeSuggestion ? 'bg-muted' : '']"
+                              @mouseenter="activeSuggestion = i" @mousedown.prevent="addExcludedWkn(position)">
+                              <span class="flex-1 min-w-0 truncate" :title="position.name">{{ position.name }}</span>
+                              <span class="text-xs text-muted-foreground tabular-nums">{{ position.wkn }}</span>
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+
+                    <!-- Excluded List -->
+                    <div class="mt-5 flex flex-col">
+                      <div v-if="excludedWkns.length" class="flex items-center justify-between pb-2 border-b">
+                        <span class="text-sm font-medium tabular-nums">{{ $t('scenarios.exclude_summary', excludedWkns.length) }}</span>
+                        <Button size="sm" variant="ghost" class="h-8 px-2 text-muted-foreground hover:text-destructive" @click="clearExcludedWkns">
+                          <Trash2 class="w-4 h-4 mr-1" />
+                          {{ $t('scenarios.exclude_clear') }}
+                        </Button>
+                      </div>
+
+                      <div v-if="!excludedWkns.length" class="flex flex-col items-center text-center gap-2 py-10 text-sm text-muted-foreground">
+                        <CircleSlash class="w-5 h-5" />
+                        <p class="max-w-[16rem]">{{ $t('scenarios.exclude_empty') }}</p>
+                      </div>
+
+                      <ul v-else class="divide-y">
+                        <li v-for="wkn in excludedWkns" :key="wkn"
+                          :class="['flex items-center gap-3 py-3 px-2', portfolioPositions.has(wkn) ? '' : 'opacity-50']">
+                          <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold truncate" :title="portfolioPositions.get(wkn) || wkn">{{ portfolioPositions.get(wkn) || wkn }}</p>
+                            <p class="mt-0.5 text-xs text-muted-foreground tabular-nums">{{ wkn }}</p>
+                          </div>
+                          <Button size="icon" variant="ghost" class="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                            :aria-label="$t('scenarios.exclude_remove', { wkn })" :title="$t('scenarios.exclude_remove', { wkn })"
+                            @click="removeExcludedWkn(wkn)">
+                            <Trash class="w-4 h-4" />
+                          </Button>
+                        </li>
+                      </ul>
+                    </div>
+                  </TabsContent>
+                </Tabs>
 
               </SheetContent>
             </Sheet>
@@ -362,7 +541,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import Empty from '~/components/Empty.vue'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -409,8 +588,10 @@ import {
   calculateFutureTotalValue,
   todayIso,
 } from '~/utils/helper'
+import { virtualPutRow, virtualPutSigma, virtualPutValidate } from '~/utils/virtual-put-utils'
 
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import {
   Chart as ChartJS,
@@ -436,7 +617,7 @@ ChartJS.register(
   Legend
 )
 
-import { Pencil, Trash, Trash2, Eye, EyeOff, Download, SlidersHorizontal, Table2, Calculator, X, CircleSlash, ChevronRight } from 'lucide-vue-next';
+import { Pencil, Trash, Trash2, Eye, EyeOff, Download, SlidersHorizontal, Table2, Calculator, CircleSlash, ShieldCheck, Plus } from 'lucide-vue-next';
 
 const { t,locale } = useI18n();
 document.title = t('forecast');
@@ -882,24 +1063,29 @@ const chartOptions = {
             let scenarioEffectOnCurrent = scenarioValue - todayTotal;
             const currentEffect = (scenarioValue / todayTotal -1) * 100;
             
-            //NEW: Calculate scenario factor at this tooltip date
-            
+            // A negative effect is real: in a rising market the premium is lost.
+            const unhedgedValue = dataset.unhedgedData?.[index];
+            const hedgeEffect = scenarioValue - unhedgedValue;
+            const hedgeText = dataset.hedge && Number.isFinite(hedgeEffect)
+              ? `${t('scenarios.virtual_puts.saving')}: ${hedgeEffect >= 0 ? '+' : ''}${formatChartNumber(hedgeEffect, 2)} € (${hedgeEffect >= 0 ? '+' : ''}${formatChartNumber((hedgeEffect / unhedgedValue) * 100, 2)}%)`
+              : '';
 
             return [
               `${dataset.label} : ${formatChartNumber(scenarioValue, 2)}`,
+              hedgeText,
 
               `${t('scenario_effect_on_the_target_value')}: ${formatChartNumber(scenarioEffectOnTarget, 2)} (${marketRisk >= 0 ? '+' : ''}${formatChartNumber(marketRisk, 2)}%)`,
               `${t('scenario_effect_on_the_current_portfolio_value')}: ${formatChartNumber(scenarioEffectOnCurrent, 2)} (${currentEffect >= 0 ? '+' : ''}${formatChartNumber(currentEffect, 2)}%)`,
               changeText,
               changeAbsText,
               scenarioChangeText
-            ];
+            ].filter(Boolean);
           }else{
             return [
               `${dataset.customLabels ? dataset.customLabels[index] : dataset.label} : ${formatChartNumber(context.raw, 2)}`,
               changeText,
               changeAbsText
-            ];
+            ].filter(Boolean);
           }
         },
         
@@ -1342,8 +1528,31 @@ const recalculateDatapoints = async() => {
           endLabel: `${market > 0 ? '+' : ''}${market}%`,
           baseData: anchorBase,
           todayTotal: newDatapoints[0],
-        
+
         });
+
+        // Virtual puts belong to no broker account, so only the Total panel carries the hedged line.
+        if (group.key === null && activeVirtualPuts.value.length) {
+          const hedgedData = anchoredData.map((value:any, i:any) => value + virtualPutsContribution(scenario, datesForForecast[i]));
+          const hedgeDataset:any = {
+            label: `${t('scenario')} ${index + 1} + ${t('scenarios.virtual_puts.short')}`,
+            data: hedgedData,
+            scenario: scenario,
+            hedge: true,
+            unhedgedData: anchoredData,
+            fill: false,
+            tension: 0.4,
+            borderDash: [6, 4],
+            borderColor: market > 0 ? '#16a34a' : '#ef4444',
+            backgroundColor: market > 0 ? '#16a34a' : '#ef4444',
+            cubicInterpolationMode: 'monotone',
+            accountKey: group.key,
+            endLabel: `${market > 0 ? '+' : ''}${market}% + ${t('scenarios.virtual_puts.short')}`,
+            baseData: anchorBase,
+            todayTotal: newDatapoints[0],
+          };
+          chartData.value.datasets.push(hedgeDataset);
+        }
       });
     });
     datapoints.value = allBase;
@@ -1493,19 +1702,34 @@ const excludedWkns = ref<string[]>([]);
 const excludeSearch = ref('');
 const isExcludeListOpen = ref(false);
 const activeSuggestion = ref(-1);
-const isExcludePanelOpen = ref(readExcludePanelOpen());
+const scenarioTabs = ['scenarios', 'puts', 'excluded'];
+const scenarioTab = ref(readScenarioTab());
 // Typing highlights the best match so Enter picks it; an empty field highlights nothing.
 watch(excludeSearch, (value) => { activeSuggestion.value = value.trim() ? 0 : -1; });
 
-function readExcludePanelOpen() {
+function readScenarioTab(): string {
   try {
-    return localStorage.getItem('forecastExcludeOpen') === '1';
+    // Open states of the collapsible panels the tabs replaced.
+    localStorage.removeItem('forecastExcludeOpen');
+    localStorage.removeItem('forecastVirtualPutOpen');
+    const saved = localStorage.getItem('forecastScenarioTab') || '';
+    // Validated: a stale or hand-edited value would leave no tab selected.
+    return scenarioTabs.includes(saved) ? saved : 'scenarios';
   } catch (err) {
-    // Blocked storage just means the panel starts closed.
-    console.error('readExcludePanelOpen error:', err);
-    return false;
+    // Blocked storage just means the sheet opens on the first tab.
+    console.error('readScenarioTab error:', err);
+    return 'scenarios';
   }
 }
+
+watch(scenarioTab, (value) => {
+  try {
+    localStorage.setItem('forecastScenarioTab', value as string);
+  } catch (err) {
+    // Only the remembered tab is lost; switching still works.
+    console.error('scenarioTab watch error:', err);
+  }
+});
 
 // Deduped by WKN: the same ETF held in two accounts is one exclusion choice.
 const portfolioPositions = computed(() => {
@@ -1557,16 +1781,6 @@ function addExcludedFromInput() {
   if (/^[A-Z0-9]{6}$/.test(typed)) addExcludedWkn({ wkn: typed, name: typed });
 }
 
-function toggleExcludePanel() {
-  isExcludePanelOpen.value = !isExcludePanelOpen.value;
-  try {
-    localStorage.setItem('forecastExcludeOpen', isExcludePanelOpen.value ? '1' : '0');
-  } catch (err) {
-    // Only the remembered open state is lost; the panel still toggles.
-    console.error('toggleExcludePanel error:', err);
-  }
-}
-
 function removeExcludedWkn(wkn:string) {
   excludedWkns.value = excludedWkns.value.filter((w) => w !== wkn);
   updateExcludedWkns();
@@ -1578,6 +1792,223 @@ function clearExcludedWkns() {
   askConfirm(t('scenarios.exclude_clear_confirm', { count }), () => {
     excludedWkns.value = [];
     updateExcludedWkns();
+  });
+}
+
+// Virtual puts: hedges the user does not own, tested against every active scenario.
+const virtualPuts = ref<any[]>([]);
+const emptyVirtualPutForm = () => ({
+  underlying_name: '', underlying_price: null, quantity: null, strike: null, price: null, ratio: 1, maturity: '',
+  implied_volatility: null, iv_manual: false,
+});
+const virtualPutForm = ref<any>(emptyVirtualPutForm());
+const isVirtualPutFormOpen = ref(false);
+const isVirtualPutSaving = ref(false);
+const editingPutId = ref<string | null>(null);
+// Filling the form for an edit must not count as the user changing the inputs.
+let keepTypedIv = false;
+// A typed IV only fits the inputs it was typed for; changed inputs go back to solving it from the price.
+watch(() => ['price', 'strike', 'underlying_price', 'ratio', 'maturity'].map((key) => virtualPutForm.value[key]), () => {
+  if (keepTypedIv) { keepTypedIv = false; return; }
+  if (!virtualPutForm.value.iv_manual) return;
+  virtualPutForm.value.iv_manual = false;
+  virtualPutForm.value.implied_volatility = null;
+});
+// Expired puts are settled; counting them kept a stale payoff in the chart and the export.
+const activeVirtualPuts = computed(() => virtualPuts.value.filter((put:any) => put.active && !isVirtualPutExpired(put)));
+const tomorrowIso = computed(() => today(getLocalTimeZone()).add({ days: 1 }).toString());
+const virtualPutPreview = computed(() => {
+  const form = virtualPutForm.value;
+  const premium = Number(form.price) * Number(form.quantity);
+  const strike = Number(form.strike);
+  const price = Number(form.underlying_price);
+  const ratio = Number(form.ratio);
+  const complete = premium > 0 && strike > 0 && price > 0 && ratio > 0 && !!form.maturity && !form.iv_manual;
+  return {
+    premium: premium > 0 ? premium : null,
+    distance: strike > 0 && price > 0 ? (strike / price - 1) * 100 : null,
+    iv: complete ? virtualPutSigma({ price: Number(form.price), ratio, strike, underlying_price: price, maturity: form.maturity }, startOfToday()) : null,
+  };
+});
+// Index and stock volatilities stay within 8-150 %; outside it a ratio left at 1 for an index warrant is the usual cause.
+const virtualPutIvWarning = computed(() => {
+  const iv = virtualPutPreview.value.iv;
+  if (iv === null) return '';
+  // Unsolvable: a put is never worth more than its strike, so anything else is below intrinsic value.
+  if (iv === 0) {
+    const form = virtualPutForm.value;
+    return t(Number(form.price) / Number(form.ratio) >= Number(form.strike) ? 'scenarios.virtual_puts.iv_high' : 'scenarios.virtual_puts.iv_low');
+  }
+  if (iv < 8) return t('scenarios.virtual_puts.iv_low');
+  if (iv > 150) return t('scenarios.virtual_puts.iv_high');
+  return '';
+});
+const virtualPutDistanceText = computed(() => {
+  const distance = virtualPutPreview.value.distance;
+  if (distance === null) return '';
+  // Under 0.05 % rounds to 0.0, which reads better as at the price.
+  if (Math.abs(distance) < 0.05) return t('scenarios.virtual_puts.distance_at');
+  const value = formatChartNumber(Math.abs(distance), 1);
+  return t(distance < 0 ? 'scenarios.virtual_puts.distance_below' : 'scenarios.virtual_puts.distance_above', { value });
+});
+
+const startOfToday = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const isVirtualPutExpired = (put:any) => new Date(`${put.maturity}T00:00:00`) <= startOfToday();
+
+// Index strikes are whole points; "24,000.00" only added noise.
+const formatStrike = (value:any) => formatChartNumber(value, Number.isInteger(Number(value)) ? 0 : 2);
+
+const virtualPutLabel = (put:any) =>
+  `${formatChartNumber(put.quantity)} × Put ${put.underlying_name} · ${formatStrike(put.strike)} · ${formatDate(put.maturity)}`;
+
+// Premium is subtracted: the base forecast never contained the put, so its whole value change is the effect.
+function virtualPutContribution(put:any, scenario:any, date:any) {
+  const row = virtualPutRow(put);
+  return getScenarioItemFutureTotal(row, scenario, new Date(date)) - row.total_value;
+}
+
+function virtualPutsContribution(scenario:any, date:any) {
+  let total = 0;
+  for (const put of activeVirtualPuts.value) total += virtualPutContribution(put, scenario, date);
+  return total;
+}
+
+async function updateVirtualPuts() {
+  console.log("updateVirtualPuts", virtualPuts.value.length);
+  await storage.setItem('local:SCENARIO_VIRTUAL_PUTS', deepCloneReactiveData(virtualPuts.value));
+  recalculateDatapoints();
+  if (isExportSheet.value) await loadForecastData();
+}
+
+// Every value is typed by hand: this is a what-if tool, so it needs no ISIN and no feed request.
+async function addVirtualPut() {
+  const form = virtualPutForm.value;
+  const original = editingPutId.value ? virtualPuts.value.find((item:any) => item.id === editingPutId.value) : null;
+  const put:any = {
+    id: original?.id ?? crypto.randomUUID(),
+    active: original?.active ?? true,
+    underlying_name: String(form.underlying_name || '').trim(),
+    underlying_price: Number(form.underlying_price),
+    quantity: Number(form.quantity),
+    strike: Number(form.strike),
+    price: Number(form.price),
+    ratio: Number(form.ratio),
+    maturity: form.maturity,
+    implied_volatility: Number(form.implied_volatility) || 0,
+    iv_manual: !!form.iv_manual,
+    // An edit is a re-buy at the new price, so the premium date moves to today as well.
+    created_at: todayIso(),
+  };
+  console.log("addVirtualPut", put.underlying_name, !!original);
+
+  const error = virtualPutValidate(put, startOfToday());
+  if (error) {
+    notifyError(t(error));
+    return;
+  }
+  if (!put.iv_manual) {
+    put.implied_volatility = virtualPutSigma(put, startOfToday());
+    if (!put.implied_volatility) {
+      // The volatility field appears now; the next submit uses the typed value.
+      virtualPutForm.value.iv_manual = true;
+      notifyError(t('scenarios.virtual_puts.iv_unsolvable'));
+      return;
+    }
+  }
+
+  // A second Enter before storage answers would add the same put twice.
+  if (isVirtualPutSaving.value) return;
+  isVirtualPutSaving.value = true;
+  try {
+    virtualPuts.value = original
+      ? virtualPuts.value.map((item:any) => (item.id === original.id ? put : item))
+      : [...virtualPuts.value, put];
+    await updateVirtualPuts();
+    toast({ title: t(original ? 'scenarios.virtual_puts.updated' : 'scenarios.virtual_puts.added'), description: virtualPutLabel(put) });
+    closeVirtualPutForm();
+  } finally {
+    isVirtualPutSaving.value = false;
+  }
+}
+
+// Keyboard users land where the change happened instead of at the top of the page.
+async function focusById(id:string) {
+  await nextTick();
+  document.getElementById(id)?.focus();
+}
+
+function openVirtualPutForm() {
+  isVirtualPutFormOpen.value = true;
+  focusById('vp-underlying');
+}
+
+function editVirtualPut(id:any) {
+  const put = virtualPuts.value.find((item:any) => item.id === id);
+  if (!put) return;
+  keepTypedIv = true;
+  virtualPutForm.value = {
+    underlying_name: put.underlying_name, underlying_price: put.underlying_price, quantity: put.quantity,
+    strike: put.strike, price: put.price, ratio: put.ratio, maturity: put.maturity,
+    implied_volatility: put.iv_manual ? put.implied_volatility : null, iv_manual: !!put.iv_manual,
+  };
+  // Cleared after the watcher ran, so the next real change still resets a typed IV.
+  nextTick(() => { keepTypedIv = false; });
+  editingPutId.value = id;
+  isVirtualPutFormOpen.value = true;
+  focusById('vp-underlying');
+}
+
+function closeVirtualPutForm() {
+  virtualPutForm.value = emptyVirtualPutForm();
+  editingPutId.value = null;
+  isVirtualPutFormOpen.value = false;
+  focusById('vp-add-button');
+}
+
+// Gap between the dashed and the plain line at the scenario end; NaN hides the row figure.
+function scenarioHedgeEffect(scenario:any) {
+  if (!scenario.active || !activeVirtualPuts.value.length) return NaN;
+  // A finished scenario has no future point on the chart, so it gets no figure either.
+  if (toDate(scenario.timeframe.end) < startOfToday()) return NaN;
+  return virtualPutsContribution(scenario, toDate(scenario.timeframe.end));
+}
+
+// Computed once per change: the template reads it three times per row, each a Black-Scholes run per put.
+const scenarioHedgeEffects = computed(() => scenarios.value.map((scenario:any) => scenarioHedgeEffect(scenario)));
+
+// Sign always shown: "+15,084" vs "−2,100" is the whole message of the row figure.
+const formatSigned = (value:any) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${formatChartNumber(Math.abs(value))}`;
+
+function toggleVirtualPut(id:any) {
+  virtualPuts.value = virtualPuts.value.map((put:any) => (put.id === id ? { ...put, active: !put.active } : put));
+  updateVirtualPuts();
+  const put = virtualPuts.value.find((item:any) => item.id === id);
+  toast({ title: t(put.active ? 'scenarios.shown' : 'scenarios.hidden'), description: virtualPutLabel(put) });
+}
+
+function removeVirtualPut(id:any) {
+  const put = virtualPuts.value.find((item:any) => item.id === id);
+  const label = virtualPutLabel(put);
+  askConfirm(t('scenarios.virtual_puts.delete_confirm', { put: label }), () => {
+    virtualPuts.value = virtualPuts.value.filter((item:any) => item.id !== id);
+    if (editingPutId.value === id) closeVirtualPutForm();
+    updateVirtualPuts();
+    toast({ title: t('scenarios.virtual_puts.deleted'), description: label });
+  });
+}
+
+function clearVirtualPuts() {
+  const count = virtualPuts.value.length;
+  askConfirm(t('scenarios.virtual_puts.clear_confirm', { count }), () => {
+    virtualPuts.value = [];
+    if (editingPutId.value) closeVirtualPutForm();
+    updateVirtualPuts();
+    toast({ title: t('scenarios.virtual_puts.cleared', { count }) });
   });
 }
 
@@ -1594,6 +2025,12 @@ const form = ref({
 })
 
 const editingIndex = ref<number | null>(null)
+const isScenarioFormOpen = ref(false);
+
+function openScenarioForm() {
+  isScenarioFormOpen.value = true;
+  focusById('market');
+}
 
 const marketPresets = [-10, -5, 5, 10];
 
@@ -1702,6 +2139,8 @@ function editSenario(index: number) {
   
   form.value = cloned;
   editingIndex.value = index;
+  // The form is collapsed by default; the pencil must still show it.
+  isScenarioFormOpen.value = true;
 }
 
 function toggleScenarioStatus(index:number) {
@@ -1744,6 +2183,8 @@ function resetForm() {
   form.value.market = null;
 
   editingIndex.value = null;
+  isScenarioFormOpen.value = false;
+  focusById('scenario-add-button');
 }
 
 async function updateScenarios(){
@@ -1957,6 +2398,25 @@ const prepareForecastData = async () => {
       rows.push(base);
     });
   }
+
+  // Their effect only, so scenario column totals match the dashed hedge lines; without a scenario there is nothing to show.
+  if (activeScenarios.length) activeVirtualPuts.value.forEach((put:any) => {
+    rows.push({
+      date: exportDate.value,
+      stock_name: `${t('virtual_put')} ${put.underlying_name}`,
+      type: 'put',
+      wkn: '',
+      isin: '',
+      future_total_value: '',
+      bid: '',
+      underlying_price: put.underlying_price,
+      currency_rate: '',
+      implied_volatility: put.implied_volatility,
+      ...Object.fromEntries(activeScenarios.map((scenario:any, index:any) => [
+        scenarioHeaders[index].id, virtualPutContribution(put, scenario, exportDate.value),
+      ])),
+    });
+  });
   return { rows, scenarioHeaders };
 };
 
@@ -2047,6 +2507,7 @@ const loadForecast = async() => {
       dailyTotals.value = await storage.getItem('local:DAILY_TOTAL') || [];
       // Before recalculateDatapoints: the first chart draw must already respect exclusions.
       excludedWkns.value = (await storage.getItem('local:SCENARIO_EXCLUDED_WKNS')) || [];
+      virtualPuts.value = (await storage.getItem('local:SCENARIO_VIRTUAL_PUTS')) || [];
       accountLabels.value = Object.fromEntries((await accountList()).map((r:any) => [accountKeyOf(r), r.label]));
 
       recalculateDatapoints();
