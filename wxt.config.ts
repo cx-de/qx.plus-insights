@@ -15,7 +15,7 @@ export default defineConfig({
     artifactTemplate: 'qx-insights-v{{packageVersion}}-{{browser}}.zip',
     sourcesTemplate: 'qx-insights-v{{packageVersion}}-sources.zip',
   },
-  manifest: () => ({
+  manifest: ({ browser }) => ({
     name: 'QX+ Insights',
     version: pkg.version,
     description:
@@ -30,5 +30,18 @@ export default defineConfig({
     action: {
       default_title: 'QX+ insights',
     },
+    ...(browser === 'firefox' && {
+      // Permanent AMO identity: changing it orphans every installed copy
+      browser_specific_settings: {
+        gecko: {
+          id: 'insights@qx.plus',
+          strict_min_version: '140.0',
+          // Feed calls send holdings ISINs; SupportWidget sends name, email, message and screenshot
+          data_collection_permissions: {
+            required: ['financialAndPaymentInfo', 'personallyIdentifyingInfo', 'personalCommunications'],
+          },
+        },
+      },
+    }),
   }),
 });
