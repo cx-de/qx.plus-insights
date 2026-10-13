@@ -9,6 +9,10 @@
           <span v-if="info?.force" class="mt-2 block font-medium text-destructive">
             {{ $t('update_dialog.force_text') }}
           </span>
+          <span v-if="updating" class="mt-2 block">{{ $t('update_dialog.downloading') }}</span>
+          <span v-else-if="unavailable" class="mt-2 block font-medium text-destructive">
+            {{ $t('update_dialog.not_yet_available') }}
+          </span>
         </AlertDialogDescription>
       </AlertDialogHeader>
       <div v-if="notes" class="max-h-60 overflow-y-auto rounded-md border p-3 text-sm">
@@ -35,6 +39,7 @@ defineProps<{ blocked?: boolean }>();
 const { locale } = useI18n();
 const info = ref<any>(null);
 const updating = ref(false);
+const unavailable = ref(false);
 
 const notes = computed(() => {
   const all = info.value?.notes || {};
@@ -57,8 +62,9 @@ const onEscape = (event:any) => {
 
 const updateNow = async () => {
   updating.value = true;
+  unavailable.value = false;
   try {
-    await versionUpdateNow(info.value?.store_url);
+    unavailable.value = await versionUpdateNow(info.value?.store_url) === 'unavailable';
   } finally {
     updating.value = false;
   }

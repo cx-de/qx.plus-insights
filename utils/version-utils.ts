@@ -61,22 +61,48 @@ export async function versionSnooze(version:any) {
   await storage.setItem(SNOOZE_KEY, { version, until: Date.now() + SNOOZE_MS });
 }
 
-// Store installs can update in place; unpacked/dev builds and throttled checks fall back to the store page.
+const UPDATE_CHECK_TIMEOUT_MS = 10_000;
+const UPDATE_DOWNLOAD_TIMEOUT_MS = 30_000;
+
+// Resolves null on timeout: Chrome's check can stay pending forever, which left the button stuck disabled.
+function withTimeout(promise:any, ms:any) {
+  return Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
+}
+
+// 'update_available' only means the store has it; reloading before the download lands restarts the old version.
+function waitForUpdateDownload() {
+  return new Promise<void>((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      browser.runtime.onUpdateAvailable.removeListener(done);
+      resolve();
+    };
+    // On timeout reload anyway: an update downloaded earlier already fired its event and installs on reload.
+    const timer = setTimeout(done, UPDATE_DOWNLOAD_TIMEOUT_MS);
+    browser.runtime.onUpdateAvailable.addListener(done);
+  });
+}
+
+// Store installs can update in place; unpacked/dev builds and throttled or hung checks fall back to the store page.
 export async function versionUpdateNow(storeUrl:any) {
   console.log('versionUpdateNow');
   try {
     // Chrome resolves { status }, Firefox [status, details].
-    const result:any = await browser.runtime.requestUpdateCheck();
+    const result:any = await withTimeout(browser.runtime.requestUpdateCheck(), UPDATE_CHECK_TIMEOUT_MS);
     const status = Array.isArray(result) ? result[0] : result?.status;
+    console.log('versionUpdateNow status', status);
     if (status === 'update_available') {
+      await waitForUpdateDownload();
       browser.runtime.reload();
-      return;
+      return 'reloading';
     }
   } catch (err) {
     /* not every browser/install supports update checks; the store link still works */
     console.error('versionUpdateNow error:', err);
   }
-  if (versionIsStoreUrl(storeUrl)) await browser.tabs.create({ url: storeUrl });
+  if (!versionIsStoreUrl(storeUrl)) return 'unavailable';
+  await browser.tabs.create({ url: storeUrl });
+  return 'store';
 }
 
 const STORE_HOSTS = ['chromewebstore.google.com', 'chrome.google.com', 'addons.mozilla.org', 'microsoftedge.microsoft.com'];

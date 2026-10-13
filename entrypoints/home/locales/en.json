@@ -362,7 +362,9 @@
         "force_text": "Your version is no longer supported. Please update to keep using QX+ Insights.",
         "whats_new": "What's new",
         "later": "Later",
-        "update_now": "Update now"
+        "update_now": "Update now",
+        "downloading": "Downloading update…",
+        "not_yet_available": "The update is not yet available in your browser's store. Please try again later."
     },
     "settings_page": {
         "tab_has_errors": "This tab has fields to fix",
