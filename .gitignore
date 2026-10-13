@@ -1,0 +1,49 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+.output
+stats.html
+stats-*.json
+.wxt
+web-ext.config.ts
+.web-ext-*
+.amo-upload-uuid
+
+# Secrets and env files (public repo: never commit these)
+.env
+.env.*
+!.env.example
+.sentryclirc
+*.pem
+*.key
+*.p12
+*.crx
+*.xpi
+*.zip
+*.bundle
+
+# Real exported portfolio backups; the demo file lives in examples/
+backup*.json
+qx-insights-backup*.json
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Local notes
+NOTES.md
+.qodo/
