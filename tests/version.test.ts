@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { storage } from '#imports';
-import { versionNextUpdate, versionSnooze, versionIsStoreUrl } from '@/utils/version-utils';
+import { versionNextUpdate, versionSnooze, versionIsStoreUrl, versionUpdateNow } from '@/utils/version-utils';
 
 const NOW = new Date('2026-10-12T12:00:00Z');
 const HOUR = 3_600_000;
@@ -114,6 +114,71 @@ describe('versionNextUpdate', () => {
     await versionSnooze('2.11.0');
 
     expect((await versionNextUpdate() as any)?.force).toBe(true);
+  });
+});
+
+describe('versionUpdateNow', () => {
+  const STORE = 'https://chromewebstore.google.com/detail/abc';
+  let reload: any;
+  let createTab: any;
+
+  const stubCheck = (impl: () => Promise<any>) => {
+    (browser.runtime as any).requestUpdateCheck = vi.fn(impl);
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    reload = vi.spyOn(browser.runtime, 'reload').mockImplementation(() => {});
+    createTab = vi.spyOn(browser.tabs, 'create').mockResolvedValue({} as any);
+  });
+
+  it('reloads only once the update has downloaded', async () => {
+    stubCheck(async () => ({ status: 'update_available' }));
+
+    const pending = versionUpdateNow(STORE);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(reload).not.toHaveBeenCalled();
+
+    await fakeBrowser.runtime.onUpdateAvailable.trigger({ version: '2.11.0' });
+    expect(await pending).toBe('reloading');
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(createTab).not.toHaveBeenCalled();
+  });
+
+  it('reloads after the timeout when no download event comes', async () => {
+    stubCheck(async () => ['update_available', { version: '2.11.0' }]);
+
+    const pending = versionUpdateNow(STORE);
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(await pending).toBe('reloading');
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('opens the store page when the check never answers', async () => {
+    stubCheck(() => new Promise(() => {}));
+
+    const pending = versionUpdateNow(STORE);
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    expect(await pending).toBe('store');
+    expect(createTab).toHaveBeenCalledWith({ url: STORE });
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('opens the store page when the store has no update yet', async () => {
+    stubCheck(async () => ({ status: 'no_update' }));
+
+    expect(await versionUpdateNow(STORE)).toBe('store');
+    expect(createTab).toHaveBeenCalledWith({ url: STORE });
+  });
+
+  it('reports unavailable without a store page to open', async () => {
+    stubCheck(async () => ({ status: 'throttled' }));
+
+    expect(await versionUpdateNow(null)).toBe('unavailable');
+    expect(createTab).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
   });
 });
 

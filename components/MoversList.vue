@@ -6,6 +6,7 @@
         <span class="movers-empty__bar movers-empty__bar--isin"></span>
         <span class="movers-empty__bar movers-empty__bar--value"></span>
         <span class="movers-empty__bar movers-empty__bar--change"></span>
+        <span class="movers-empty__bar movers-empty__bar--percent"></span>
       </li>
     </ul>
     <div class="movers-empty__panel">
@@ -24,7 +25,8 @@
       <span class="flex-1 min-w-[120px]">{{ $t('stock_name') }}</span>
       <span class="w-[100px] text-right">{{ $t('isin') }}</span>
       <span class="w-[100px] text-right">{{ $t('current_value') }}</span>
-      <span class="w-[150px] text-right">{{ $t('change') }}</span>
+      <span class="w-[100px] text-right">{{ $t('change') }}</span>
+      <span class="w-[90px] text-right">{{ $t('change') }} %</span>
     </div>
     <ul class="min-w-max">
       <!-- Index key: separate-accounts mode can list one ISIN twice, and both total rows lack one -->
@@ -45,9 +47,11 @@
           <p class="w-[100px] text-sm text-muted-foreground text-right truncate tabular-nums">
             {{ numberToGerman(item.currentValue) }}
           </p>
-          <p class="w-[150px] font-semibold text-right truncate tabular-nums"
-            :class="tone === 'gain' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'">
-            {{ tone === 'gain' ? '+' : '' }}{{ numberToGerman(item.change) }} ({{ numberToGerman(item.changePercent, false, 2) }}%)
+          <p class="w-[100px] font-semibold text-right truncate tabular-nums" :class="toneClass">
+            {{ sign }}{{ numberToGerman(item.change) }}
+          </p>
+          <p class="w-[90px] font-semibold text-right truncate tabular-nums" :class="toneClass">
+            {{ sign }}{{ numberToGerman(item.changePercent, false, 2) }}%
           </p>
         </div>
       </li>
@@ -58,9 +62,10 @@
 <script lang="ts" setup>
 import { Button } from '@/components/ui/button'
 import { RefreshCcw } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { numberToGerman } from '~/utils/helper'
 
-defineProps<{
+const props = defineProps<{
   items: any[],
   isEmpty: boolean,
   tone: 'gain' | 'loss',
@@ -70,6 +75,9 @@ defineProps<{
 }>();
 
 const emit = defineEmits(['reload']);
+
+const toneClass = computed(() => props.tone === 'gain' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400');
+const sign = computed(() => props.tone === 'gain' ? '+' : '');
 </script>
 
 <style scoped>
@@ -108,7 +116,8 @@ const emit = defineEmits(['reload']);
 .movers-empty__bar--name   { flex: 1 1 auto; }
 .movers-empty__bar--isin   { width: 100px; flex: 0 0 auto; }
 .movers-empty__bar--value  { width: 100px; flex: 0 0 auto; }
-.movers-empty__bar--change { width: 150px; flex: 0 0 auto; }
+.movers-empty__bar--change { width: 100px; flex: 0 0 auto; }
+.movers-empty__bar--percent { width: 90px; flex: 0 0 auto; }
 
 .movers-empty__panel {
   position: absolute;

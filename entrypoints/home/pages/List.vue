@@ -91,7 +91,7 @@
                 <div class="flex flex-wrap gap-2 items-center">
 
                 
-                <DropdownMenu>
+                <DropdownMenu @update:open="onColumnMenuOpen">
                   <DropdownMenuTrigger as-child>
                       <Button variant="outline" class="flex items-center">
                         <ListFilter class="h-3.5 w-3.5" />
@@ -100,16 +100,43 @@
                         </span>
                       </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" class="w-64">
+                      <div class="relative p-1">
+                        <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                        <!-- keydown.stop: the menu's typeahead otherwise swallows the keystrokes -->
+                        <Input v-model="columnSearch" :placeholder="$t('search_columns')" class="h-8 pl-8"
+                          @keydown.stop />
+                      </div>
+                      <DropdownMenuSeparator />
                       <div class="max-h-[60vh] overflow-y-auto">
-                        <DropdownMenuCheckboxItem v-for="(column, colId) in allColumns" 
-                          :key="colId"
-                          class="capitalize"
-                          :model-value="columnOrder.includes(colId)"
-                          :disabled="colId === 'select'"
-                          @update:model-value="(value) => toggleColumn(colId, value)">
-                          {{ t(colId) }}
-                        </DropdownMenuCheckboxItem>
+                        <template v-for="section in menuSections" :key="section.key">
+                          <DropdownMenuLabel v-if="menuSections.length > 1" class="text-xs font-medium text-muted-foreground">
+                            {{ $t(section.key) }}
+                          </DropdownMenuLabel>
+                          <div v-for="colId in section.ids" :key="colId" class="group flex items-center">
+                            <DropdownMenuCheckboxItem
+                              class="capitalize flex-1"
+                              :model-value="columnOrder.includes(colId)"
+                              @update:model-value="(value) => toggleColumn(colId, value)">
+                              {{ t(colId) }}
+                            </DropdownMenuCheckboxItem>
+                            <Button size="icon" variant="ghost" class="h-7 w-7 shrink-0"
+                              :class="stickyColumns.includes(colId)
+                                ? 'text-primary'
+                                : 'text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100'"
+                              :disabled="!columnOrder.includes(colId)"
+                              :title="$t(stickyColumns.includes(colId) ? 'unpin_column' : 'pin_column')"
+                              :aria-label="$t(stickyColumns.includes(colId) ? 'unpin_column' : 'pin_column')"
+                              :aria-pressed="stickyColumns.includes(colId)"
+                              @click.stop="toggleSticky(colId)">
+                              <Pin class="h-3.5 w-3.5" :class="{ 'fill-current': stickyColumns.includes(colId) }" />
+                            </Button>
+                          </div>
+                          <DropdownMenuSeparator v-if="section.key === 'pinned_columns' && menuSections.length > 1" />
+                        </template>
+                        <div v-if="!menuColumns.length" class="px-2 py-4 text-center text-sm text-muted-foreground">
+                          {{ $t('no_results') }}
+                        </div>
                       </div>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -167,7 +194,7 @@
               
               
                 <!-- dvh max-height; 210px once the toolbar wraps below 1360px -->
-                <div ref="dt" class="rounded-md border w-full max-h-[calc(100dvh-150px)] max-[1360px]:max-h-[calc(100dvh-210px)] overflow-auto">
+                <div ref="dt" @scroll.passive="onTableScroll" :class="{ 'scrolled-x': isScrolledX }" class="rounded-md border w-full max-h-[calc(100dvh-150px)] max-[1360px]:max-h-[calc(100dvh-210px)] overflow-auto">
                  
                   <Table id="table_list">
                       <TableHeader class="bg-muted sticky top-0 z-10">
@@ -185,8 +212,8 @@
                               :class="[
                                 header.column.getIsSorted() ? 'bg-accent text-accent-foreground' : '',
                                 !nonDraggableColumns.includes(header.column.id) ? 'cursor-move drag-handle' : '',
-                                header.column.id === 'select' ? 'sticky_column z-20 bg-muted' : ''
-                              ]" draggable="true">
+                                cellClass(header.column.id, 'z-20')
+                              ]" :style="stickyStyle(header.column.id)" :data-col="header.column.id" draggable="true">
                               <div :class="{'w-80': header.id === 'stock_name',}">
                                 <FlexRender
                                   v-if="!header.isPlaceholder"
@@ -206,10 +233,10 @@
                            
                             <TableRow v-if="row.depth==0" 
                             :class="{ 'group-row' : row.original?.isGroup,
-                              'bg-accent!': row.getIsSelected() }">
+                              'row-selected': row.getIsSelected() }">
                               
                               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id"
-                                :class="cell.column.id === 'select' ? 'sticky_column z-1 bg-muted' : ''">
+                                :class="cellClass(cell.column.id)" :style="stickyStyle(cell.column.id)">
                                 
                                 <span :data-wkn="row.original.wkn" :data-position="accountPositionKey(row.original)" :data-field="cell.column.id"
                                 class="price_cell">
@@ -299,10 +326,10 @@
                                 <!-- Normal line -->
                                 <template v-else>
 
-                                  <!-- Cash is a balance, not a position: only the two value columns mean anything. -->
+                                  <!-- Cash is a balance, not a position: only value, broker and account columns mean anything. -->
                                   <template v-if="isCashRow(row.original)">
                                     <!-- Selectable so cash lines can be grouped, with each other or with positions. -->
-                                    <FlexRender v-if="cell.column.id === 'select'" :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                                    <FlexRender v-if="['select', 'broker', 'account'].includes(cell.column.id)":render="cell.column.columnDef.cell" :props="cell.getContext()" />
                                     <template v-else-if="cell.column.id === 'stock_name'">
                                       {{ cashLabel(row.original) }}
                                     </template>
@@ -559,7 +586,7 @@
                                 :class="{ 'group-child-last': index === visibleSubRows(row).length - 1 }"
                               >
                               <TableCell v-for="column in columns" :key="column.id"
-                                :class="column.id === 'select' ? 'sticky_column z-1 bg-muted' : ''">
+                                :class="cellClass(column.id)" :style="stickyStyle(column.id)">
                                 <template v-if="column.id === 'select'">
                                   <Button @click="removeItemFromGroup(row.original.id,item.original.id)" class="mr-2 h-8 w-8"
                                     size="icon" variant="ghost"
@@ -568,12 +595,14 @@
                                   </Button>
                                 </template>
 
-                                <!-- Same as the top-level cash line: only the two value columns mean anything. -->
+                                <!-- Same as the top-level cash line: only value, broker and account columns mean anything. -->
                                 <template v-else-if="isCashRow(item.original)">
                                   <template v-if="column.id === 'stock_name'">{{ cashLabel(item.original) }}</template>
                                   <template v-else-if="column.id === 'total_entry_value' || column.id === 'total_value'">
                                     {{ numberToGerman(cashAmount(item.original)) }}
                                   </template>
+                                  <template v-else-if="column.id === 'broker'">{{ item.original.broker }}</template>
+                                  <template v-else-if="column.id === 'account'">{{ accountLabel(item.original.broker, item.original.account_id) }}</template>
                                   <template v-else>&nbsp;</template>
                                 </template>
 
@@ -767,7 +796,8 @@
 
                         <template v-if="isLoading">
                           <TableRow v-for="n of loadingRows" :key="n">
-                          <TableCell v-for="col of columnOrder" :key="col" class="h-7">
+                          <TableCell v-for="col of columnOrder" :key="col" class="h-7"
+                            :class="cellClass(col)" :style="stickyStyle(col)">
                               <Skeleton class="h-7 w-full min-w-[50px] rounded-md" /> 
                             </TableCell>
                           </TableRow>
@@ -786,40 +816,29 @@
 
                       <!-- Footer -->
                       <TableFooter v-if="!isLoading && table.getRowModel().rows?.length>0 && listTotal && Object.keys(listTotal).length" class="sticky bottom-0 z-5">
-                        <tr class="total-row sticky bottom-0">
-                          <template v-for="header in table.getHeaderGroups()[0].headers" 
-                            :key="'foot'+header.id">
-                            
-                            <TableCell :class="header.id === 'select' ? 'sticky_column z-1 bg-muted' : ''">
-                              <!-- one v-if chain: separate v-ifs let the trailing v-else add a stray &nbsp; to every cell -->
-                              <template v-if="header.id === 'total_entry_value'">
-                                {{  numberToGerman(listTotal['total_entry_value']) }}
-                             </template>
-                             
-                             <template v-else-if="header.id === 'profit_loss_price'">
-                                 {{  numberToGerman(listTotal['profit_loss_price']) }}
+                        <tr v-if="isFilterActive" class="filtered-total-row">
+                          <template v-for="header in table.getHeaderGroups()[0].headers"
+                            :key="'filteredFoot'+header.id">
+                            <TableCell :class="cellClass(header.id)" :style="stickyStyle(header.id)">
+                              <template v-if="TOTAL_COLUMNS.includes(header.id)">
+                                {{  numberToGerman(filteredTotal[header.id]) }}
                               </template>
-                             
-                              <template v-else-if="header.id === 'profit_loss_percentage'">
-                                {{  numberToGerman(listTotal['profit_loss_percentage']) }}
-                             </template>
-                              
-                             <template v-else-if="header.id === 'total_value'">
-                                {{  numberToGerman(listTotal['total_value']) }}
-                             </template>
+                              <template v-else-if="header.id === footerLabelColumn">
+                                {{  $t('filtered_total') }} <span class="filtered-count">{{ filteredLeafRows.length }}</span>
+                              </template>
+                              <template v-else> &nbsp; </template>
+                            </TableCell>
+                          </template>
+                        </tr>
+                        <tr class="total-row sticky bottom-0">
+                          <template v-for="header in table.getHeaderGroups()[0].headers"
+                            :key="'foot'+header.id">
 
-                             <template v-else-if="header.id === 'future_total_value'">
-                                {{  numberToGerman(listTotal['future_total_value']) }}
-                             </template>
-                             
-                             <template v-else-if="header.id === 'profit_loss_target'">
-                                {{  numberToGerman(listTotal['profit_loss_target']) }}
-                             </template>
-
-                             <template v-else-if="header.id === 'profit_loss_target_per_day'">
-                                {{  numberToGerman(listTotal['profit_loss_target_per_day']) }}
-                             </template>
-                             
+                            <TableCell :class="cellClass(header.id)" :style="stickyStyle(header.id)">
+                              <!-- one v-if chain: separate v-ifs let the trailing v-else add a stray &nbsp; to every cell -->
+                              <template v-if="TOTAL_COLUMNS.includes(header.id)">
+                                {{  numberToGerman(listTotal[header.id]) }}
+                              </template>
 
                              <template v-else-if="header.id === 'actions'">
                               <Button size="sm" variant="outline" @click="openModal(listTotal,'total')">
@@ -1101,7 +1120,7 @@ import { toast } from '@/components/ui/toast';
 import { downloadCsv, downloadXlsx, fileTimestamp } from '~/utils/export-utils';
 
 import { sortableHeader } from '~/utils/table-utils';
-import { ListFilter, Trash, X, Search, Download, RefreshCcw, AlarmClockPlus, Pen, File, FileSpreadsheet, Pencil, Save, ChevronRight } from 'lucide-vue-next';
+import { ListFilter, Trash, X, Search, Download, RefreshCcw, AlarmClockPlus, Pen, File, FileSpreadsheet, Pencil, Save, ChevronRight, Pin } from 'lucide-vue-next';
 
 const { t } = useI18n();
 document.title = t('list');
@@ -1159,8 +1178,12 @@ const nonDraggableColumns = ['select', 'actions']
 
 function onMoveColumn(evt) {
   const draggedColumnId = columnOrder.value[evt.draggedContext.index]
+  const targetIndex = evt.relatedContext?.index
   // slot 0 belongs to the pinned select column
-  if (evt.relatedContext?.index === 0) return false
+  if (targetIndex === 0) return false
+  // pinned columns must stay one block right after select, or their left offsets overlap
+  const isPinned = stickyColumns.value.includes(draggedColumnId)
+  if (targetIndex !== undefined && isPinned !== (targetIndex <= pinnedColumns.value.length)) return false
   return !nonDraggableColumns.includes(draggedColumnId)
 }
 
@@ -1176,9 +1199,43 @@ const toggleColumn = (colId, isVisible) => {
     columnOrder.value.push(colId);
   } else {
     columnOrder.value = columnOrder.value.filter(id => id !== colId);
+    stickyColumns.value = stickyColumns.value.filter(id => id !== colId);
   }
   saveColumnVisibility();
 };
+
+const toggleSticky = (colId: string) => {
+  stickyColumns.value = stickyColumns.value.includes(colId)
+    ? stickyColumns.value.filter(id => id !== colId)
+    : [...stickyColumns.value, colId];
+  columnOrder.value = withPinnedFirst(columnOrder.value);
+};
+
+const columnSearch = ref('');
+const menuOrder = ref<string[]>([]);
+const menuPinned = ref<string[]>([]);
+
+// snapshot on open so a toggled or pinned item doesn't jump away from under the cursor
+const onColumnMenuOpen = (open: boolean) => {
+  if (open) {
+    const hidden = Object.keys(allColumns).filter(id => !columnOrder.value.includes(id));
+    menuOrder.value = [...columnOrder.value, ...hidden].filter(id => id !== 'select');
+    menuPinned.value = [...pinnedColumns.value];
+  } else {
+    columnSearch.value = '';
+  }
+};
+
+const menuColumns = computed(() => {
+  const query = columnSearch.value.trim().toLowerCase();
+  if (!query) return menuOrder.value;
+  return menuOrder.value.filter(id => t(id).toLowerCase().includes(query));
+});
+
+const menuSections = computed(() => [
+  { key: 'pinned_columns', ids: menuColumns.value.filter(id => menuPinned.value.includes(id)) },
+  { key: 'columns', ids: menuColumns.value.filter(id => !menuPinned.value.includes(id)) },
+].filter(section => section.ids.length));
 
 
 const brokerOptions = computed(() => {
@@ -1451,12 +1508,68 @@ const setSorting = (sortingUpdater) => {
 const defaultColumnOrder = Object.keys(allColumns).filter(colId => allColumns[colId].defaultVisible !== false);
 const storedOrder = safeJsonGet<string[]>('columnOrder', defaultColumnOrder);
 
-// select must stay index 0: .sticky_column uses left:0, so any other slot scrolls away
-function withSelectFirst(order: string[]) {
-  return ['select', ...order.filter(id => id !== 'select')];
+const stickyColumns = ref(safeJsonGet<string[]>('stickyColumns', ['wkn']));
+
+// sticky lefts are summed widths, so select and the pinned columns must be the leading block
+function withPinnedFirst(order: string[]) {
+  const rest = order.filter(id => id !== 'select');
+  return ['select', ...rest.filter(id => stickyColumns.value.includes(id)), ...rest.filter(id => !stickyColumns.value.includes(id))];
 }
 
-const columnOrder = ref(withSelectFirst(storedOrder));
+const columnOrder = ref(withPinnedFirst(storedOrder));
+
+const pinnedColumns = computed(() => columnOrder.value.filter(id => stickyColumns.value.includes(id)));
+const stickyLeft = ref<Record<string, number>>({});
+
+const TEXT_COLUMNS = ['account', 'broker', 'stock_name', 'isin', 'wkn', 'type', 'issuer', 'underlying_isin', 'underlying_name', 'peer_members', 'notes'];
+
+const cellClass = (colId: string, z = 'z-1') => {
+  const align = TEXT_COLUMNS.includes(colId) ? 'col-text' : '';
+  if (colId !== 'select' && !pinnedColumns.value.includes(colId)) return align;
+  const isLast = colId === (pinnedColumns.value.at(-1) ?? 'select');
+  return `sticky_column ${z} ${align}${isLast ? ' sticky_column_last' : ''}`;
+};
+
+const isScrolledX = ref(false);
+// the frozen-edge shadow only means something once columns slide underneath it
+const onTableScroll = (event: Event) => {
+  isScrolledX.value = (event.target as HTMLElement).scrollLeft > 0;
+};
+
+const stickyStyle = (colId: string) => {
+  if (colId !== 'select' && !pinnedColumns.value.includes(colId)) return undefined;
+  return { left: `${stickyLeft.value[colId] ?? 0}px` };
+};
+
+let stickyObserver: ResizeObserver | null = null;
+
+function updateStickyOffsets() {
+  const offsets: Record<string, number> = {};
+  let left = 0;
+  for (const colId of ['select', ...pinnedColumns.value]) {
+    const th = document.querySelector<HTMLElement>(`#table_list thead th[data-col="${colId}"]`);
+    offsets[colId] = left;
+    left += th?.offsetWidth ?? 0;
+  }
+  stickyLeft.value = offsets;
+}
+
+// header widths change once prices load, so re-measure on resize, not just on reorder
+function observeStickyHeaders() {
+  stickyObserver?.disconnect();
+  stickyObserver ??= new ResizeObserver(updateStickyOffsets);
+  for (const colId of ['select', ...pinnedColumns.value]) {
+    const th = document.querySelector(`#table_list thead th[data-col="${colId}"]`);
+    if (th) stickyObserver.observe(th);
+  }
+  updateStickyOffsets();
+}
+
+watch([columnOrder, stickyColumns], () => nextTick(observeStickyHeaders), { deep: true });
+
+watch(stickyColumns, (newVal) => {
+  localStorage.setItem('stickyColumns', JSON.stringify(newVal));
+}, { deep: true });
 
 const columns = computed(() => columnOrder.value.map(colId => allColumns[colId]))
 
@@ -1628,8 +1741,9 @@ watch(rowSelection, (newVal) => {
 
 // Watch Column Order and Save Changes
 watch(columnOrder, (newOrder) => {
-  if (newOrder[0] !== 'select') {
-    columnOrder.value = withSelectFirst(newOrder)
+  const normalized = withPinnedFirst(newOrder)
+  if (normalized.some((id, i) => id !== newOrder[i])) {
+    columnOrder.value = normalized
     return
   }
   localStorage.setItem('columnOrder', JSON.stringify(newOrder))
@@ -1981,43 +2095,56 @@ const scopedPositionPercentage = (row:any) => {
 const listTotal = ref({});
 // "Total" used to sit only in the broker column, so it vanished whenever broker was hidden
 const footerLabelColumn = computed(() => columnOrder.value.find((id: string) => id !== 'select'));
+const TOTAL_COLUMNS = [
+  'total_entry_value', 'profit_loss_price',
+  'total_value','future_total_value',
+  'profit_loss_target',
+  'profit_loss_target_per_day',
+  'profit_loss_percentage', //keep this last for manual process
+];
+
+function sumTotals(rows:any) {
+  const totals:any = {};
+  for (const key of TOTAL_COLUMNS) {
+    totals[key] = rows.reduce((sum, row) => {
+      let value = parseFloat(row[key]);
+      return sum + (isNaN(value) ? 0 : value);
+    }, 0);
+  }
+
+  //custom calculation
+  // Guarded: a filter matching only cash or zero-cost rows would otherwise show NaN or Infinity
+  totals.profit_loss_percentage = totals.total_entry_value
+    ? ((totals.total_value / totals.total_entry_value) - 1) * 100 : 0;
+
+  //convert to german
+  for (const key in totals) {
+    totals[key] = parseFloat(totals[key]).toFixed(2);
+  }
+  return totals;
+}
+
 async function calculateTotals(saveDaily = true) {
-
-  const totalColumns = [
-    'total_entry_value', 'profit_loss_price',
-    'total_value','future_total_value',
-    'profit_loss_target',
-    'profit_loss_target_per_day',
-    'profit_loss_percentage', //keep this last for manual process
-
-  ];
-
   const allRows = accountViewFilter(mainListData.value);
   if(allRows){
-      
-    const totals = {};
-      for (const key of totalColumns) {
-        totals[key] = allRows.reduce((sum, row) => {
-          let value = parseFloat(row[key]);
-          return sum + (isNaN(value) ? 0 : value);
-      }, 0);
-    }
-
-    //custom calculation
-    totals.profit_loss_percentage = ((totals.total_value / totals.total_entry_value) - 1) * 100;
     // Only the unscoped total may be persisted: a single-account figure here would
     // corrupt DAILY_TOTAL and with it Home's day-change badge and the 30-day series.
     if (saveDaily && accountViewIsAll()) saveDailyTotal();
 
-    //convert to german
-    for (const key in totals) {
-      totals[key] = parseFloat(totals[key]).toFixed(2);
-    }
-
-    listTotal.value = totals;
-
+    listTotal.value = sumTotals(allRows);
   }
 }
+
+const isFilterActive = computed(() => !!globalFilter.value?.trim() || columnFilters.value.length > 0);
+const filteredLeafRows = computed(() => {
+  // Read first so Vue tracks them: TanStack memoizes its row models outside Vue reactivity
+  newFilteredData.value;
+  columnFilters.value;
+  return table.getFilteredRowModel().flatRows
+    .filter((row:any) => !row.original?.isGroup)
+    .map((row:any) => row.original);
+});
+const filteredTotal = computed(() => sumTotals(filteredLeafRows.value));
 
 
 // No hover override: gray-300 hover with black text broke dark mode; ghost variant already has a themed hover
@@ -2360,6 +2487,7 @@ let alertInterval: ReturnType<typeof setInterval> | null = null;
 
 onBeforeUnmount(() => {
   cancellAllRequests();
+  stickyObserver?.disconnect();
 });
 
 onBeforeRouteLeave(() => {
@@ -2374,6 +2502,7 @@ onUnmounted(() => {
 });
 
 onMounted( async() => {
+  nextTick(observeStickyHeaders);
   await getApiKey();
   await getLatestData();
   await paintFromStorage();
@@ -3092,15 +3221,43 @@ th {
 /* Table cells */
 th,td {
   text-align: right;
-  padding: 8px!important;
+  padding: 6px 8px!important;
   border-bottom: 1px solid hsl(var(--border));
   white-space: nowrap;
-  border-right: 2px solid hsl(var(--card));
 }
 
-td:last-child, th:last-child {
-  border-right: none;
+.col-text { text-align: left; }
+
+/* backgrounds sit on the cells, not the rows, so sticky cells stay opaque and match their row */
+#table_list {
+  --tbl-head: hsl(var(--muted));
+  --tbl-row: hsl(var(--card));
+  --tbl-row-alt: color-mix(in srgb, hsl(var(--muted)) 70%, hsl(var(--card)));
+  --tbl-row-hover: color-mix(in srgb, hsl(var(--muted)) 90%, hsl(var(--foreground)));
+  --tbl-row-selected: color-mix(in srgb, hsl(var(--primary)) 12%, hsl(var(--card)));
+  font-variant-numeric: tabular-nums;
 }
+#table_list tbody tr > td { background-color: var(--tbl-row); }
+#table_list tbody tr:nth-child(even) > td { background-color: var(--tbl-row-alt); }
+#table_list tbody tr:hover > td { background-color: var(--tbl-row-hover); }
+#table_list tbody tr.row-selected > td { background-color: var(--tbl-row-selected); }
+
+/* inset shadow, not border-bottom: collapsed borders scroll away from a sticky header */
+#table_list thead th {
+  background-color: var(--tbl-head);
+  color: hsl(var(--foreground) / 0.75);
+  font-weight: 600;
+  border-bottom: none;
+  box-shadow: inset 0 -1px 0 hsl(var(--foreground) / 0.15);
+}
+/* the head background above out-ranks the layered bg-accent utility that marks the sorted column */
+#table_list thead th.bg-accent {
+  background-color: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+/* idle sort arrows on every column drowned out the one column actually sorted */
+#table_list thead :deep(.lucide-arrow-up-down-icon) { opacity: 0.3; transition: opacity 0.15s; }
+#table_list thead th:hover :deep(.lucide-arrow-up-down-icon) { opacity: 0.9; }
 
 .high{
   display: block;
@@ -3169,8 +3326,20 @@ td:has(.alert_bottom) {
 
 .sticky_column {
   position: sticky;
-  left: 0; 
   top: 0px;
+}
+
+.sticky_column_last {
+  box-shadow: inset -1px 0 0 hsl(var(--foreground) / 0.15);
+}
+.scrolled-x .sticky_column_last {
+  box-shadow: inset -1px 0 0 hsl(var(--foreground) / 0.15), 6px 0 8px -4px rgb(0 0 0 / 0.12);
+}
+#table_list thead th.sticky_column_last {
+  box-shadow: inset 0 -1px 0 hsl(var(--foreground) / 0.15), inset -1px 0 0 hsl(var(--foreground) / 0.15);
+}
+.scrolled-x #table_list thead th.sticky_column_last {
+  box-shadow: inset 0 -1px 0 hsl(var(--foreground) / 0.15), inset -1px 0 0 hsl(var(--foreground) / 0.15), 6px 0 8px -4px rgb(0 0 0 / 0.12);
 }
 
 /* solid indigo band + closing rule: pale tints read as just another zebra stripe */
@@ -3199,12 +3368,54 @@ td:has(.alert_bottom) {
 .group-child-last > td { border-bottom: 2px solid var(--grp-child-bar) !important; }
 
 /* card bg, not muted: muted matched the gray zebra so the total read as one more row */
-.total-row > td {
+/* hidden, not transparent: collapsed borders never show the cell background, so the rule broke at every column gap */
+.total-row > td,
+.filtered-total-row > td {
   background-color: hsl(var(--card)) !important;
+  background-image: linear-gradient(var(--rule), var(--rule));
+  background-size: 100% var(--rule-w);
+  background-repeat: no-repeat;
+  border-right-style: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.total-row > td {
+  --rule: hsl(var(--foreground) / 0.8);
+  --rule-w: 2px;
   color: hsl(var(--foreground));
   font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  /* inset shadow, not border-top: collapsed borders on sticky cells scroll away with the body */
-  box-shadow: inset 0 2px 0 hsl(var(--foreground) / 0.8), 0 -6px 8px -6px rgb(0 0 0 / 0.15);
+}
+/* lighter than the total, so the grand total still reads as the final figure */
+.filtered-total-row > td {
+  --rule: hsl(var(--foreground) / 0.3);
+  --rule-w: 1px;
+  color: hsl(var(--foreground) / 0.75);
+  font-weight: 600;
+  border-bottom-color: transparent;
+}
+/* lift only the topmost footer row, or the total's shadow falls across the filtered row */
+.filtered-total-row > td,
+.total-row:first-child > td {
+  box-shadow: 0 -6px 8px -6px rgb(0 0 0 / 0.15);
+}
+/* restate the pinned edge: the lift shadow above out-ranks .sticky_column_last */
+.filtered-total-row > td.sticky_column_last,
+.total-row:first-child > td.sticky_column_last {
+  box-shadow: 0 -6px 8px -6px rgb(0 0 0 / 0.15), inset -1px 0 0 hsl(var(--foreground) / 0.15);
+}
+.scrolled-x .filtered-total-row > td.sticky_column_last,
+.scrolled-x .total-row:first-child > td.sticky_column_last {
+  box-shadow: 0 -6px 8px -6px rgb(0 0 0 / 0.15), inset -1px 0 0 hsl(var(--foreground) / 0.15), 6px 0 8px -4px rgb(0 0 0 / 0.12);
+}
+.filtered-count {
+  display: inline-block;
+  min-width: 1.5em;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  background-color: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
 }
 </style>
