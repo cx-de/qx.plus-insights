@@ -1,7 +1,7 @@
 import { browser, storage } from '#imports';
 
 // Values whose localStorage form is JSON text; everything else is restored as the plain string.
-const jsonLocalKeys = ['tableSortState', 'columnOrder', 'tableExpanded', 'accountViewSelected'];
+const jsonLocalKeys = ['tableSortState', 'columnOrder', 'stickyColumns', 'tableExpanded', 'accountViewSelected'];
 
 // At least one of these must be present, or the file is not a portfolio backup.
 const coreKeys = ['local:MAIN_LIST', 'local:LIST_DATA', 'local:settings'];

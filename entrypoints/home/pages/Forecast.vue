@@ -1436,23 +1436,22 @@ const recalculateDatapoints = async() => {
       .sort((a, b) => a - b);  
     const groups = chartAccountGroups();
     const allBase:any[] = [];
+    // Dedup keeps a scenario's equal Date in place of the month-end, so includes() by reference dropped 30.11/31.12.
+    const monthEndTimes = new Set(dates.map((d:any) => d.getTime()));
     chartData.value.datasets = [];
     groups.forEach((group:any, groupIndex:any) => {
       const newDatapoints = datesForForecast.map((date, dateIndex) =>{
         if(dateIndex===0){
           const todayTotal = scopedTodayTotal(group.key);
           return todayTotal;
-        }else if(dates.includes(date)){      
+        }else if(monthEndTimes.has(date.getTime())){
           let calculatedValue = calculateTotalValueForDate(date, group.rows);
           return calculatedValue;
         }else{
           return NaN;
         }
       });
-    
-      // Remove duplicates
-      datesForForecast = [...new Map(datesForForecast.map(d => [d.getTime(), d])).values()];
-    
+
       const dynamicLabels = datesForForecast.map((date, index) => {
         return index === 0 ? t('today') : t('current_forecast');
       });
