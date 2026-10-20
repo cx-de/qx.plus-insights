@@ -16,8 +16,18 @@ updates:
           - "minor"
           - "patch"
     ignore:
-      # Major upgrades need manual migration work (vue-i18n, TypeScript).
+      # Major upgrades need manual migration work (vue-i18n, TypeScript, vue-router, TanStack Table).
+      # @types/node stays on the Node version the release workflow uses (22).
       - dependency-name: "vue-i18n"
         update-types: ["version-update:semver-major"]
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
+      - dependency-name: "vue-router"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@tanstack/vue-table"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # 0.1+ types storage.get() results as unknown, which breaks ~40 call sites.
+      - dependency-name: "@types/chrome"
+        versions: [">=0.1.0"]
