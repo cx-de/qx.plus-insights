@@ -9,7 +9,7 @@
         <TooltipProvider>
         <nav class="flex flex-col items-center gap-4 px-2 py-4">
   
-          <template v-for="item in menuItems" :key="item">
+          <template v-for="item in menuItems" :key="item.label">
             <Tooltip>
               <TooltipTrigger as-child>
                 <router-link :to="item.items[0]?.to"
