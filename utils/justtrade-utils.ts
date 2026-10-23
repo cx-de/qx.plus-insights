@@ -437,6 +437,15 @@ async function justtradeSaveCash() {
   await chrome.storage.local.set({ JUSTTRADE: currentData });
 }
 
+async function justtradeWriteRows(rows:any) {
+  const stored = await chrome.storage.local.get(['JUSTTRADE']);
+  const kept = (stored.JUSTTRADE || []).filter((item:any) =>
+    item.stock_name === 'Cash' && item.broker === broker && item.account_id === currentAccountId);
+  // accountReplaceRows drops this account's Cash row too, so re-add it after the replace.
+  const replaced = accountReplaceRows(stored.JUSTTRADE, rows, broker, currentAccountId);
+  await chrome.storage.local.set({ JUSTTRADE: [...replaced, ...kept] });
+}
+
 async function justtradeSaveDataToLocalStorage(interactive = false) {
   console.log("justtradeSaveDataToLocalStorage", interactive);
   try {
@@ -455,7 +464,17 @@ async function justtradeSaveDataToLocalStorage(interactive = false) {
 
     await justtradeSaveCash();
 
-    if (!justtradeIsOnDepotPage()) return false;
+    // Cash-only depot: zero DOM rows is ambiguous, but an empty /securities response proves no positions.
+    if (apiPositions && !apiPositions.positions.length && !Number(apiPositions.total) && !justtradeDepotAccordions().length) {
+      await justtradeWriteRows([]);
+      console.log("justtrade: empty depot, cash only");
+      return true;
+    }
+
+    if (!justtradeIsOnDepotPage()) {
+      console.log("justtrade: depot not visible, skipping save");
+      return false;
+    }
 
     await justtradeApplyApiPositions();
     const accordions = justtradeDepotAccordions();
@@ -474,12 +493,7 @@ async function justtradeSaveDataToLocalStorage(interactive = false) {
       return false;
     }
 
-    const stored = await chrome.storage.local.get(['JUSTTRADE']);
-    const kept = (stored.JUSTTRADE || []).filter((item:any) =>
-      item.stock_name === 'Cash' && item.broker === broker && item.account_id === currentAccountId);
-    // accountReplaceRows drops this account's Cash row too, so re-add it after the replace.
-    const replaced = accountReplaceRows(stored.JUSTTRADE, rows, broker, currentAccountId);
-    await chrome.storage.local.set({ JUSTTRADE: [...replaced, ...kept] });
+    await justtradeWriteRows(rows);
     console.log("justtrade: Saved Data To Local Storage!", rows.length);
     return true;
   } catch (err) {
@@ -626,6 +640,12 @@ async function justtradeRunSync() {
       state = 'error';
       return;
     }
+    // Sync pressed on Überblick/Orderbuch: no depot rows and no /securities payload until DEPOT opens.
+    if (!justtradeIsOnDepotPage()) {
+      justtradeDepotTab()?.click();
+      await justtradeWaitFor(() => justtradeIsOnDepotPage(), 3000);
+      await sleep(800);
+    }
     await justtradeMaxPageSize();
     await justtradeRefreshApi();
     // Id is already resolved above; interactive again would reopen the profile popover.
@@ -691,6 +711,7 @@ async function justtradeDebug() {
     popoverId: justtradeReadAccountFromPopover(),
     headerTriggers: justtradeHeaderTriggers().map((b:any) => b.getAttribute('aria-label') || b.textContent.trim().slice(0, 20)),
     accountId: currentAccountId,
+    api: apiPositions && { count: apiPositions.positions.length, total: apiPositions.total },
     stored: await chrome.storage.local.get(['CUR_JUSTTRADEID', ISIN_CACHE_KEY, 'JUSTTRADE']),
     scraped: justtradeGetAllStockData(await justtradeLoadIsinCache()),
   };
