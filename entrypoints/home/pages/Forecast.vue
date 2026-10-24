@@ -718,9 +718,9 @@ function rangeStartStr(range:any) {
   return new Date(Date.UTC(year, month, day)).toISOString().split('T')[0];
 }
 
-const listData = ref([]);
+const listData = ref<any[]>([]);
 
-let allDates = [];
+let allDates:any[] = [];
 const startDate = new Date();
 
 for (let i = 0; i < 12; i++) {
@@ -738,7 +738,7 @@ for (let i = 0; i < 12; i++) {
 const todayDate = new Date();
 const minDate = new CalendarDate(todayDate.getFullYear(), todayDate.getMonth() + 1, todayDate.getDate());
 
-let dates = [];
+let dates:any[] = [];
 for (let i = 0; i < 12; i++) {
   const year = todayDate.getFullYear();
   const month = todayDate.getMonth() + i + 1;
@@ -753,7 +753,7 @@ for (let i = 0; i < 12; i++) {
 }
 
 
-const datapoints = ref([]);
+const datapoints = ref<any[]>([]);
 const defaultDataSets = [
   {
     label: 'Portfolio Forecast',
@@ -766,7 +766,7 @@ const defaultDataSets = [
   }
 ];
 
-const chartData = ref({
+const chartData = ref<any>({
   labels: allDates,
   datasets: defaultDataSets
 });
@@ -958,7 +958,7 @@ const syncCrosshair = {
   },
 };
 
-const chartOptions = {
+const chartOptions:any = {
   responsive: true,
   maintainAspectRatio: false,
   // Room for lineEndLabels on lines that run to the right edge; sized per render by endLabelPadding.
@@ -975,7 +975,7 @@ const chartOptions = {
     },
     tooltip: {
       callbacks: {
-        title: (tooltipItems) => {
+        title: (tooltipItems:any) => {
           const date = tooltipItems[0].label;
           const fullDate = new Date(date);
           return fullDate.toLocaleDateString(locale.value === 'de' ? 'de-DE' : 'en-GB', {
@@ -984,7 +984,7 @@ const chartOptions = {
             day: 'numeric'
           });
         },
-        label: function (context) {
+        label: function (context:any) {
           const dataset = context.dataset;
           const index = context.dataIndex;
           
@@ -1112,7 +1112,7 @@ const chartOptions = {
         autoSkip: false, // label every vertical gridline with its date
         maxRotation: 60,
         minRotation: 45,
-        callback: function(value, index, ticks) {
+        callback: function(value:any, index:any, ticks:any) {
           // on a time scale ticks[index].value is the tick timestamp
           return formatDate(new Date(ticks[index].value));
         },
@@ -1134,7 +1134,7 @@ const chartOptions = {
   spanGaps: true, //
 };
 
-const updateChartData = (event)=>{
+const updateChartData = (event:any)=>{
   selectedType.value = event;
   try {
     localStorage.setItem('forecastType', event);
@@ -1145,7 +1145,7 @@ const updateChartData = (event)=>{
   recalculateDatapoints();
 }
 
-const getMinDate = (date) =>{
+const getMinDate = (date:any) =>{
   const firstDate = new Date(date);
   const year = firstDate.getFullYear();
   const month = String(firstDate.getMonth() + 1).padStart(2, '0');
@@ -1156,7 +1156,7 @@ const getMinDate = (date) =>{
 
 function calculateTotalValueForDate(date: Date, rows:any = listData.value): number {
   let total = 0;
-  rows.forEach(item => {
+  rows.forEach((item:any) => {
     if (!item.total_value) return;
     
     
@@ -1169,7 +1169,7 @@ function calculateTotalValueForDate(date: Date, rows:any = listData.value): numb
         if(item.type === "put"){
           const expectationMultiplier = 1;
           const dateObj = new Date(date);
-          const daysForValuation = (valuationDate - dateObj) / (1000 * 60 * 60 * 24);
+          const daysForValuation = (+valuationDate - +dateObj) / (1000 * 60 * 60 * 24);
           const newUnderlying = item.underlying_price * expectationMultiplier;
           const bsTime = daysForValuation / 365;
           const bsSigma = item.implied_volatility/100;
@@ -1206,7 +1206,7 @@ function calculateTotalValueForDate(date: Date, rows:any = listData.value): numb
   return Math.round(total);
 }
 
-function toDate(val) {
+function toDate(val:any) {
   let d = val instanceof Date ? 
     new Date(val) : 
     new Date(val + "T00:00:00");
@@ -1215,22 +1215,22 @@ function toDate(val) {
 }
 
 const MS_PER_DAY = 86400000;
-const getScenarioItemFutureTotal = (item, scenario, date) =>{
+const getScenarioItemFutureTotal = (item:any, scenario:any, date:any) =>{
   const { timeframe } = scenario;
   // Cash-like positions (e.g. overnight-rate ETFs) keep their neutral forecast instead of following the market shock.
   const market = excludedWkns.value.includes(item.wkn) ? 0 : scenario.market;
   const start = new Date(timeframe.start);
   const end = new Date(timeframe.end);
-  const totalDays = (end - start) / MS_PER_DAY;
+  const totalDays = (+end - +start) / MS_PER_DAY;
   const targetFactor = 1 + market / 100;
 
   const dateObj = new Date(date);
-  const daysElapsed = (dateObj - start) / (1000 * 60 * 60 * 24);
+  const daysElapsed = (+dateObj - +start) / (1000 * 60 * 60 * 24);
   
   let expectationMultiplier = 1;
 
   const valuationDate = item.valuation_date ? new Date(item.valuation_date) : null;
-  const daysToValuation = valuationDate ? (valuationDate - start) / MS_PER_DAY : null;
+  const daysToValuation = valuationDate ? (+valuationDate - +start) / MS_PER_DAY : null;
   if (targetFactor > 0 && totalDays > 0 && daysElapsed >= 0) {
     const daily = Math.pow(targetFactor, 1 / totalDays);
     expectationMultiplier = Math.pow(daily, daysElapsed);
@@ -1239,9 +1239,9 @@ const getScenarioItemFutureTotal = (item, scenario, date) =>{
 
   // --- Compute expectation multiplier *AT valuation date* ---
   let expectationAtValuation = 1;
-  if (valuationDate && targetFactor > 0 && totalDays > 0 && daysToValuation >= 0) {
+  if (valuationDate && targetFactor > 0 && totalDays > 0 && daysToValuation! >= 0) {
     const daily = Math.pow(targetFactor, 1 / totalDays);
-    expectationAtValuation = Math.pow(daily, daysToValuation);
+    expectationAtValuation = Math.pow(daily, daysToValuation!);
     expectationAtValuation = Math.max(expectationAtValuation, 0.0001);
   }
 
@@ -1271,8 +1271,8 @@ const getScenarioItemFutureTotal = (item, scenario, date) =>{
           : calculateFutureTotalValue(item, expectationAtValuation);
         return scenarioFutureTotal;
       } else {
-        const totalDays = (valuationDate - todayDate) / (1000 * 60 * 60 * 24);
-        const daysSinceToday = (dateObj - todayDate) / (1000 * 60 * 60 * 24);
+        const totalDays = (+valuationDate - +todayDate) / (1000 * 60 * 60 * 24);
+        const daysSinceToday = (+dateObj - +todayDate) / (1000 * 60 * 60 * 24);
         
         // Ensure we don't divide by zero and handle cases where valuationDate is before today
         if (totalDays <= 0 || daysSinceToday <= 0) {
@@ -1280,7 +1280,7 @@ const getScenarioItemFutureTotal = (item, scenario, date) =>{
         } else {
           let interpolatedValue = item.total_value + ((futureTotalValue - item.total_value) / totalDays) * daysSinceToday; 
           if(item.type === "put"){
-            const daysForValuation = (valuationDate - dateObj) / (1000 * 60 * 60 * 24);
+            const daysForValuation = (+valuationDate - +dateObj) / (1000 * 60 * 60 * 24);
             const newUnderlying = item.underlying_price * expectationMultiplier;
             const bsTime = daysForValuation / 365;
             const bsSigma = item.implied_volatility/100;
@@ -1408,8 +1408,8 @@ const recalculateDatapoints = async() => {
       return;
     }
       
-    const savedScenarios = await storage.getItem('local:scenarios') || [];
-    const activeScenarios = savedScenarios.filter((item) => item.active === true);
+    const savedScenarios = await storage.getItem<any>('local:scenarios') || [];
+    const activeScenarios = savedScenarios.filter((item:any) => item.active === true);
     
     let datesForForecast = [...dates];
     
@@ -1483,7 +1483,7 @@ const recalculateDatapoints = async() => {
 
       //Scenarios
    
-      activeScenarios.forEach((scenario, index) => {
+      activeScenarios.forEach((scenario:any, index:any) => {
         const { market, timeframe } = scenario;
         const end = new Date(timeframe.end);
 
@@ -1587,12 +1587,12 @@ const recalculateDatapoints = async() => {
     const allDates = Array.from(new Set(groupMaps.flatMap(({ historyMap, forecastMap }:any) => [
       ...Array.from(historyMap.keys()),
       ...Array.from(forecastMap.keys())
-    ]))).sort((a, b) => new Date(a) - new Date(b));
+    ]))).sort((a:any, b:any) => +new Date(a) - +new Date(b));
 
     // === Step 4 + 5: Fill Datasets and Assign to Chart ===
     chartData.value.labels = allDates;
     chartData.value.datasets = groups.flatMap((group:any, groupIndex:any) => {
-      const { historyMap, forecastMap } = groupMaps[groupIndex];
+      const { historyMap, forecastMap } = groupMaps[groupIndex]!;
       const historyDataset = allDates.map(date => historyMap.get(date) ?? null);
       const forecastDataset = allDates.map(date => forecastMap.get(date) ?? null);
       return [
@@ -1695,7 +1695,7 @@ function buildChartPanels() {
 
 /***************/
 const isScenarioSheet = ref(false)
-const scenarios =  ref([]);
+const scenarios =  ref<any[]>([]);
 const scenariosKeys =  ref(1);
 const excludedWkns = ref<string[]>([]);
 const excludeSearch = ref('');
@@ -2014,7 +2014,7 @@ function clearVirtualPuts() {
 const start = today(getLocalTimeZone());
 const end = start.add({ days: 7 });
 
-const form = ref({
+const form = ref<any>({
   market: null as number | null,
   timeframe: {
     start: start,
@@ -2124,7 +2124,7 @@ async function saveScenario() {
 
 function toCalendarDate(isoDate: string): CalendarDate {
   const [year, month, day] = isoDate.split('-').map(Number);
-  return new CalendarDate(year, month, day);
+  return new CalendarDate(year!, month!, day!);
 }
 
 // Edit existing scenario
@@ -2192,7 +2192,7 @@ async function updateScenarios(){
   recalculateDatapoints();
 }
 
-const dailyTotals = ref([]);
+const dailyTotals = ref<any[]>([]);
 
 // Days saved before the per-account split cannot be attributed, so a filtered view drops them.
 // A key narrows to that one account, for the per-account lines of the split view.
@@ -2225,7 +2225,7 @@ function scopedTodayTotal(key:any = null) {
 function historyEntryBefore(dateStr:any, key:any = null) {
   const date = new Date(dateStr);
   if (isNaN(date.getTime())) return null;
-  const targetStr = date.toISOString().split('T')[0];
+  const targetStr = date.toISOString().split('T')[0]!;
   let found:any = null;
   for (const entry of scopedDailyTotals(key) as any[]) {
     if (entry.date < targetStr && (!found || entry.date > found.date)) found = entry;
@@ -2239,8 +2239,8 @@ const exportDate = ref(defaultExportDate);
 
 
 // 
-const columns = ref([]);
-const forecastTableData = ref([]);
+const columns = ref<any[]>([]);
+const forecastTableData = ref<any[]>([]);
 
 const sorting = ref([])
 const columnFilters = ref([])
@@ -2273,7 +2273,7 @@ const table = useVueTable({
   },
 });
 
-const getFutureValueFromFutureTotal = (item, targetDate,scenario=null) => {
+const getFutureValueFromFutureTotal = (item:any, targetDate:any,scenario=null) => {
   let future_bid = 0;
   let future_underlying_price = item.underlying_price ?? 0;
   
@@ -2291,7 +2291,7 @@ const getFutureValueFromFutureTotal = (item, targetDate,scenario=null) => {
   }else{
     if (item.type === "put") {
       const bs = new BlackScholes();
-      const daysForValuation = (valuationDate - date) / MS_PER_DAY;
+      const daysForValuation = (+valuationDate - +date) / MS_PER_DAY;
       const newUnderlying = item.underlying_price * expectationMultiplier;
       const bsTime = daysForValuation / 365;
       const bsSigma = (item.implied_volatility ?? 0) / 100;
@@ -2319,8 +2319,8 @@ const getFutureValueFromFutureTotal = (item, targetDate,scenario=null) => {
     }
   }
   
-  const totalDays = (valuationDate - date) / MS_PER_DAY;
-  const passedDays = (targetDate - date) / MS_PER_DAY;
+  const totalDays = (+valuationDate - +date) / MS_PER_DAY;
+  const passedDays = (+targetDate - +date) / MS_PER_DAY;
 
   if (futureTargetValue > todayValue && totalDays > 0 && passedDays >= 0) {
     const targetProfit = futureTargetValue - todayValue;
@@ -2349,9 +2349,9 @@ const prepareForecastData = async () => {
   if (accountViewCombined.value) mainList = accountCombineRows(mainList);
 
   // Get active scenarios
-  const savedScenarios = await storage.getItem('local:scenarios') || [];
-  const activeScenarios = savedScenarios.filter((item) => item.active === true);
-  const scenarioHeaders = activeScenarios.map((s) => {
+  const savedScenarios = await storage.getItem<any>('local:scenarios') || [];
+  const activeScenarios = savedScenarios.filter((item:any) => item.active === true);
+  const scenarioHeaders = activeScenarios.map((s:any) => {
     const start = s.timeframe.start.replace(/-/g, "").slice(2); // YYMMDD
     const end = s.timeframe.end.replace(/-/g, "").slice(2);     // YYMMDD
     return {
@@ -2361,7 +2361,7 @@ const prepareForecastData = async () => {
   });
 
   
-  const rows = [];
+  const rows:any[] = [];
   if (mainList && mainList.length > 0) {
     mainList.forEach(item => {
       const { futureTotalValue, future_bid,
@@ -2371,7 +2371,7 @@ const prepareForecastData = async () => {
       const exportDay = toDate(exportDate.value);
       const forecastValue = calculateTotalValueForDate(exportDay, [item]);
       const scenarioValues = Object.fromEntries(
-        activeScenarios.map((scenario,index) => [
+        activeScenarios.map((scenario:any,index:any) => [
             scenarioHeaders[index].id, forecastValue + getScenarioItemFutureTotal(item, scenario, exportDate.value)
               - getScenarioItemFutureTotal(item, { ...scenario, market: 0 }, exportDate.value)
         ])
@@ -2441,7 +2441,7 @@ const forecastTableNonPriceFields = [
 ];
 
 // header is bg-primary, so the hover must tint with its own foreground to stay readable
-const getSortingHeader = (column, label) => sortableHeader(column, t(label), 'hover:bg-primary-foreground/10 hover:text-primary-foreground');
+const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label), 'hover:bg-primary-foreground/10 hover:text-primary-foreground');
 
 const isTableLoading = ref(false);
 const isExporting = ref(false);
@@ -2465,15 +2465,15 @@ const loadForecastData = async () => {
   // Build table columns dynamically
   columns.value = [
     { accessorKey: "stock_name", header: t("stock_name") },
-    { accessorKey: "type", header: ({ column }) => getSortingHeader(column, 'type') },
+    { accessorKey: "type", header: ({ column }:any) => getSortingHeader(column, 'type') },
     { accessorKey: "wkn", header: t("wkn") },
     { accessorKey: "isin", header: t("isin") },
-    { accessorKey: "currency_rate", header: ({ column }) => getSortingHeader(column, 'currency_rate') },
-    { accessorKey: "implied_volatility", header: ({ column }) => getSortingHeader(column, 'implied_volatility') },
+    { accessorKey: "currency_rate", header: ({ column }:any) => getSortingHeader(column, 'currency_rate') },
+    { accessorKey: "implied_volatility", header: ({ column }:any) => getSortingHeader(column, 'implied_volatility') },
     
-     ...scenarioHeaders.map((header) => ({
+     ...scenarioHeaders.map((header:any) => ({
       accessorKey: header.id, // matches keys like "${market}%" set in prepareForecastData
-      header: ({ column }) => getSortingHeader(column,`${t('scenario')} ${header.label}`),
+      header: ({ column }:any) => getSortingHeader(column,`${t('scenario')} ${header.label}`),
     })),
   ];
 };

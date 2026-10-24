@@ -12,7 +12,7 @@
     </div>
   </template>
 
-  <script setup>
+  <script setup lang="ts">
   import { Inbox } from 'lucide-vue-next'
 
   defineProps({

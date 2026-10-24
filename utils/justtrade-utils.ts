@@ -73,7 +73,7 @@ function justtradeNumber(text:any) {
 
 function justtradeDepotTab() {
   const icon = document.querySelector('button[role="tab"] svg[data-testid="EqualizerIcon"]');
-  return icon ? icon.closest('button[role="tab"]') : null;
+  return icon ? icon.closest<HTMLElement>('button[role="tab"]') : null;
 }
 
 function justtradeIsOnDepotPage() {

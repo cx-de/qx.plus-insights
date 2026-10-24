@@ -38,8 +38,8 @@ async function addSyncButtonOnConsorsBank(){
   }
   const selectWrapper = document.querySelector('.select-dropdown-wrapper--white .select-dropdown');
   if (selectWrapper) {
-    const parent = selectWrapper.parentElement.parentElement;
-    if (!parent.querySelector('.sync-qx-button')) {
+    const parent = selectWrapper.parentElement?.parentElement;
+    if (parent && !parent.querySelector('.sync-qx-button')) {
       parent.style.display = 'flex';
       parent.style.alignItems = 'center';
       parent.style.gap = '10px'; // spacing between select and button
@@ -72,7 +72,7 @@ function addCustomRowHeaderConsorsBank(){
           ${EXTRA_ROW_HEADERS[index] || '&nbsp;'}
         </div>
       </div>`;
-      headerCells[index].appendChild(newHeaderCell);
+      headerCells[index]!.appendChild(newHeaderCell);
   });
 }
 
@@ -182,7 +182,7 @@ function consorsBankReadCash(doc:any = document) {
   const links = doc.querySelectorAll('app-account-type-link[id^="KTO_"] a[title="Verrechnungskonto"]');
   if (!links.length) return null;
   let total = 0;
-  for (const link of Array.from(links)) {
+  for (const link of Array.from<any>(links)) {
     const raw = link.closest('tr')?.querySelector('[data-account-balance]')?.getAttribute('data-account-balance');
     const value = raw === null || raw === undefined || raw === '' ? NaN : Number(raw);
     // A half-rendered table must not save a partial sum over the real balance.
@@ -362,7 +362,7 @@ function consorsBankGetAllStockData() {
             }
             rowData['type'] = type;
           }else if(key==="Kurs"){
-            let bid = value;
+            let bid:any = value;
             bid = bid.split(' ')[0];
             bid = germanToNumer(bid);
             rowData['bid'] = bid;

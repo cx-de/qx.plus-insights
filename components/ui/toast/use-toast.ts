@@ -72,7 +72,7 @@ function addToRemoveQueue(toastId: string) {
   toastTimeouts.set(toastId, timeout)
 }
 
-const state = ref<State>({
+const state = ref<any>({
   toasts: [],
 })
 
@@ -83,7 +83,7 @@ function dispatch(action: Action) {
       break
 
     case actionTypes.UPDATE_TOAST:
-      state.value.toasts = state.value.toasts.map(t =>
+      state.value.toasts = state.value.toasts.map((t:any) =>
         t.id === action.toast.id ? { ...t, ...action.toast } : t,
       )
       break
@@ -95,12 +95,12 @@ function dispatch(action: Action) {
         addToRemoveQueue(toastId)
       }
       else {
-        state.value.toasts.forEach((toast) => {
+        state.value.toasts.forEach((toast:any) => {
           addToRemoveQueue(toast.id)
         })
       }
 
-      state.value.toasts = state.value.toasts.map(t =>
+      state.value.toasts = state.value.toasts.map((t:any) =>
         t.id === toastId || toastId === undefined
           ? {
               ...t,
@@ -115,7 +115,7 @@ function dispatch(action: Action) {
       if (action.toastId === undefined)
         state.value.toasts = []
       else
-        state.value.toasts = state.value.toasts.filter(t => t.id !== action.toastId)
+        state.value.toasts = state.value.toasts.filter((t:any) => t.id !== action.toastId)
 
       break
   }

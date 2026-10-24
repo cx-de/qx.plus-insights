@@ -1,15 +1,3 @@
 {
-  "extends": "./.wxt/tsconfig.json",
-
-  "compilerOptions": {
-    "sourceMap": true,
-    "inlineSources": true,
-    // WXT 0.21 turned this on by default; off keeps the pre-upgrade baseline
-    "noUncheckedIndexedAccess": false,
-
-    // Set `sourceRoot` to  "/" to strip the build path prefix
-    // from generated source code references.
-    // This improves issue grouping in Sentry.
-    "sourceRoot": "/"
-  }
+  "extends": "./.wxt/tsconfig.json"
 }

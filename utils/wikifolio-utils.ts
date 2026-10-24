@@ -105,7 +105,7 @@ export function addCustomRowHeaderWikifolio() {
     </td>`;
   }).join("");
 
-  table.parentNode.insertBefore(newRow, table.nextSibling);
+  table.parentNode!.insertBefore(newRow, table.nextSibling);
 }
 
 export async function updateCustomRowDataWikifolio(){
@@ -138,7 +138,7 @@ export async function updateCustomRowDataWikifolio(){
             let colVal = updateColumnValueHtml(currentRowData, col);
             return `<td class='c-r-table__cell hidden-from-xs u-min-col nowrap ${index===0?'c-r-table__cell--first' : 'text-right'}'>${colVal}</td>`;
           }).join("");
-          row.parentNode.insertBefore(extra, row.nextElementSibling);
+          row.parentNode!.insertBefore(extra, row.nextElementSibling);
         }
       }
       // Step over our extra row only when one exists; a blind double hop crashed on the last row and skipped positions without data.
@@ -212,11 +212,11 @@ function loadCache() {
   return JSON.parse(localStorage.getItem("wikifolioWknCache") || "{}");
 }
 
-function saveCache(cache) {
+function saveCache(cache:any) {
   localStorage.setItem("wikifolioWknCache", JSON.stringify(cache));
 }
 
-async function getWKNFromDetailPage(row, type='stock') {
+async function getWKNFromDetailPage(row:any, type='stock') {
   let wknCache = loadCache();
 
   const isin = row.querySelector(".isin")?.innerText.trim();
@@ -234,15 +234,15 @@ async function getWKNFromDetailPage(row, type='stock') {
   const link = row.querySelector(".hbo-link.area")?.href;
   if (!link) return null;
 
-  let wkn = '';
+  let wkn:any = '';
   try{
     const res = await fetch(link, { credentials: "include" });
     const html = await res.text();
 
     const doc = new DOMParser().parseFromString(html, "text/html");
-    const dt = [...doc.querySelectorAll("dt.c-underlying-info__label")]
+    const dt = [...doc.querySelectorAll<HTMLElement>("dt.c-underlying-info__label")]
       .find(el => el.innerText.trim() === "WKN");
-    wkn = dt?.nextElementSibling?.innerText.trim() || null;
+    wkn = (dt?.nextElementSibling as HTMLElement | null | undefined)?.innerText.trim() || null;
   }catch(error){
     console.error("getWKNFromDetailPage == fromLink error",error);
   }
@@ -259,10 +259,10 @@ async function getAllStockDataWikiFolio(){
     console.log("getAllStockData");
     const deposite_number = wikifolioDepotId();
     
-    const rows = document.querySelectorAll(".c-r-table tbody .c-r-table__tr");
+    const rows = document.querySelectorAll<HTMLElement>(".c-r-table tbody .c-r-table__tr");
     const purchaseCache = await wikifolioLoadPurchaseCache();
-    let stockData = [];
-    let currentGroup = null;
+    let stockData:any[] = [];
+    let currentGroup:any = null;
     // Sequential, not forEach(async ...): that returned stockData before a single await
     // resolved, so a short or empty array was persisted and read back as "everything sold".
     for (const row of rows) {
@@ -287,20 +287,20 @@ async function getAllStockDataWikiFolio(){
       console.log("getAllStockData currentGroup",currentGroup);
       console.log("getAllStockData type",type);
 
-      const isin = isinEl.textContent.trim();
+      const isin = isinEl!.textContent.trim();
       const wkn = await getWKNFromDetailPage(row,type);
       console.log("getAllStockData wkn",wkn);
       
       const bid = wikifolioToNumber(row.querySelector(".tick-data .nowrap")?.textContent);
       const stocks_owned = wikifolioToNumber(row.querySelector(".tick-data-quantity")?.textContent);
-      const value = wikifolioToNumber(row.children[3]?.innerText);
+      const value = wikifolioToNumber((row.children[3] as HTMLElement | undefined)?.innerText);
 
       const perfCell = row.children[4];
       let profit_loss_price = 0;
       let profit_loss_percentage = 0;
       if (perfCell) {
-        profit_loss_price = wikifolioToNumber(perfCell.querySelector(".nowrap:nth-child(1)")?.innerText);
-        profit_loss_percentage = wikifolioToNumber(perfCell.querySelector(".nowrap:nth-child(2)")?.innerText?.replace('%', ''));
+        profit_loss_price = wikifolioToNumber(perfCell.querySelector<HTMLElement>(".nowrap:nth-child(1)")?.innerText);
+        profit_loss_percentage = wikifolioToNumber(perfCell.querySelector<HTMLElement>(".nowrap:nth-child(2)")?.innerText?.replace('%', ''));
       }
 
       const total_entry_value = value - profit_loss_price;

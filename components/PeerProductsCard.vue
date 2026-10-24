@@ -124,7 +124,7 @@ const props = defineProps<{
 }>()
 
 const isLoading = ref(true);
-const products = ref([]);
+const products = ref<any[]>([]);
 const getPeersPriceData = async () => {
   // Only a missing or rejected key stops this — isMarketClosed() would also blank it every weekend.
   if (!apiKey.value || apiAuthFailed.value) { isLoading.value = false; return; }
@@ -148,18 +148,18 @@ const getPeersPriceData = async () => {
     }
 };
 
-const getSortingHeader = (column, label) => sortableHeader(column, t(label), 'hover:bg-gray-300 hover:text-black');
+const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label), 'hover:bg-gray-300 hover:text-black');
 
 const columns = [
   {
     accessorKey: 'wkn',
-    header: ({ column }) => getSortingHeader(column, 'wkn'),
-    cell: (info) => info.getValue(),
+    header: ({ column }:any) => getSortingHeader(column, 'wkn'),
+    cell: (info:any) => info.getValue(),
   },
   {
     accessorKey: 'bid',
-    header: ({ column }) => getSortingHeader(column, 'bid'),
-    cell: ({ row }) => {
+    header: ({ column }:any) => getSortingHeader(column, 'bid'),
+    cell: ({ row }:any) => {
       let formatted = "-";
       if(row.getValue('bid')){
         const amount = Number.parseFloat(row.getValue('bid'));
@@ -170,8 +170,8 @@ const columns = [
   },
   {
     accessorKey: 'ask',
-    header: ({ column }) => getSortingHeader(column, 'ask'),
-    cell: ({ row }) => {
+    header: ({ column }:any) => getSortingHeader(column, 'ask'),
+    cell: ({ row }:any) => {
       let formatted = "-";
       if(row.getValue('ask')){
         const amount = Number.parseFloat(row.getValue('ask'));
@@ -182,8 +182,8 @@ const columns = [
   },
   {
     accessorKey: 'ratio',
-    header: ({ column }) => getSortingHeader(column, 'ratio'),
-    cell: ({ row }) => {
+    header: ({ column }:any) => getSortingHeader(column, 'ratio'),
+    cell: ({ row }:any) => {
       const value = row.getValue('ratio');
       const formatted = (value == null || value === '') ? '-' : numberToGerman(value, false, 4);
       return h('div', { class: 'text-right font-medium' }, formatted)
@@ -191,8 +191,8 @@ const columns = [
   },
   {
     accessorKey: 'timestamp',
-    header: ({ column }) => getSortingHeader(column, 'timestamp'),
-    cell: ({ row }) => {
+    header: ({ column }:any) => getSortingHeader(column, 'timestamp'),
+    cell: ({ row }:any) => {
       const formatted = formatTimestamp(row.getValue('timestamp')) || '-';
       return h('div', { class: 'text-right font-medium' }, formatted)
     },
@@ -240,7 +240,7 @@ const table = useVueTable({
 })
 
 const closeDelayTime = ref(200);
-const peerProducts = ref([]);
+const peerProducts = ref<any[]>([]);
 const getPeerProductData = async () => {
   closeDelayTime.value = 10000;
   peerProducts.value = await storage.getItem('local:PEER_PRODUCTS') || [];
@@ -251,13 +251,13 @@ const getPeerProductData = async () => {
     // Normalize peer members to array
   const allPeerMembers = Array.isArray(props.peer_members)
     ? props.peer_members
-    : props.peer_members.split(',').map(w => w.trim()).filter(Boolean);
+    : (props.peer_members as any).split(',').map((w:any) => w.trim()).filter(Boolean);
 
   // Ensure peerProducts is an array
   const peer_products = Array.isArray(peerProducts.value) ? peerProducts.value : [];
 
   // Filter WKNs: fetch if not present or outdated
-  const wknList = allPeerMembers.filter(wkn => {
+  const wknList = allPeerMembers.filter((wkn:any) => {
     const match = peer_products.find(p => p.wkn === wkn);
     return !match || match.lastUpdated !== today;
   });
@@ -265,7 +265,7 @@ const getPeerProductData = async () => {
   console.log("getPeerProductData wknList",wknList);
   const chunkSize = 10;
   const wknChunks = chunkArray(wknList, chunkSize);
-  let allApiData = [];
+  let allApiData:any[] = [];
 
   if (!apiKey.value || apiAuthFailed.value) return;
 
@@ -281,7 +281,7 @@ const getPeerProductData = async () => {
       }
     }
     
-    const apiMap = Object.fromEntries(
+    const apiMap: Record<string, any> = Object.fromEntries(
       allApiData.map(product => [product.wkn, { ...product, lastUpdated: today }])
     );
     
@@ -320,7 +320,7 @@ const getPeerProductData = async () => {
     
     //merge table products — iterate over the full peer list, not just rows already in products.value,
     //so peers missing from /price still appear (enriched from /products where possible).
-    products.value = allPeerMembers.map(wkn => {
+    products.value = allPeerMembers.map((wkn:any) => {
       const existing = products.value.find(p => p.wkn === wkn) ?? { wkn };
       const productData = peerProducts.value.find(peerItem => peerItem.wkn === wkn);
       return productData ? { ...existing, ...productData } : existing;

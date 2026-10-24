@@ -316,7 +316,7 @@
                 <div>
                   <Label for="language_select" class="block text-sm font-medium mb-1">{{ $t('settings_page.language') }}</Label>
                   <p class="text-xs text-muted-foreground mb-3">{{ $t('settings_page.language_description') }}</p>
-                  <Select v-model="$i18n.locale" @update:modelValue="onLanguageChange($event)">
+                  <Select v-model="$i18n.locale" @update:modelValue="onLanguageChange($event as any)">
                     <SelectTrigger id="language_select" class="w-full max-w-[280px]">
                       <Languages class="h-4 w-4 mr-2 shrink-0" />
                       <SelectValue :placeholder="$t('select_a_language')" />
@@ -856,7 +856,7 @@ async function handleImportFileChange(e: Event) {
 async function handleImport() {
   isImporting.value = true;
   try {
-    const { summary } = await importAll(selectedFile.value);
+    const { summary } = await importAll(selectedFile.value as File);
     toast({ title: t('backup_data.import_success'), description: `${t('backup_data.summary', summary)} ${t('settings_page.reloading')}` });
     selectedFile.value = null;
     importPreview.value = null;

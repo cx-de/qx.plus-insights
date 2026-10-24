@@ -230,7 +230,7 @@ ChartJS.register(
 
 const centerTextPlugin = {
   id: 'centerTextOption',
-  beforeDraw(chart) {
+  beforeDraw(chart:any) {
     const { width, height } = chart;
     const ctx = chart.ctx;
     const rawText = chart.options.plugins?.centerTextOption?.text || '';
@@ -257,12 +257,12 @@ const centerTextPlugin = {
     const amountLine = rawLines.slice(2).join(' ').trim();
 
     // Adaptive base sizes scaled to chart size, clamped
-    const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+    const clamp = (n:any, lo:any, hi:any) => Math.max(lo, Math.min(hi, n));
     let labelSize  = clamp(Math.round(innerDiameter * 0.085), 9,  13);
     let valueSize  = clamp(Math.round(innerDiameter * 0.18),  16, 28);
     let amountSize = clamp(Math.round(innerDiameter * 0.085), 9,  13);
 
-    const setFont = (weight, size) => {
+    const setFont = (weight:any, size:any) => {
       ctx.font = `${weight} ${size}px ${fontStack}`;
     };
 
@@ -340,7 +340,7 @@ ChartJS.register(Title, Tooltip, Legend, ArcElement, centerTextPlugin)
 const { t } = useI18n();
 const { toast } = useToast();
 document.title = t('home');
-const listData = ref([]);
+const listData = ref<any[]>([]);
 const customColors = [
   '#3B5B84',
   '#A03F78', 
@@ -417,11 +417,11 @@ function computeTopSliceText(cd: any): string {
   let bestVal = -1;
   for (let i = 0; i < data.length; i++) {
     if (isCash(labels[i])) continue;
-    if (data[i] > bestVal) { bestVal = data[i]; bestIdx = i; }
+    if (data[i]! > bestVal) { bestVal = data[i]!; bestIdx = i; }
   }
   if (bestIdx === -1) {
     for (let i = 0; i < data.length; i++) {
-      if (data[i] > bestVal) { bestVal = data[i]; bestIdx = i; }
+      if (data[i]! > bestVal) { bestVal = data[i]!; bestIdx = i; }
     }
   }
   if (bestIdx === -1) return '';
@@ -439,7 +439,7 @@ function computeTopSliceText(cd: any): string {
 
 /* asset chart start */
 const centerText = ref('')
-const chartData = ref({
+const chartData = ref<any>({
   labels: [],
   datasets: [
     {
@@ -462,14 +462,14 @@ const chartOptions = ref({
       text: centerText.value,
     }
   },
-  onHover(event, elements, chart) {
+  onHover(event:any, elements:any, chart:any) {
    const el = elements?.[0];
     if (el) {
       const datasetIndex = el.datasetIndex;
       const dataset = chart.data.datasets?.[datasetIndex];
       
       const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
-      const value = (dataset?.data as number[])[el.index];
+      const value = (dataset?.data as number[])[el.index]!;
       const percentage = total ? (value / total) * 100 : 0;
       let label = '';
 
@@ -493,7 +493,7 @@ const chartOptions = ref({
   }
 });
 
-const chartRef = ref(null);
+const chartRef = ref<any>(null);
 
 const loanCapital = ref(0);
 const totalAmount = ref(0);
@@ -586,7 +586,7 @@ const updateChartData = async () => {
 
   // Calculate changes vs yesterday
   const dailyTotals:any = await storage.getItem('local:DAILY_TOTAL') || [];
-  dailyTotals.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  dailyTotals.sort((a:any, b:any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   // Filtered views sum the selected accounts' slices; days saved before the per-account split are skipped.
   const scopedTotals = accountViewIsAll()
     ? dailyTotals
@@ -767,7 +767,7 @@ function createBreakdownChart({
       }
       const dataset = chart.data.datasets?.[el.datasetIndex];
       const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
-      const value = (dataset?.data as number[])[el.index];
+      const value = (dataset?.data as number[])[el.index]!;
       const percentage = total ? (value / total) * 100 : 0;
 
       let label = '';
@@ -804,7 +804,7 @@ const {
 
 /* country chart start */
 const countryCenterText = ref('');
-const countryChartData = ref({
+const countryChartData = ref<any>({
   labels: [],
   datasets: [
     {
@@ -827,13 +827,13 @@ const countryChartOptions = ref({
       text: countryCenterText.value,
     }
   },
-  onHover(event, elements, chart) {
+  onHover(event:any, elements:any, chart:any) {
     const el = elements?.[0];
     if (el) {
       const datasetIndex = el.datasetIndex;
       const dataset = chart.data.datasets?.[datasetIndex];
       const total = (dataset?.data as number[]).reduce((acc, val) => acc + val, 0);
-      const value = (dataset?.data as number[])[el.index];
+      const value = (dataset?.data as number[])[el.index]!;
       const percentage = total ? (value / total) * 100 : 0;
 
       let label = '';
@@ -856,7 +856,7 @@ const countryChartOptions = ref({
   }
 });
 
-const countryChartRef = ref(null);
+const countryChartRef = ref<any>(null);
 const updateCountryChartData = () => {
   console.log("updateCountryChartData =====");
   
@@ -991,12 +991,12 @@ const {
 });
 
 
-const allGainers = ref([]);
-const allLosers = ref([]);
-const remainingList = ref([]);
+const allGainers = ref<any[]>([]);
+const allLosers = ref<any[]>([]);
+const remainingList = ref<any[]>([]);
 
-const gainers = ref([]);
-const losers = ref([]);
+const gainers = ref<any[]>([]);
+const losers = ref<any[]>([]);
 
 async function getTopGainersAndLosers() {
   const history:any = (await storage.getItem('local:portfolio_history')) || [];
@@ -1060,7 +1060,7 @@ async function getTopGainersAndLosers() {
   // A merged yesterday has no broker or account, so today's rows must look it up by ISIN.
   const lookupKeyOf = (item:any) => yesterdayScoped ? rowKeyOf(item) : item.isin;
 
-  const yesterdayMap = new Map(
+  const yesterdayMap = new Map<any, any>(
     yesterdayData.map((item: { isin: string; total_value: number; stocks_owned: number }) => [
       lookupKeyOf(item),
       { value: item.total_value, qty: item?.stocks_owned || 0 }
@@ -1109,11 +1109,11 @@ async function getTopGainersAndLosers() {
 
   // Split into gainers and losers
   const positiveChanges = changes
-    .filter(item => item.change > 0)
-    .sort((a, b) => b.change - a.change);
+    .filter((item:any) => item.change > 0)
+    .sort((a:any, b:any) => b.change - a.change);
   const negativeChanges = changes
-    .filter(item => item.change < 0)
-    .sort((a, b) => a.change - b.change);
+    .filter((item:any) => item.change < 0)
+    .sort((a:any, b:any) => a.change - b.change);
 
   
   allGainers.value = positiveChanges;
@@ -1123,7 +1123,7 @@ async function getTopGainersAndLosers() {
   
   remainingList.value = todayData.filter((item: { isin: string }) => {
     const key = rowKeyOf(item);
-    return !positiveChanges.some(g => rowKeyOf(g) === key) && !negativeChanges.some(l => rowKeyOf(l) === key);
+    return !positiveChanges.some((g:any) => rowKeyOf(g) === key) && !negativeChanges.some((l:any) => rowKeyOf(l) === key);
   });
 
   console.log("getTopGainersAndLosers todayData", todayData);
@@ -1134,27 +1134,27 @@ async function getTopGainersAndLosers() {
 
   // Rest Gainers Calculation
   const restGainers = positiveChanges.slice(5);
-  const restGainersPrevious = restGainers.reduce((sum, item) => sum + item.previousValue, 0);
-  const restGainersCurrent = restGainers.reduce((sum, item) => sum + item.currentValue, 0);
+  const restGainersPrevious = restGainers.reduce((sum:any, item:any) => sum + item.previousValue, 0);
+  const restGainersCurrent = restGainers.reduce((sum:any, item:any) => sum + item.currentValue, 0);
   const restGainersChange = restGainersCurrent - restGainersPrevious;
   const restGainersPercent = restGainersPrevious > 0 ? (restGainersChange / restGainersPrevious) * 100 : 0;
 
   // Total Gainers Calculation
-  const totalGainersPrevious = positiveChanges.reduce((sum, item) => sum + item.previousValue, 0);
-  const totalGainersCurrent = positiveChanges.reduce((sum, item) => sum + item.currentValue, 0);
+  const totalGainersPrevious = positiveChanges.reduce((sum:any, item:any) => sum + item.previousValue, 0);
+  const totalGainersCurrent = positiveChanges.reduce((sum:any, item:any) => sum + item.currentValue, 0);
   const totalGainersChange = totalGainersCurrent - totalGainersPrevious;
   const totalGainersPercent = totalGainersPrevious > 0 ? (totalGainersChange / totalGainersPrevious) * 100 : 0;
 
   // Rest Losers Calculation
   const restLosers = negativeChanges.slice(5);
-  const restLosersPrevious = restLosers.reduce((sum, item) => sum + item.previousValue, 0);
-  const restLosersCurrent = restLosers.reduce((sum, item) => sum + item.currentValue, 0);
+  const restLosersPrevious = restLosers.reduce((sum:any, item:any) => sum + item.previousValue, 0);
+  const restLosersCurrent = restLosers.reduce((sum:any, item:any) => sum + item.currentValue, 0);
   const restLosersChange = restLosersCurrent - restLosersPrevious;
   const restLosersPercent = restLosersPrevious > 0 ? (restLosersChange / restLosersPrevious) * 100 : 0;
 
   // Total Losers Calculation
-  const totalLosersPrevious = negativeChanges.reduce((sum, item) => sum + item.previousValue, 0);
-  const totalLosersCurrent = negativeChanges.reduce((sum, item) => sum + item.currentValue, 0);
+  const totalLosersPrevious = negativeChanges.reduce((sum:any, item:any) => sum + item.previousValue, 0);
+  const totalLosersCurrent = negativeChanges.reduce((sum:any, item:any) => sum + item.currentValue, 0);
   const totalLosersChange = totalLosersCurrent - totalLosersPrevious;
   const totalLosersPercent = totalLosersPrevious > 0 ? (totalLosersChange / totalLosersPrevious) * 100 : 0;
 
@@ -1203,7 +1203,7 @@ async function getTopGainersAndLosers() {
 }
 
 
-const formattedISINLink = (isin) =>{
+const formattedISINLink = (isin:any) =>{
   return isinLink.value.replace('$ISIN', isin);
 }
 
@@ -1228,11 +1228,11 @@ const isLoadingAssetChart = ref(true);
 // donut refs always hold one dataset, so an empty card is only detectable via data.length
 const hasChartData = (data:any) => !!data?.datasets?.length && data.datasets[0].data.length > 0;
 const isinLink = ref('');
-const listUpdatedAt = ref('');
+const listUpdatedAt = ref<any>('');
 let priceInterval:any =null;
 
 const initialLoad = async ()=>{
-  let records = await storage.getItem('local:MAIN_LIST') || [];
+  let records:any = await storage.getItem('local:MAIN_LIST') || [];
   console.log("initialLoad records",records);
   await getTopGainersAndLosers();
   
@@ -1342,7 +1342,7 @@ const isDarkTheme = () => document.documentElement.classList.contains('dark');
 
 const loadCountryChart = async () =>{
   const worldData = countriesData;
-  const countries = topojson.feature(worldData,worldData.objects.countries).features;
+  const countries = (topojson.feature(worldData as any,worldData.objects.countries as any) as any).features;
   
   const countryMap = new Map<string, number>();
   for (const item of listData.value) {
@@ -1357,7 +1357,7 @@ const loadCountryChart = async () =>{
     countryMap.set(countryCode, (countryMap.get(countryCode) || 0) + value);
   }
 
-  let points = [];
+  let points:any[] = [];
   Array.from(countryMap.entries()).map(([countryCode, countryValue]) => {
     
     let countryData = countryCodes.find(c => c.alpha2 === countryCode);
@@ -1421,7 +1421,7 @@ const loadCountryChart = async () =>{
         },
         tooltip: {
           callbacks: {
-            label(context) {
+            label(context:any) {
               return `${context.raw.name}: ${numberToGerman(context.raw.value)}`;
             },
           },
@@ -1438,8 +1438,8 @@ const loadCountryChart = async () =>{
         },
       },
     },
-  });
-  
+  } as any);
+
 }
 
 onMounted( async() => {
@@ -1451,7 +1451,7 @@ onMounted( async() => {
   isLoadingAssetChart.value = false;
   console.log("list konto",listData);
 
-  const settings = await storage.getItem('local:settings');
+  const settings:any = await storage.getItem('local:settings');
   if(settings){
     isinLink.value = settings.isin_link;
     

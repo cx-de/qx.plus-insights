@@ -26,19 +26,19 @@ describe('sendSupportMessage', () => {
     const result: any = await sendSupportMessage(new FormData());
 
     expect(result).toEqual({ ok: true, reference: 'QX-261008-ABCD', errors: {} });
-    expect(String(spy.mock.calls[0][0])).toMatch(/\/support\/extension$/);
-    expect(String(spy.mock.calls[0][0])).not.toContain('/feed/');
+    expect(String(spy.mock.calls[0]![0])).toMatch(/\/support\/extension$/);
+    expect(String(spy.mock.calls[0]![0])).not.toContain('/feed/');
   });
 
   it('sends the API key only when one is saved', async () => {
     const spy = stubFetch(async () => json({ status: '1', responseValue: { reference: 'R' } }));
 
     await sendSupportMessage(new FormData());
-    expect(spy.mock.calls[0][1].headers['X-Api-Key']).toBeUndefined();
+    expect(spy.mock.calls[0]![1].headers['X-Api-Key']).toBeUndefined();
 
     apiKey.value = 'qxp_secret';
     await sendSupportMessage(new FormData());
-    expect(spy.mock.calls[1][1].headers['X-Api-Key']).toBe('qxp_secret');
+    expect(spy.mock.calls[1]![1].headers['X-Api-Key']).toBe('qxp_secret');
   });
 
   it('drops a key that is latched as failed', async () => {
@@ -47,7 +47,7 @@ describe('sendSupportMessage', () => {
     apiKey.value = 'qxp_dead';
     apiAuthFailed.value = true;
     await sendSupportMessage(new FormData());
-    expect(spy.mock.calls[0][1].headers['X-Api-Key']).toBeUndefined();
+    expect(spy.mock.calls[0]![1].headers['X-Api-Key']).toBeUndefined();
   });
 
   it('passes validation errors and status through', async () => {

@@ -782,7 +782,7 @@
                                         :props="{
                                           row: { 
                                             original: item,
-                                            getValue: (columnId) => item.original[columnId],
+                                            getValue: (columnId:any) => item.original[columnId],
                                             getIsSelected: () => false
                                           },
                                           column,
@@ -817,7 +817,7 @@
                       <!-- Footer -->
                       <TableFooter v-if="!isLoading && table.getRowModel().rows?.length>0 && listTotal && Object.keys(listTotal).length" class="sticky bottom-0 z-5">
                         <tr v-if="isFilterActive" class="filtered-total-row">
-                          <template v-for="header in table.getHeaderGroups()[0].headers"
+                          <template v-for="header in table.getHeaderGroups()[0]!.headers"
                             :key="'filteredFoot'+header.id">
                             <TableCell :class="cellClass(header.id)" :style="stickyStyle(header.id)">
                               <template v-if="TOTAL_COLUMNS.includes(header.id)">
@@ -831,7 +831,7 @@
                           </template>
                         </tr>
                         <tr class="total-row sticky bottom-0">
-                          <template v-for="header in table.getHeaderGroups()[0].headers"
+                          <template v-for="header in table.getHeaderGroups()[0]!.headers"
                             :key="'foot'+header.id">
 
                             <TableCell :class="cellClass(header.id)" :style="stickyStyle(header.id)">
@@ -1153,7 +1153,7 @@ const safeJsonGet = <T,>(key: string, fallback: T): T => {
   }
 };
 
-const onDragEnd = (event) => {
+const onDragEnd = (event:any) => {
   const { oldIndex, newIndex } = event
 
   if (oldIndex === newIndex) return // No change, exit
@@ -1166,7 +1166,7 @@ const onDragEnd = (event) => {
     
   //Reorder the visible columns
   const movedColumn = visibleColumns.splice(oldIndex, 1)[0] // Remove dragged column
-  visibleColumns.splice(newIndex, 0, movedColumn) // Insert at new position
+  visibleColumns.splice(newIndex, 0, movedColumn!) // Insert at new position
 
 
   //Update Full Column Order
@@ -1176,8 +1176,8 @@ const onDragEnd = (event) => {
 
 const nonDraggableColumns = ['select', 'actions']
 
-function onMoveColumn(evt) {
-  const draggedColumnId = columnOrder.value[evt.draggedContext.index]
+function onMoveColumn(evt:any) {
+  const draggedColumnId = columnOrder.value[evt.draggedContext.index]!
   const targetIndex = evt.relatedContext?.index
   // slot 0 belongs to the pinned select column
   if (targetIndex === 0) return false
@@ -1192,9 +1192,9 @@ const saveColumnVisibility = () => {
   localStorage.setItem('columnOrder', JSON.stringify(columnOrder.value));
 };
 
-const rowSelection = ref({})
+const rowSelection = ref<any>({})
 
-const toggleColumn = (colId, isVisible) => {
+const toggleColumn = (colId:any, isVisible:any) => {
   if (isVisible) {
     columnOrder.value.push(colId);
   } else {
@@ -1239,7 +1239,7 @@ const menuSections = computed(() => [
 
 
 const brokerOptions = computed(() => {
-  const set = new Set()
+  const set = new Set<any>()
   const column = table?.getColumn('broker')
   if (column?.getFacetedUniqueValues) {
     column.getFacetedUniqueValues().forEach((_count, value) => {
@@ -1271,7 +1271,7 @@ watch(accountsVersion, async () => {
 });
 
 const typeOptions = computed(() => {
-  const set = new Set()
+  const set = new Set<any>()
   const column = table?.getColumn('type')
   if (column?.getFacetedUniqueValues) {
     column.getFacetedUniqueValues().forEach((_count, value) => {
@@ -1284,7 +1284,7 @@ const typeOptions = computed(() => {
 });
 
 const issuerOptions = computed(() => {
-  const set = new Set()
+  const set = new Set<any>()
   const column = table?.getColumn('issuer')
   if (column?.getFacetedUniqueValues) {
     column.getFacetedUniqueValues().forEach((_count, value) => {
@@ -1299,7 +1299,7 @@ const issuerOptions = computed(() => {
 // Must match getRowId exactly: rowSelection is keyed by whatever that returns.
 const tableRowKey = (row:any) => row?.isGroup ? row.id : accountRowKey(row);
 
-const groupAwareRowFilter = (row, columnId, filterValues) => {
+const groupAwareRowFilter = (row:any, columnId:any, filterValues:any) => {
   const original = row.original
   if (!filterValues?.length) return true
 
@@ -1318,7 +1318,7 @@ const groupAwareRowFilter = (row, columnId, filterValues) => {
 const isStocksOwnedVisible = (item: any) =>
   item?.stock_name === 'Cash' || !!Number(item?.stocks_owned)
 
-const hideZeroStocksFilter = (row, _columnId, filterValues) => {
+const hideZeroStocksFilter = (row:any, _columnId:any, filterValues:any) => {
   if (!filterValues?.length) return true
   if (!filterValues.includes('hideZero')) return true
 
@@ -1329,31 +1329,31 @@ const hideZeroStocksFilter = (row, _columnId, filterValues) => {
   return isStocksOwnedVisible(original)
 }
 
-function visibleSubRows(row) {
+function visibleSubRows(row:any) {
   const subRows = row?.subRows ?? []
   const isHidingZero = columnFilters.value.some(
     f => f.id === 'stocks_owned' && Array.isArray(f.value) && f.value.includes('hideZero')
   )
   if (!isHidingZero) return subRows
-  return subRows.filter(sub => isStocksOwnedVisible(sub?.original))
+  return subRows.filter((sub:any) => isStocksOwnedVisible(sub?.original))
 }
 
 
-const allColumns = {
+const allColumns:any = {
   select: {
     id: 'select',
     enableSorting: false,
     enableHiding: false,
-    header: ({ table }) =>
+    header: ({ table }:any) =>
       h(Checkbox, {
         'modelValue': table.getIsAllPageRowsSelected(),
-        'onUpdate:modelValue': (value: boolean) => table.toggleAllPageRowsSelected(!!value),
+        'onUpdate:modelValue': (value: any) => table.toggleAllPageRowsSelected(!!value),
         'ariaLabel': t('select_all'),
       }),
-    cell: ({ row }) =>
+    cell: ({ row }:any) =>
       h(Checkbox, {
         'modelValue': row.original.depth ? row.original.getIsSelected() : row.getIsSelected(),
-        'onUpdate:modelValue': (value: boolean) => {
+        'onUpdate:modelValue': (value: any) => {
           if(row.original.depth){
             row.original.toggleSelected(!!value);
           }else{
@@ -1366,19 +1366,19 @@ const allColumns = {
   
   account: {
     id: 'account',
-    accessorFn: (row) => accountKeyOf(row),
+    accessorFn: (row:any) => accountKeyOf(row),
     defaultVisible: false,
-    cell: (info) => accountLabel(info.row.original.broker, info.row.original.account_id),
+    cell: (info:any) => accountLabel(info.row.original.broker, info.row.original.account_id),
     // No faceted filter here on purpose: the toolbar AccountFilter is the single
     // control, and a second one would stack a separate filter on top of it.
-    header: ({ column }) => getSortingHeader(column, "account"),
+    header: ({ column }:any) => getSortingHeader(column, "account"),
   },
 
   broker: {
     accessorKey: 'broker',
     id: 'broker',
-    cell: (info) => info.getValue(),
-    header: ({ column }) =>
+    cell: (info:any) => info.getValue(),
+    header: ({ column }:any) =>
       h("div", { class: "flex items-center gap-2" }, [
         getSortingHeader(column, "broker"),
         h(DataTableFacetedFilter, {
@@ -1390,15 +1390,15 @@ const allColumns = {
     ]),
     filterFn: groupAwareRowFilter,
   },
-  stock_name: { accessorKey: 'stock_name', id: 'stock_name', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'stock_name') },
+  stock_name: { accessorKey: 'stock_name', id: 'stock_name', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'stock_name') },
   
-  isin: { accessorKey: 'isin', id: 'isin', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'isin') },
-  wkn: { accessorKey: 'wkn', id: 'wkn', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'wkn') },
+  isin: { accessorKey: 'isin', id: 'isin', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'isin') },
+  wkn: { accessorKey: 'wkn', id: 'wkn', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'wkn') },
   
   type: { 
     accessorKey: 'type', id: 'type', 
-    cell: (info) => info.getValue(), 
-    header: ({ column }) =>
+    cell: (info:any) => info.getValue(), 
+    header: ({ column }:any) =>
       h("div", { class: "flex items-center gap-2" }, [
         getSortingHeader(column, "type"),
         h(DataTableFacetedFilter, {
@@ -1414,8 +1414,8 @@ const allColumns = {
   stocks_owned: {
     accessorKey: 'stocks_owned',
     id: 'stocks_owned',
-    cell: (info) => info.getValue(),
-    header: ({ column }) =>
+    cell: (info:any) => info.getValue(),
+    header: ({ column }:any) =>
       h("div", { class: "flex items-center gap-2" }, [
         getSortingHeader(column, "stocks_owned"),
         h(DataTableFacetedFilter, {
@@ -1425,19 +1425,19 @@ const allColumns = {
       ]),
     filterFn: hideZeroStocksFilter,
   },
-  buy_price: { accessorKey: 'buy_price', id: 'buy_price', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'buy_price') },
-  purchase_date: { accessorKey: 'purchase_date', id: 'purchase_date', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'purchase_date') },
-  days_since_purchase: { accessorKey: 'days_since_purchase', id: 'days_since_purchase', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'days_since_purchase') },
-  yield_pa_since_purchase: { accessorKey: 'yield_pa_since_purchase', id: 'yield_pa_since_purchase', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'yield_pa_since_purchase') },
-  total_entry_value: { accessorKey: 'total_entry_value', id: 'total_entry_value', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'total_entry_value') },
-  profit_loss_price: { accessorKey: 'profit_loss_price', id: 'profit_loss_price', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'profit_loss_price')  },
-  profit_loss_percentage: { accessorKey: 'profit_loss_percentage', id: 'profit_loss_percentage', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'profit_loss_percentage') },
-  profit_loss_target_per_day: { accessorKey: 'profit_loss_target_per_day', id: 'profit_loss_target_per_day', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'profit_loss_target_per_day') },
+  buy_price: { accessorKey: 'buy_price', id: 'buy_price', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'buy_price') },
+  purchase_date: { accessorKey: 'purchase_date', id: 'purchase_date', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'purchase_date') },
+  days_since_purchase: { accessorKey: 'days_since_purchase', id: 'days_since_purchase', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'days_since_purchase') },
+  yield_pa_since_purchase: { accessorKey: 'yield_pa_since_purchase', id: 'yield_pa_since_purchase', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'yield_pa_since_purchase') },
+  total_entry_value: { accessorKey: 'total_entry_value', id: 'total_entry_value', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'total_entry_value') },
+  profit_loss_price: { accessorKey: 'profit_loss_price', id: 'profit_loss_price', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'profit_loss_price')  },
+  profit_loss_percentage: { accessorKey: 'profit_loss_percentage', id: 'profit_loss_percentage', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'profit_loss_percentage') },
+  profit_loss_target_per_day: { accessorKey: 'profit_loss_target_per_day', id: 'profit_loss_target_per_day', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'profit_loss_target_per_day') },
 
   issuer: { 
     accessorKey: 'issuer', id: 'issuer', 
-    cell: (info) => info.getValue(), 
-    header: ({ column }) =>
+    cell: (info:any) => info.getValue(), 
+    header: ({ column }:any) =>
       h("div", { class: "flex items-center gap-2" }, [
         getSortingHeader(column, "issuer"),
         h(DataTableFacetedFilter, {
@@ -1450,55 +1450,55 @@ const allColumns = {
     filterFn: groupAwareRowFilter,
   },
   
-  bid: { accessorKey: 'bid', id: 'bid', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'bid_price')  },
-  ask: { accessorKey: 'ask', id: 'ask', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'ask_price')  },
-  timestamp: { accessorKey: 'timestamp', id: 'timestamp', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'timestamp') },
-  total_value: { accessorKey: 'total_value', id: 'total_value', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'total_value')  },
+  bid: { accessorKey: 'bid', id: 'bid', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'bid_price')  },
+  ask: { accessorKey: 'ask', id: 'ask', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'ask_price')  },
+  timestamp: { accessorKey: 'timestamp', id: 'timestamp', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'timestamp') },
+  total_value: { accessorKey: 'total_value', id: 'total_value', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'total_value')  },
   
-  future_total_value: { accessorKey: 'future_total_value', id: 'future_total_value', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'future_total_value')  },
-  underlying_isin: { accessorKey: 'underlying_isin', id: 'underlying_isin', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'underlying')  },
-  underlying_name: { accessorKey: 'underlying_name', id: 'underlying_name', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'underlying_name')  },
-  underlying_price: { accessorKey: 'underlying_price', id: 'underlying_price', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'underlying_price')  },
-  underlying_timestamp: { accessorKey: 'underlying_timestamp', id: 'underlying_timestamp', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'timestamp_underlying')  },
+  future_total_value: { accessorKey: 'future_total_value', id: 'future_total_value', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'future_total_value')  },
+  underlying_isin: { accessorKey: 'underlying_isin', id: 'underlying_isin', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'underlying')  },
+  underlying_name: { accessorKey: 'underlying_name', id: 'underlying_name', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'underlying_name')  },
+  underlying_price: { accessorKey: 'underlying_price', id: 'underlying_price', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'underlying_price')  },
+  underlying_timestamp: { accessorKey: 'underlying_timestamp', id: 'underlying_timestamp', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'timestamp_underlying')  },
   
-  settlement: { accessorKey: 'settlement', id: 'settlement', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'settlement')  },
-  quanto2: { accessorKey: 'quanto2', id: 'quanto2', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'quanto')  },
-  ratio: { accessorKey: 'ratio', id: 'ratio', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'ratio') },
+  settlement: { accessorKey: 'settlement', id: 'settlement', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'settlement')  },
+  quanto2: { accessorKey: 'quanto2', id: 'quanto2', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'quanto')  },
+  ratio: { accessorKey: 'ratio', id: 'ratio', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'ratio') },
   
-  cap_strike: { accessorKey: 'cap_strike', id: 'cap_strike', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'cap_strike')  },
-  cap_disco_os: { accessorKey: 'cap_disco_os', id: 'cap_disco_os', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'cap_disco_os')  },
-  profit_loss_target: { accessorKey: 'profit_loss_target', id: 'profit_loss_target', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'profit_loss_target')  },
-  profit_loss_target_pa: { accessorKey: 'profit_loss_target_pa', id: 'profit_loss_target_pa', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'profit_loss_target_pa')  },
-  distance_to_the_cap: { accessorKey: 'distance_to_the_cap', id: 'distance_to_the_cap', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'distance_to_the_cap') },
-  position_percentage: { accessorKey: 'position_percentage', id: 'position_percentage', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'position_percentage') },
-  position_target_percentage: { accessorKey: 'position_target_percentage', id: 'position_target_percentage', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'position_target_percentage') },
-  notes: { accessorKey: 'notes', id: 'notes', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'notes') },
-  currency_rate: { accessorKey: 'currency_rate', id: 'currency_rate', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'currency_rate') },
+  cap_strike: { accessorKey: 'cap_strike', id: 'cap_strike', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'cap_strike')  },
+  cap_disco_os: { accessorKey: 'cap_disco_os', id: 'cap_disco_os', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'cap_disco_os')  },
+  profit_loss_target: { accessorKey: 'profit_loss_target', id: 'profit_loss_target', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'profit_loss_target')  },
+  profit_loss_target_pa: { accessorKey: 'profit_loss_target_pa', id: 'profit_loss_target_pa', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'profit_loss_target_pa')  },
+  distance_to_the_cap: { accessorKey: 'distance_to_the_cap', id: 'distance_to_the_cap', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'distance_to_the_cap') },
+  position_percentage: { accessorKey: 'position_percentage', id: 'position_percentage', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'position_percentage') },
+  position_target_percentage: { accessorKey: 'position_target_percentage', id: 'position_target_percentage', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'position_target_percentage') },
+  notes: { accessorKey: 'notes', id: 'notes', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'notes') },
+  currency_rate: { accessorKey: 'currency_rate', id: 'currency_rate', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'currency_rate') },
 
-  valuation_date: { accessorKey: 'valuation_date', id: 'valuation_date', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'valuation_date') },
-  sideways_return: { accessorKey: 'sideways_return', id: 'sideways_return', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'sideways_return')  },
-  sideways_return_pa: { accessorKey: 'sideways_return_pa', id: 'sideways_return_pa', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'sideways_return_pa') },
-  pe_ratio: { accessorKey: 'pe_ratio', id: 'pe_ratio', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'pe_ratio')  },
-  dividend_yield: { accessorKey: 'dividend_yield', id: 'dividend_yield', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'dividend_yield')  },
-  market_cap: { accessorKey: 'market_cap', id: 'market_cap', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'market_cap')  },
-  barrier_knockout: { accessorKey: 'barrier_knockout', id: 'barrier_knockout', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'barrier_knockout') },
-  bonus_level: { accessorKey: 'bonus_level', id: 'bonus_level', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'bonus_level') },
-  coupon: { accessorKey: 'coupon', id: 'coupon', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'coupon') },
+  valuation_date: { accessorKey: 'valuation_date', id: 'valuation_date', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'valuation_date') },
+  sideways_return: { accessorKey: 'sideways_return', id: 'sideways_return', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'sideways_return')  },
+  sideways_return_pa: { accessorKey: 'sideways_return_pa', id: 'sideways_return_pa', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'sideways_return_pa') },
+  pe_ratio: { accessorKey: 'pe_ratio', id: 'pe_ratio', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'pe_ratio')  },
+  dividend_yield: { accessorKey: 'dividend_yield', id: 'dividend_yield', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'dividend_yield')  },
+  market_cap: { accessorKey: 'market_cap', id: 'market_cap', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'market_cap')  },
+  barrier_knockout: { accessorKey: 'barrier_knockout', id: 'barrier_knockout', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'barrier_knockout') },
+  bonus_level: { accessorKey: 'bonus_level', id: 'bonus_level', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'bonus_level') },
+  coupon: { accessorKey: 'coupon', id: 'coupon', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'coupon') },
   
-  omega: { accessorKey: 'omega', id: 'omega', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'omega') },
-  theta: { accessorKey: 'theta', id: 'theta', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'theta') },
-  vega: { accessorKey: 'vega', id: 'vega', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'vega')  },
+  omega: { accessorKey: 'omega', id: 'omega', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'omega') },
+  theta: { accessorKey: 'theta', id: 'theta', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'theta') },
+  vega: { accessorKey: 'vega', id: 'vega', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'vega')  },
 
-  peer_members: { accessorKey: 'peer_members', id: 'peer_members', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'peer_members')  },
-  implied_volatility: { accessorKey: 'implied_volatility', id: 'implied_volatility', cell: (info) => info.getValue(), header: ({ column }) => getSortingHeader(column, 'implied_volatility')  },
+  peer_members: { accessorKey: 'peer_members', id: 'peer_members', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'peer_members')  },
+  implied_volatility: { accessorKey: 'implied_volatility', id: 'implied_volatility', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'implied_volatility')  },
   
 }
 
 
-const sorting = ref([
+const sorting = ref<any[]>([
 ])
 
-const setSorting = (sortingUpdater) => {
+const setSorting = (sortingUpdater:any) => {
   const newSortVal = sortingUpdater(sorting.value)
   sorting.value = newSortVal;
   // save sort state
@@ -1575,7 +1575,7 @@ const columns = computed(() => columnOrder.value.map(colId => allColumns[colId])
 
 const expanded = ref(safeJsonGet<Record<string, boolean>>('tableExpanded', {}));
 let isFirstLoad = false;
-function setExpanded(updater) {
+function setExpanded(updater:any) {
   if(isFirstLoad && updater){
     valueUpdater(updater, expanded); // your helper
     localStorage.setItem('tableExpanded', JSON.stringify(expanded.value));
@@ -1636,7 +1636,7 @@ const newFilteredData = computed(() => {
       }
 
       //Handle groups
-      const matchedItems = entry.items.filter(item =>
+      const matchedItems = entry.items.filter((item:any) =>
         searchableColumns.some(col =>
           String(item[col] || '').toLowerCase().includes(term)
         )
@@ -1656,8 +1656,8 @@ const newFilteredData = computed(() => {
 
 
 const columnFilters = ref<ColumnFiltersState>([])
-const mainListData = ref([]);
-const listData = ref([]);
+const mainListData = ref<any[]>([]);
+const listData = ref<any[]>([]);
 
 // Saves the list (groups, notes, targets) so it survives a reload.
 const persistListData = async () => {
@@ -1693,7 +1693,7 @@ const table = useVueTable({
   getRowId: row => tableRowKey(row),
   getExpandedRowModel: getExpandedRowModel(),
   autoResetExpanded: false,
-  getRowCanExpand: row => !!row.items || row.original.isGroup,
+  getRowCanExpand: (row:any) => !!row.items || row.original.isGroup,
   getSubRows: row => row.isGroup ? row.items : [],
   debugTable: false,
 
@@ -1709,9 +1709,9 @@ const parseGermanNumber = (value: string | number): number => {
 }
 
 const groupName = ref('');
-const currentRow = ref(null);
-const selectedGroup = ref(null);
-const selectedProducts = ref([]);
+const currentRow = ref<any>(null);
+const selectedGroup = ref<any>(null);
+const selectedProducts = ref<any[]>([]);
 
 watch(rowSelection, (newVal) => {
   const selectedIds = new Set(Object.keys(newVal));
@@ -1724,7 +1724,7 @@ watch(rowSelection, (newVal) => {
 
     //items
     if (item.items?.length) {
-      item.items.filter(sub =>{
+      item.items.filter((sub:any) =>{
         if(selectedIds.has(tableRowKey(sub))){
           selectedProducts.value.push(sub);
         }
@@ -1785,7 +1785,7 @@ const combineRows = async () => {
         if (item.items?.length) {
           item = { ...item,
             items: item.items.filter(
-              sub => !selectedProducts.value.some(p => accountRowKey(p) === accountRowKey(sub)))
+              (sub:any) => !selectedProducts.value.some(p => accountRowKey(p) === accountRowKey(sub)))
           };
         }
 
@@ -1826,7 +1826,7 @@ const combineRows = async () => {
       
       if (item.items?.length) {
         const remainingItems = item.items.filter(
-          sub => !selectedProducts.value.some(p => accountRowKey(p) === accountRowKey(sub)) 
+          (sub:any) => !selectedProducts.value.some(p => accountRowKey(p) === accountRowKey(sub)) 
         );
         return remainingItems.length > 0 ? { ...item, items: remainingItems } : null;
       }
@@ -1847,8 +1847,8 @@ const combineRows = async () => {
 }
 
 const editGroupId = ref(0);
-const editGroupName = ref(0);
-const editGroup = (groupId)=>{
+const editGroupName = ref<any>(0);
+const editGroup = (groupId:any)=>{
   editGroupId.value = groupId;
   const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
   if (groupIndex === -1) {
@@ -1862,7 +1862,7 @@ const editGroup = (groupId)=>{
   }
 }
 
-const updateGroup = async (groupId) => {
+const updateGroup = async (groupId:any) => {
   
   // Find the group by the groupId
   const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
@@ -1883,7 +1883,7 @@ const updateGroup = async (groupId) => {
 };
 
 
-const removeGroup = async (groupId) => {
+const removeGroup = async (groupId:any) => {
   
   // Find the group by the groupId
   const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
@@ -1911,7 +1911,7 @@ const removeGroup = async (groupId) => {
 };
 
 
-const removeItemFromGroup = async (groupId, itemId) => {
+const removeItemFromGroup = async (groupId:any, itemId:any) => {
   const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
   if (groupIndex === -1) {
     notifyError(MSG_GROUP_NOT_FOUND);
@@ -1919,7 +1919,7 @@ const removeItemFromGroup = async (groupId, itemId) => {
   }
 
   const group = listData.value[groupIndex];
-  const itemIndex = group.items.findIndex(item => item.id === itemId);
+  const itemIndex = group.items.findIndex((item:any) => item.id === itemId);
   if (itemIndex === -1) {
     notifyError(MSG_ITEM_NOT_FOUND_IN_GROUP);
     return;
@@ -1946,7 +1946,7 @@ const removeItemFromGroup = async (groupId, itemId) => {
 };
 
 
-const formatGermanNumber = (num) => numberToGerman(num, false, 2);;
+const formatGermanNumber = (num:any) => numberToGerman(num, false, 2);;
 
 // Cache overall total once for dependent calculations
 const overallTotalValue = computed(() => {
@@ -2039,7 +2039,7 @@ const emptyGroupTotals = () => ({
 });
 
 // Unfiltered on purpose: alerts must fire on the real portfolio, not on the current view.
-const getGroupTotals = (groupId) => {
+const getGroupTotals = (groupId:any) => {
   return groupTotalsMap.value[groupId] || emptyGroupTotals();
 };
 
@@ -2092,7 +2092,7 @@ const scopedPositionPercentage = (row:any) => {
 };
 
 
-const listTotal = ref({});
+const listTotal = ref<any>({});
 // "Total" used to sit only in the broker column, so it vanished whenever broker was hidden
 const footerLabelColumn = computed(() => columnOrder.value.find((id: string) => id !== 'select'));
 const TOTAL_COLUMNS = [
@@ -2106,7 +2106,7 @@ const TOTAL_COLUMNS = [
 function sumTotals(rows:any) {
   const totals:any = {};
   for (const key of TOTAL_COLUMNS) {
-    totals[key] = rows.reduce((sum, row) => {
+    totals[key] = rows.reduce((sum:any, row:any) => {
       let value = parseFloat(row[key]);
       return sum + (isNaN(value) ? 0 : value);
     }, 0);
@@ -2148,7 +2148,7 @@ const filteredTotal = computed(() => sumTotals(filteredLeafRows.value));
 
 
 // No hover override: gray-300 hover with black text broke dark mode; ghost variant already has a themed hover
-const getSortingHeader = (column, label) => sortableHeader(column, t(label));
+const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label));
 
 
 const controllers: AbortController[] = [];
@@ -2164,14 +2164,14 @@ const getProductData = async (forceUpdate = false) => {
   mainListData.value = await storage.getItem('local:MAIN_LIST') || [];
 
   const today = todayIso();
-  const shouldInclude = (item) => forceUpdate || item.lastUpdated !== today;
+  const shouldInclude = (item:any) => forceUpdate || item.lastUpdated !== today;
   // Deduped: the same holding in two accounts is two rows but one product to fetch.
   const stockItems = [...new Set(mainListData.value.filter(item => item.type === 'stock' && shouldInclude(item)).map(item => item.wkn).filter(Boolean))];
   const otherItems = [...new Set(mainListData.value.filter(item => item.type !== 'stock' && shouldInclude(item)).map(item => item.isin).filter(Boolean))];
 
   const wknChunks = chunkArray(stockItems, chunkSize);
   const isinChunks = chunkArray(otherItems, chunkSize);
-  let allApiData = [];
+  let allApiData:any[] = [];
   // Only codes the API answered get today's stamp; a failed or rate-limited chunk must retry today.
   const answered = new Set();
 
@@ -2297,7 +2297,7 @@ const reloadPriceData = async(forceUpdate=false) =>{
           // Second key is the combined row's: price is per product, so a child's move is its move.
           const combinedKey = accountPositionKey({ ...(item as any), account_id: '', deposite_number: '' });
           document.querySelectorAll(`[data-position="${accountPositionKey(item)}"][data-field="${key}"], [data-position="${combinedKey}"][data-field="${key}"]`)
-            .forEach((rowEl) => {
+            .forEach((rowEl:any) => {
               rowEl.classList.remove('up', 'down');
               void rowEl.offsetWidth; // ✅ Force reflow to restart animation
               rowEl.classList.add(newValue > oldValue ? 'up' : 'down');
@@ -2333,7 +2333,7 @@ const getPeerProductData = async () => {
 
   const allApiData: Record<string, any> = {};
 
-  const fetchPeers = async (wkn) => {
+  const fetchPeers = async (wkn:any) => {
     try {
       const url = `${apiBaseUrl}peers?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wkn)}`;
       const apiData = await fetchFeed(url, controller.signal);
@@ -2388,7 +2388,7 @@ const getPeerProductData = async () => {
   }
 };
 
-const getNestedValue = (obj, path) => {
+const getNestedValue = (obj:any, path:any) => {
   if (!path || typeof path !== 'string') return undefined; // Ensure path is valid
   if (!path.includes('.')) return obj[path]; // Return flat property
   return path.split('.').reduce((acc, part) => acc && acc[part], obj);
@@ -2429,7 +2429,7 @@ const rowsToExport = () => {
 };
 
 // Cell value as it should appear in a file: peers joined, amounts rounded to 2 decimals.
-const exportCellValue = (row, col) => {
+const exportCellValue = (row:any, col:any) => {
   const value = getNestedValue(row, col.accessorKey || col.id);
   if (col.accessorKey === 'peer_members') return value != null ? value.join(',') : '';
   if (amountFields.includes(col.accessorKey)) return value != null ? Number(parseFloat(value).toFixed(2)) : '';
@@ -2452,7 +2452,7 @@ const exportXlsx = () => {
   const activeColumns = columns.value.filter(col => !['select', 'id', 'actions'].includes(col.id));
 
   const exportData = rowsToExport().map(row => {
-    const newRow = {};
+    const newRow:any = {};
     activeColumns.forEach(col => {
       newRow[col.id] = exportCellValue(row, col);
     });
@@ -2601,7 +2601,7 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
 
 //listData
 const getLatestListData = async() =>{
-  const currentListData = await storage.getItem('local:LIST_DATA');
+  const currentListData = await storage.getItem<any>('local:LIST_DATA');
   if(currentListData){
     listData.value = currentListData;
   }
@@ -2613,7 +2613,7 @@ const getLatestListData = async() =>{
     currentData.push(...newStockData.map(stock => ({...stock, isGroup: false})));
   }else{
     // Shared with MAIN_LIST so the two stores can never disagree about identity.
-    const getKey = (item) => accountPositionKey(item);
+    const getKey = (item:any) => accountPositionKey(item);
     const newWknSet = new Set(newStockData.map(stock => getKey(stock)));
 
     // Indexed once up front; findIndex per stock was O(n²) with a key rebuild on every compare. First match wins, as before.
@@ -2621,7 +2621,7 @@ const getLatestListData = async() =>{
     const topIndex = new Map();
     currentData.forEach((entry, i) => {
       if (entry.isGroup && Array.isArray(entry.items)) {
-        entry.items.forEach((item, j) => {
+        entry.items.forEach((item:any, j:any) => {
           const key = getKey(item);
           if (!groupIndex.has(key)) groupIndex.set(key, { group: entry, itemIndex: j });
         });
@@ -2659,7 +2659,7 @@ const getLatestListData = async() =>{
       const entry = currentData[i];
 
       if (entry.isGroup && Array.isArray(entry.items)) {
-        entry.items = entry.items.filter(item => newWknSet.has(getKey(item)));
+        entry.items = entry.items.filter((item:any) => newWknSet.has(getKey(item)));
         // Optionally remove empty groups
         if (entry.items.length === 0) {
           currentData.splice(i, 1);
@@ -2676,11 +2676,11 @@ const getLatestListData = async() =>{
   await storage.setItem('local:LIST_DATA',clonedData);
 }
 
-const formattedWKNLink = (wkn) =>{
+const formattedWKNLink = (wkn:any) =>{
   return wknLink.value.replace('$WKN', wkn);
 }
 
-const formattedISINLink = (isin) =>{
+const formattedISINLink = (isin:any) =>{
   return isinLink.value.replace('$ISIN', isin);
 }
 
@@ -2708,7 +2708,7 @@ const hlExtremes = computed(() => {
   return map;
 });
 
-function getClassForHL(field, currentValue) {
+function getClassForHL(field:any, currentValue:any) {
   const extremes = hlExtremes.value[field];
   if (!extremes) return '';
 
@@ -2727,7 +2727,7 @@ function getClassForHL(field, currentValue) {
 }
 
 // undefined, not '', so Vue drops the title attribute on unmarked cells.
-function getTitleForHL(field, currentValue) {
+function getTitleForHL(field:any, currentValue:any) {
   const hl = getClassForHL(field, currentValue);
   return hl ? t(hl === 'high' ? 'column_highest' : 'column_lowest') : undefined;
 }
@@ -2754,7 +2754,7 @@ const alertsByKey = computed(() => {
   return map;
 });
 
-function getClassForAlert(field, row) {
+function getClassForAlert(field:any, row:any) {
   const matchingAlerts = (alertsByKey.value.get(`${field}|${row?.wkn}`) || []).filter(
     (a:any) => alertMatchesRow(a, row)
   );
@@ -2780,7 +2780,7 @@ function getClassForAlert(field, row) {
     }
   }
 
-  const classes = [];
+  const classes:any[] = [];
   if (topColor) classes.push('alert_top', topColor);
   if (bottomColor) classes.push('alert_bottom', bottomColor);
   if (matchingAlerts.length > 1) classes.push('alert_bg','bg-green-200');
@@ -2790,7 +2790,7 @@ function getClassForAlert(field, row) {
 
 
 /* Alert */
-const alertForm = reactive({
+const alertForm = reactive<any>({
   alert_name:'',
   type:'',
   type_id:'',
@@ -2802,7 +2802,7 @@ const alertForm = reactive({
 });
 
 
-const CONDITION_KEYS = {
+const CONDITION_KEYS:any = {
   '>=': 'condition_gte',
   '>': 'condition_gt',
   '<=': 'condition_lte',
@@ -2815,10 +2815,10 @@ const conditionOptions = computed(() => Object.keys(CONDITION_KEYS)
   .map((value) => ({ value, label: conditionLabel(value) })));
 
 const isAlertModal = ref(false);
-const selectedItem = ref(null);
+const selectedItem = ref<any>(null);
 const isOpenAlertList = ref(false);
 const alertType = ref('stock'); // stock, total, group
-const fieldOptions = ref([]);
+const fieldOptions = ref<any[]>([]);
 
 function setAlertFields(){
   if(alertType.value=='stock'){
@@ -2853,7 +2853,7 @@ function setAlertFields(){
 
 }
 
-function openModal(item, type='stock') {
+function openModal(item:any, type='stock') {
   selectedItem.value = item;
   if(selectedItem.value?.wkn){
     resetAlertForm();
@@ -2894,7 +2894,7 @@ const clearRowSelecttion = ()=>{
   selectedGroup.value = '';
 }
 
-const onAlertFieldChange = (event) =>{
+const onAlertFieldChange = (event:any) =>{
   const raw = selectedItem.value?.[alertForm.field];
   const parsed = raw == null ? NaN : Number(raw);
   if (Number.isFinite(parsed)) {
@@ -2902,14 +2902,14 @@ const onAlertFieldChange = (event) =>{
   }
 }
 
-const alerts = ref([]);
+const alerts = ref<any[]>([]);
 async function saveAlerts() {
   await storage.setItem('local:ALERTS', JSON.parse(JSON.stringify(alerts.value)))
 }
 
 // Load alerts from local storage
 async function loadAlerts() {
-  const saved = await storage.getItem('local:ALERTS')
+  const saved = await storage.getItem<any>('local:ALERTS')
   if (saved) {
     alerts.value = saved
   }
@@ -2959,8 +2959,8 @@ async function createAlert() {
 }
 
 // Update an existing alert
-const selectedEditItem = ref(null);
-async function openEditAlert(id) {
+const selectedEditItem = ref<any>(null);
+async function openEditAlert(id:any) {
   isOpenAlertList.value = false;
   const idx = alerts.value.findIndex((a) => a.id === id)
   if (idx !== -1) {
@@ -2992,7 +2992,7 @@ async function openEditAlert(id) {
 }
 
 // Update an existing alert
-async function updateAlert(id) {
+async function updateAlert(id:any) {
   const updatedData = alertForm;
   const idx = alerts.value.findIndex((a) => a.id === id)
   if (idx !== -1) {
@@ -3134,7 +3134,7 @@ function isConditionSatisfied(current: number, condition: string, target: number
 
 // Keyed by position, not wkn: the same product in two accounts is two rows, and the
 // first match would take the other account's edit.
-const updatePositionTarget = async (row,target,groupId=null) => {
+const updatePositionTarget = async (row:any,target:any,groupId=null) => {
   const key = accountPositionKey(row);
 
   //main
@@ -3155,7 +3155,7 @@ const updatePositionTarget = async (row,target,groupId=null) => {
   if (groupId) {
     const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
     if (groupIndex !== -1) {
-      const subItemIndex = listData.value[groupIndex].items.findIndex(item => accountPositionKey(item) === key);
+      const subItemIndex = listData.value[groupIndex].items.findIndex((item:any) => accountPositionKey(item) === key);
       if (subItemIndex !== -1) {
         listData.value[groupIndex].items[subItemIndex].position_target_percentage = target;
         await persistListData();
@@ -3170,7 +3170,7 @@ const debounceUpdatePositionTarget = debounce((row, target, groupId = null) => {
 }, 500);
 
 
-const updateNotes = async (row,target,groupId=null) => {
+const updateNotes = async (row:any,target:any,groupId=null) => {
   const key = accountPositionKey(row);
 
   //main
@@ -3191,7 +3191,7 @@ const updateNotes = async (row,target,groupId=null) => {
   if (groupId) {
     const groupIndex = listData.value.findIndex(item => item.id === groupId && item.isGroup);
     if (groupIndex !== -1) {
-      const subItemIndex = listData.value[groupIndex].items.findIndex(item => accountPositionKey(item) === key);
+      const subItemIndex = listData.value[groupIndex].items.findIndex((item:any) => accountPositionKey(item) === key);
       if (subItemIndex !== -1) {
         listData.value[groupIndex].items[subItemIndex].notes = target;
         await persistListData();

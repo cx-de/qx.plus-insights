@@ -98,7 +98,7 @@
 
   const route = useRoute();
 
-  const checkActiveRoute = (item) => {
+  const checkActiveRoute = (item:any) => {
     return route.path === item.to || route.path === item;
   };
   
@@ -108,7 +108,7 @@
   
   
   const theme = ref(localStorage.getItem('theme') || 'light');
-  const setTheme = (themeName) => {
+  const setTheme = (themeName:any) => {
   
     if(themeName==="light"){
       document.documentElement.classList.remove('dark');
@@ -119,7 +119,7 @@
   
   setTheme(theme.value);
   const menuItems = computed(() => {
-    let items = [];
+    let items:any[] = [];
 
     items.push({ label: t('home'),
       items: [ {label: 'home', icon: Home, to: '/'},],

@@ -23,7 +23,7 @@ const PAYOUT_LAG_DAYS = 7;
 // Annualizing a few days of gain gives absurd rates (+5% in 2 days is +743.000% p.a.).
 const MIN_HOLD_DAYS_FOR_PA = 30;
 
-let cachedPriceUpdateDuration = null;
+let cachedPriceUpdateDuration:any = null;
 const getPriceUpdateDuration = async () => {
   if (cachedPriceUpdateDuration !== null) {
     return cachedPriceUpdateDuration;
@@ -31,7 +31,7 @@ const getPriceUpdateDuration = async () => {
   
   let priceUpdateDuration = 30;
   try {
-    const settings = await storage.getItem('local:settings');
+    const settings:any = await storage.getItem('local:settings');
     if (settings && settings.price_duration) {
       priceUpdateDuration = settings.price_duration;
     }
@@ -45,7 +45,7 @@ const getPriceUpdateDuration = async () => {
 
 export const reloadPriceData = async () => {
   if (isMarketClosed()) return;
-  let mainListData = await storage.getItem('local:MAIN_LIST') || [];
+  let mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
   const currentData = mainListData;
   try {
     await getPriceData();
@@ -98,7 +98,7 @@ export const getPriceData = async (forceUpdate = true) => {
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
 
-  let mainListData = await storage.getItem('local:MAIN_LIST') || [];
+  let mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
 
   let priceUpdateDuration = await getPriceUpdateDuration();
   const currentDatetime = new Date().toISOString();
@@ -114,12 +114,12 @@ export const getPriceData = async (forceUpdate = true) => {
 
   let allApiData: any[] = [];
   let failed = false;
-  const stockItems = mainListData.filter(item => item.type === 'stock' && item.isin && needsUpdate(item));
-  const otherItems = mainListData.filter(item => item.type !== 'stock' && item.wkn && needsUpdate(item));
+  const stockItems = mainListData.filter((item:any) => item.type === 'stock' && item.isin && needsUpdate(item));
+  const otherItems = mainListData.filter((item:any) => item.type !== 'stock' && item.wkn && needsUpdate(item));
 
   // Deduped: the same holding in two accounts is two rows but one product to price.
-  const isinChunks = chunkArray([...new Set(stockItems.map(item => item.isin))], globalPriceState.chunkSize);
-  const wknChunks = chunkArray([...new Set(otherItems.map(item => item.wkn))], globalPriceState.chunkSize);
+  const isinChunks = chunkArray([...new Set(stockItems.map((item:any) => item.isin))], globalPriceState.chunkSize);
+  const wknChunks = chunkArray([...new Set(otherItems.map((item:any) => item.wkn))], globalPriceState.chunkSize);
 
   try {
     for (const chunk of isinChunks) {
@@ -156,7 +156,7 @@ export const getPriceData = async (forceUpdate = true) => {
     const freshStamp = failed ? {} : { priceUpdatedAt: currentDatetime };
 
     // Merge price data into main list
-    mainListData = mainListData.map(item => {
+    mainListData = mainListData.map((item:any) => {
       const extraData = item.type === 'stock' ? stockApiMap[item.isin] : wknApiMap[item.wkn];
       
       if (extraData && typeof extraData === "object") {
@@ -197,7 +197,7 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
   
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
-  let mainListData = await storage.getItem('local:MAIN_LIST') || [];
+  let mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
 
   let priceUpdateDuration = await getPriceUpdateDuration();
   const currentDatetime = new Date().toISOString();
@@ -210,8 +210,8 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
     return now >= nextUpdateTime;
   };
 
-  const uisinList = [...new Set(mainListData.filter((item) => item.underlying_isin && needsUpdate(item))
-    .map(item => item.underlying_isin)
+  const uisinList = [...new Set(mainListData.filter((item:any) => item.underlying_isin && needsUpdate(item))
+    .map((item:any) => item.underlying_isin)
     .filter(Boolean))];
   
   const uisinChunks = chunkArray(uisinList, globalPriceState.chunkSize);
@@ -233,7 +233,7 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
     const apiMap = Object.fromEntries(allApiData.map(product => [product.isin, product]));
     const freshStamp = failed ? {} : { underlyingPriceUpdatedAt: currentDatetime };
 
-    mainListData = mainListData.map(item => {
+    mainListData = mainListData.map((item:any) => {
       const extraData = apiMap[item.underlying_isin];
       if (extraData && Object.keys(extraData).length > 0) {
         let { bid, ask, timestamp, currency } = extraData;
@@ -269,7 +269,7 @@ export const getCurrencyRate = async (forceUpdate = true) => {
   
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
-  let mainListData = await storage.getItem('local:MAIN_LIST') || [];
+  let mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
 
   let priceUpdateDuration = await getPriceUpdateDuration();
   const currentDatetime = new Date().toISOString();
@@ -283,8 +283,8 @@ export const getCurrencyRate = async (forceUpdate = true) => {
   };
 
   const currencyList = [...new Set(mainListData
-    .filter(item => item.currency && needsUpdate(item))
-    .map(item => item.currency)
+    .filter((item:any) => item.currency && needsUpdate(item))
+    .map((item:any) => item.currency)
     .filter(Boolean))];
 
   const currencyChunks = chunkArray(currencyList, globalPriceState.chunkSize);
@@ -305,7 +305,7 @@ export const getCurrencyRate = async (forceUpdate = true) => {
     
     const currencyMap = Object.fromEntries(allApiData.map(currency => [currency.currencyID, currency]));
     const freshStamp = failed ? {} : { currencyRateUpdatedAt: currentDatetime };
-    mainListData = mainListData.map(item => {
+    mainListData = mainListData.map((item:any) => {
       const currencyData = currencyMap[item.currency];
       
       if (currencyData && Object.keys(currencyData).length > 0) {
@@ -337,7 +337,7 @@ export const getCurrencyRate = async (forceUpdate = true) => {
 };
 
 
-function getQuantoLabel(currency, quanto) {
+function getQuantoLabel(currency:any, quanto:any) {
   if (currency === 'EUR') {
     return 'yes';
   } else if (currency !== 'EUR' && quanto === true) {

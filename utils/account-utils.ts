@@ -637,7 +637,7 @@ export async function accountReconcile() {
 // pushes base items only), and a group emptied by the removal goes with them.
 function accountPruneRows(entries:any, broker:any, accountId:any) {
   if (!Array.isArray(entries)) return null;
-  const kept = [];
+  const kept:any[] = [];
   for (const entry of entries) {
     if (!entry) continue;
     if (entry.isGroup && Array.isArray(entry.items)) {

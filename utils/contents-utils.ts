@@ -32,7 +32,7 @@ export function attachSyncFeedback(button: HTMLElement, save: () => Promise<any>
   });
 }
 
-function updateColumnValue(data, col){
+function updateColumnValue(data:any, col:any){
   let colVal = "-";
   if(data[col] !== undefined){
     if(col=="type"){
@@ -61,7 +61,7 @@ export function updateColumnValueHtml(data:any, col:any){
   return escapeHtml(updateColumnValue(data, col));
 }
 
-export function updateColumns(row, data = {}) {
+export function updateColumns(row:any, data = {}) {
     
     FLATEX_EXTRA_ROW_COLUMNS.forEach((col) => {
       const columnElement = row.querySelector(`.${col}`);
@@ -72,6 +72,6 @@ export function updateColumns(row, data = {}) {
     });
 }
   
-export function insertAfter(referenceNode, newNode) {
+export function insertAfter(referenceNode:any, newNode:any) {
   referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
 }

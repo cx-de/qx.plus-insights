@@ -160,7 +160,7 @@ export async function importAll(file: File) {
   const { valid, errors } = validateBackupFile(parsed?.extension);
   if (!valid) throw errors;
 
-  const kept = await storage.getItems(privateKeys);
+  const kept = await storage.getItems(privateKeys as any);
   const currentSettings: any = await storage.getItem('local:settings');
 
   // A restore, not a merge: keys absent from the backup would otherwise mix two portfolios.

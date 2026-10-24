@@ -33,9 +33,9 @@ import { Button } from '@/components/ui/button'
 // Props from parent
 const props = defineProps<{
   modelValue: { start?: Date; end?: Date },
-  placeholder:'Select date range',
+  placeholder?:'Select date range',
   minValue: DateValue,
-  maxValue: DateValue,
+  maxValue?: DateValue,
 }>()
 
 const emit = defineEmits<{
@@ -46,7 +46,7 @@ const emit = defineEmits<{
 const startDate = ref<Date | undefined>(props.modelValue.start)
 const endDate = ref<Date | undefined>(props.modelValue.end)
 // Internal state mirrors modelValue
-const modalDate = ref({
+const modalDate = ref<any>({
     start: startDate || undefined,
     end: endDate || undefined
 })

@@ -50,7 +50,7 @@ export default defineContentScript({
     };
 
     function syncLabel() {
-      const t = (k) => i18n.global.t(k);
+      const t = (k:any) => i18n.global.t(k);
       switch (syncState) {
         case 'saving':     return t('syncing');
         case 'fetching': return `${t('fetching_purchase_dates')}${syncDetail ? ' ' + syncDetail : ''}`;
@@ -95,13 +95,13 @@ export default defineContentScript({
       if (syncTitle) syncButton.title = syncTitle;
     }
 
-    function setSync(state, detail = '') {
+    function setSync(state:any, detail = '') {
       syncState = state;
       syncDetail = detail;
       renderSyncButton();
     }
 
-    function finishSync(state, detail = '') {
+    function finishSync(state:any, detail = '') {
       clearTimeout(syncResetTimer);
       setSync(state, detail);
       syncResetTimer = setTimeout(() => setSync('idle'), state === 'done' ? 2000 : 4000);
@@ -129,7 +129,7 @@ export default defineContentScript({
           // Cache-respecting: instant when known, and table-less positions aren't re-probed every press.
           allowInline: true,
           profile: 'interactive',
-          onProgress: ({ done, total }) => setSync('fetching', `${done + 1}/${total}`),
+          onProgress: ({ done, total }:any) => setSync('fetching', `${done + 1}/${total}`),
         });
 
         if (result.synced) {

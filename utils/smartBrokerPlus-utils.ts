@@ -19,7 +19,7 @@ async function smartBrokerSyncUser() {
       ? String(stored.CUR_SMARTBROKERID) : null;
 
     // Only a depot URL carries the id; /finance has to fall back to the stored one.
-    let pageId = null;
+    let pageId:any = null;
     const urlParts = window.location.pathname.split("/");
     const depotAt = urlParts.indexOf('depot');
     // The segment after "depot", not the last one: /depot/<id>/orders would give "orders".
@@ -47,7 +47,7 @@ async function addSyncButtonOnSmartBroker() {
   const container = exportBtn?.parentElement;
   if (!exportBtn || !container) return;
   
-  let syncBtn = container.querySelector('[data-testid="sync-button"]');
+  let syncBtn = container.querySelector<HTMLElement>('[data-testid="sync-button"]');
   if (syncBtn) return;
 
   syncBtn = document.createElement("button");
@@ -109,14 +109,14 @@ async function updateCustomRowDataSmartBroker(){
           </p>
         </div>
       `).join("");
-      card.parentNode.insertBefore(extra, card.nextSibling);
+      card.parentNode!.insertBefore(extra, card.nextSibling);
     });
   
 }
 
 
 //Getting the ISIN of a specific stock using the anchor tag
-const getIdFromRow = (aTag) =>{
+const getIdFromRow = (aTag:any) =>{
     let link = aTag.getAttribute("href");
     let arrayOfLinkPath = link.split("/");
     const ISIN = arrayOfLinkPath[arrayOfLinkPath.length - 1];
@@ -143,7 +143,7 @@ function smartBrokerGetAllStockData(){
     const allStocksPurchased = Array.from(document.querySelectorAll("[data-testid='depot-asset-card']"));
     
     //Store all the stock data
-    let stockData = [];
+    let stockData:any[] = [];
     for(let stock of allStocksPurchased){
       const id  = crypto.randomUUID();
       const isin = getIdFromRow(stock);
@@ -173,14 +173,14 @@ function smartBrokerGetAllStockData(){
       let stocks_owned = cols[1]?.querySelectorAll("p")[1]?.textContent.trim() || 0;
       stocks_owned = germanToNumer(stocks_owned);
 
-      let bid = cols[2]?.querySelector("p")?.textContent.trim() || 0;
+      let bid:any = cols[2]?.querySelector("p")?.textContent.trim() || 0;
       bid = bid.substring(0, bid.length - 1).trim();
       bid = germanToNumer(bid);
       
       let profit_loss_price = cols[4]?.querySelector(".priceClass")?.textContent.trim() || 0;
       profit_loss_price = germanToNumer(profit_loss_price);
 
-      let profit_loss_percentage = cols[4]?.querySelector("div")?.textContent.trim() || 0;
+      let profit_loss_percentage:any = cols[4]?.querySelector("div")?.textContent.trim() || 0;
       profit_loss_percentage = profit_loss_percentage.replace('%', '');
       profit_loss_percentage = germanToNumer(profit_loss_percentage);
 
@@ -250,7 +250,7 @@ export async function smartBrokerSaveDataToLocalStorage(){
     }else if(checkSmartBrokerDashboardPage()){
       chrome.storage.local.get(['SMART_BROKER_PLUS'], (result) => {
         const currentData = result.SMART_BROKER_PLUS || [];
-        const cashIndex = currentData.findIndex(item => item.stock_name === 'Cash' && item.broker === broker
+        const cashIndex = currentData.findIndex((item:any) => item.stock_name === 'Cash' && item.broker === broker
           && item.account_id === currentAccountId);
         
         const now = new Date();
@@ -258,7 +258,7 @@ export async function smartBrokerSaveDataToLocalStorage(){
 
         const card = document.querySelector('[data-testid="portfolio-Verrechnungskonto"]')?.closest("a");
         if (!card) return null;
-        let accountBalance = card.querySelector('h4 span[aria-hidden="true"]')?.textContent?.trim() || 0;
+        let accountBalance:any = card.querySelector('h4 span[aria-hidden="true"]')?.textContent?.trim() || 0;
         accountBalance = accountBalance.split(' ')[0];
         accountBalance = germanToNumer(accountBalance);
         
