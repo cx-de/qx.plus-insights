@@ -500,6 +500,8 @@
     "clear_filters": "Filter löschen",
     "hide_zero_stocks_owned": "Zeilen mit 0 Bestand ausblenden",
     "timestamp_underlying": "Kurszeit Basiswert",
+    "underlying_isin": "ISIN Basiswert",
+    "underlying_timestamp": "Kurszeit Basiswert",
     "select_existing_group": "Vorhandene Gruppe auswählen",
     "new_group_name": "Neuer Gruppenname",
     "or": "oder",

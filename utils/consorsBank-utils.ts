@@ -49,7 +49,7 @@ async function addSyncButtonOnConsorsBank(){
 }
 
 function addCustomRowHeaderConsorsBank(){
-  console.log("addCustomRowHeaderWikifolio");
+  console.log("addCustomRowHeaderConsorsBank");
   
   // Select the sticky header row
   const headerRow = document.querySelector('.tablecards-row-descriptions[data-type="sticky-header"]');
@@ -128,7 +128,8 @@ async function updateCustomRowDataConsorsBank(){
     });
 
   } catch (error) {
-    console.log("Failed to get MAIN_LIST from storage:", error);
+    // Display only: the stored rows are untouched and the next tick repaints.
+    console.error('updateCustomRowDataConsorsBank error:', error);
   }
 }
 
@@ -266,43 +267,46 @@ async function consorsBankSaveCash(balance:any = consorsBankReadCash()) {
 // Save data on Chrome Storage for the grouped page
 async function consorsBankSaveDataToLocalStorage() {
   console.log("consorsBankSaveDataToLocalStorage")
-  await syncConsorsBankUser();
+  try {
+    await syncConsorsBankUser();
 
-  // Rows with no account_id would merge into the wrong account.
-  if (!currentAccountId) {
-    console.log("consorsbank: account id unknown, skipping save");
-    return false;
-  }
-
-  if (consorsBankIsAccountOverview()) {
-    await consorsBankSaveCash();
-    return false;
-  }
-
-  if (consorsBankDepositPortfolio()) {
-    console.log("consorsBankSaveDataToLocalStorage isOnStocksPage");
-    
-    const result = await chrome.storage.local.get(['consorsBank']);
-    const consorsBankData = result.consorsBank || [];
-    const latestConsorsBankData = consorsBankGetAllStockData();
-
-    // Never persist an empty scrape: getLatestData would read every position as sold.
-    if (!latestConsorsBankData.length) {
-      console.log("consorsbank: no rows scraped, skipping save to avoid wiping consorsBank");
+    // Rows with no account_id would merge into the wrong account.
+    if (!currentAccountId) {
+      console.log("consorsbank: account id unknown, skipping save");
       return false;
     }
 
-    // Scoped by depot as well as account: one customer has several depots here and the
-    // switcher only ever shows one, so an account-wide replace would delete the others.
-    const depotNo = latestConsorsBankData[0]?.deposite_number;
-    chrome.storage.local.set({
-      [`consorsBank`]: accountReplaceRows(consorsBankData, latestConsorsBankData, broker, currentAccountId, depotNo)
-    });
+    if (consorsBankIsAccountOverview()) {
+      await consorsBankSaveCash();
+      return false;
+    }
 
-    console.log("Saved Data To Local Storage!");
-    return false;
+    if (consorsBankDepositPortfolio()) {
+      console.log("consorsBankSaveDataToLocalStorage isOnStocksPage");
+
+      const result = await chrome.storage.local.get(['consorsBank']);
+      const consorsBankData = result.consorsBank || [];
+      const latestConsorsBankData = consorsBankGetAllStockData();
+
+      // Never persist an empty scrape: getLatestData would read every position as sold.
+      if (!latestConsorsBankData.length) {
+        console.log("consorsbank: no rows scraped, skipping save to avoid wiping consorsBank");
+        return false;
+      }
+
+      // Scoped by depot too: the switcher shows one of several depots, so an account-wide replace deleted the rest.
+      const depotNo = latestConsorsBankData[0]?.deposite_number;
+      await chrome.storage.local.set({
+        [`consorsBank`]: accountReplaceRows(consorsBankData, latestConsorsBankData, broker, currentAccountId, depotNo)
+      });
+
+      console.log("Saved Data To Local Storage!");
+      return false;
+    }
+  } catch (err) {
+    // Nothing was written yet or the write failed whole; the next tick retries.
+    console.error('consorsBankSaveDataToLocalStorage error:', err);
   }
-
 }
 
 // Button only: loading the overview frame on every 10s tick would hammer the bank.
@@ -325,7 +329,8 @@ async function consorsBankSyncWithCash() {
 function consorsBankGetAllStockData() {
   const rows = document.querySelectorAll('.tablecards-row.transition--ease-3');
   const data:any = [];
-  
+  let incomplete = 0;
+
   const params = new URLSearchParams(window.location.search);
   const depotNo = params.get("depotNo");
 
@@ -379,8 +384,9 @@ function consorsBankGetAllStockData() {
             rowData['total_entry_value'] = germanToNumer(total_entry_value);
           }else if(key==="Datum/Uhrzeit"){
             const [day, month, year, time] = value.split(/[\s.]+/);
-            const timestamp = new Date(`${year}-${month}-${day}T${time}`).toISOString();
-            rowData['timestamp'] = timestamp;
+            const date = new Date(`${year}-${month}-${day}T${time}`);
+            // toISOString throws on "-" or a two-digit year, which used to abort the whole scrape.
+            if (!isNaN(date.getTime())) rowData['timestamp'] = date.toISOString();
           }else if(key==="Handelsplatz"){
             rowData['trading_partner'] = value;
           }else if(key==="Gesamtwert"){
@@ -388,8 +394,16 @@ function consorsBankGetAllStockData() {
           }else if(key==="Entwicklung prozentual"){
           }
       });
+      // No WKN label: a layout or summary row. A WKN label with empty values: still rendering.
+      if (!('wkn' in rowData)) return;
+      if (!rowData.wkn || !rowData.stock_name) { incomplete++; return; }
       data.push(rowData);
     });
+    // A partial scrape would replace good rows, so wait for the next tick instead.
+    if (incomplete) {
+      console.log("consorsBankGetAllStockData incomplete rows", incomplete);
+      return [];
+    }
     return data;
   }else{
     console.log("consorsBankGetAllStockData no depotNo");

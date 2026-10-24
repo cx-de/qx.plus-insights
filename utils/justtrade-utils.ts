@@ -174,8 +174,8 @@ function justtradeClosePopover(trigger:any) {
 async function justtradeOpenPopoverForAccount() {
   console.log("justtradeOpenPopoverForAccount");
   const triggers = justtradeHeaderTriggers().slice(0, 6);
-  console.log("justtradeOpenPopoverForAccount candidates", triggers.map((b:any) =>
-    b.getAttribute('aria-label') || b.textContent.trim().slice(0, 20)));
+  // Count only: a header button's text can be the user's name or Kundennummer.
+  console.log("justtradeOpenPopoverForAccount candidates", triggers.length);
   for (const trigger of triggers) {
     // Plain click first: the full pointer sequence can open and immediately re-close a toggle.
     for (const press of [(el:any) => el.click(), justtradePress]) {
@@ -446,6 +446,14 @@ async function justtradeWriteRows(rows:any) {
   await chrome.storage.local.set({ JUSTTRADE: [...replaced, ...kept] });
 }
 
+const API_POSITIONS_FRESH_MS = 5 * 60 * 1000;
+
+// Only a fresh payload may empty the depot: a stale one predates trades made since.
+export function justtradeIsEmptyDepot(api:any, accordionCount:number, now:number) {
+  return !!api && !api.positions?.length && !Number(api.total) && !accordionCount
+    && now - (api.at || 0) < API_POSITIONS_FRESH_MS;
+}
+
 async function justtradeSaveDataToLocalStorage(interactive = false) {
   console.log("justtradeSaveDataToLocalStorage", interactive);
   try {
@@ -462,18 +470,19 @@ async function justtradeSaveDataToLocalStorage(interactive = false) {
       return false;
     }
 
-    await justtradeSaveCash();
-
-    // Cash-only depot: zero DOM rows is ambiguous, but an empty /securities response proves no positions.
-    if (apiPositions && !apiPositions.positions.length && !Number(apiPositions.total) && !justtradeDepotAccordions().length) {
-      await justtradeWriteRows([]);
-      console.log("justtrade: empty depot, cash only");
-      return true;
-    }
-
+    // Depot check first: off DEPOT, another "Verfügbar" was saved as cash and an empty payload wiped positions.
     if (!justtradeIsOnDepotPage()) {
       console.log("justtrade: depot not visible, skipping save");
       return false;
+    }
+
+    await justtradeSaveCash();
+
+    // Cash-only depot: zero DOM rows is ambiguous, but an empty /securities response proves no positions.
+    if (justtradeIsEmptyDepot(apiPositions, justtradeDepotAccordions().length, Date.now())) {
+      await justtradeWriteRows([]);
+      console.log("justtrade: empty depot, cash only");
+      return true;
     }
 
     await justtradeApplyApiPositions();
@@ -705,15 +714,16 @@ async function justtradeDebug() {
     depotAccordions: accs.length,
     overlineCounts: Array.from(document.querySelectorAll('.MuiAccordion-root')).map((a:any) =>
       a.querySelectorAll('.MuiAccordionSummary-content .MuiTypography-overline').length),
-    names: accs.map((a:any) => justtradeRowName(a)),
+    // Presence and counts only: this prints into the bank page console.
+    namedRows: accs.filter((a:any) => justtradeRowName(a)).length,
     totalEntries: justtradeTotalEntries(),
-    cash: justtradeReadCash(),
-    popoverId: justtradeReadAccountFromPopover(),
-    headerTriggers: justtradeHeaderTriggers().map((b:any) => b.getAttribute('aria-label') || b.textContent.trim().slice(0, 20)),
-    accountId: currentAccountId,
+    cashFound: justtradeReadCash() !== null,
+    popoverIdFound: !!justtradeReadAccountFromPopover(),
+    headerTriggers: justtradeHeaderTriggers().length,
+    accountIdKnown: !!currentAccountId,
     api: apiPositions && { count: apiPositions.positions.length, total: apiPositions.total },
-    stored: await chrome.storage.local.get(['CUR_JUSTTRADEID', ISIN_CACHE_KEY, 'JUSTTRADE']),
-    scraped: justtradeGetAllStockData(await justtradeLoadIsinCache()),
+    storedRows: ((await chrome.storage.local.get(['JUSTTRADE'])).JUSTTRADE || []).length,
+    scrapedRows: justtradeGetAllStockData(await justtradeLoadIsinCache()).length,
   };
   console.log("qxJusttradeDebug", JSON.stringify(report, null, 2));
   return report;
@@ -742,16 +752,24 @@ function justtradeListenForTabClicks() {
 }
 
 export async function mainJusttrade() {
+  // Extension reloaded: this orphaned loop must stop instead of throwing every tick.
+  if (!chrome.runtime?.id) return;
   console.log("mainJusttrade");
-  justtradeListenForApi();
-  justtradeListenForTabClicks();
-  (window as any).qxJusttradeDebug = justtradeDebug;
-  justtradeRenderSyncButton();
-  // A Sync run is clicking accordions open/shut; scraping mid-run would see half-expanded rows.
-  await justtradePaintExtraRows();
-  if (!syncInFlight) {
-    await justtradeSaveDataToLocalStorage();
-    justtradeSyncTitle();
+  try {
+    justtradeListenForApi();
+    justtradeListenForTabClicks();
+    (window as any).qxJusttradeDebug = justtradeDebug;
+    justtradeRenderSyncButton();
+    // A Sync run is clicking accordions open/shut; scraping mid-run would see half-expanded rows.
+    await justtradePaintExtraRows();
+    if (!syncInFlight) {
+      await justtradeSaveDataToLocalStorage();
+      justtradeSyncTitle();
+    }
+  } catch (err) {
+    /* one bad tick must not end the loop: the finally reschedules */
+    console.error('mainJusttrade error:', err);
+  } finally {
+    setTimeout(() => mainJusttrade(), BROKER_REFRESH_MS);
   }
-  setTimeout(() => mainJusttrade(), BROKER_REFRESH_MS);
 }

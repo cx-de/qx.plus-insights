@@ -7,10 +7,11 @@ on:
 permissions: {}
 
 jobs:
-  release:
+  # Read-only: dependency install scripts never run with a token that can write releases.
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
     steps:
       # Pinned to commit SHAs: a moved tag cannot swap the code that builds the store zips
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,10 +39,32 @@ jobs:
 
       - run: npm run zip:all
 
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-files
+          path: |
+            .output/qx-plus-insights-*.zip
+            examples/sample_backup.json
+          if-no-files-found: error
+          # .output is a dot folder, which upload-artifact skips by default
+          include-hidden-files: true
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-files
+          path: release-files
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" .output/qx-plus-insights-*.zip examples/sample_backup.json \
+          gh release create "$GITHUB_REF_NAME" release-files/.output/qx-plus-insights-*.zip release-files/examples/sample_backup.json \
             --title "QX+ Insights $GITHUB_REF_NAME" \
             --generate-notes

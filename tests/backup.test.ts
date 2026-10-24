@@ -94,6 +94,31 @@ describe('importAll', () => {
     expect(await storage.getItem('local:flatexProbedAccount')).toBe('A');
   });
 
+  it('rejects a backup whose list keys are not lists', async () => {
+    await storage.setItem('local:MAIN_LIST', [{ wkn: 'KEEP' }]);
+
+    await expect(importAll(backupFile({ extension: [{ key: 'local:MAIN_LIST', value: { wkn: 'X' } }] }))).rejects.toBeTruthy();
+
+    expect(await storage.getItem('local:MAIN_LIST')).toEqual([{ wkn: 'KEEP' }]);
+  });
+
+  it('puts the old data back when the write fails', async () => {
+    await storage.setItem('local:MAIN_LIST', [{ wkn: 'KEEP' }]);
+    vi.spyOn(storage, 'setItems').mockRejectedValueOnce(new Error('quota'));
+
+    await expect(importAll(backupFile({ extension: [{ key: 'local:MAIN_LIST', value: [{ wkn: 'NEW' }] }] }))).rejects.toThrow('quota');
+
+    expect(await storage.getItem('local:MAIN_LIST')).toEqual([{ wkn: 'KEEP' }]);
+  });
+
+  it('never takes the rate limit from the file', async () => {
+    await importAll(backupFile({
+      extension: [{ key: 'local:MAIN_LIST', value: [] }, { key: 'local:api_rate_limit', value: { until: 9e15 } }],
+    }));
+
+    expect(await storage.getItem('local:api_rate_limit')).toBeNull();
+  });
+
   it('drops link templates that are not web URLs', async () => {
     await importAll(backupFile({
       extension: [{ key: 'local:settings', value: { isin_link: 'javascript:alert(1)//$ISIN', wkn_link: 'https://ariva.de/$WKN' } }],

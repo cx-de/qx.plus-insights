@@ -179,7 +179,7 @@ import MoversList from '~/components/MoversList.vue'
 import { useToast } from '@/components/ui/toast/use-toast'
 
 import { apiAuthFailed, getApiKey, getLatestData, numberToGerman, formatMonthYear, todayIso } from '~/utils/helper';
-import { reloadPriceData } from '~/utils/price-data-utils'
+import { reloadPriceData, abortPriceRequests } from '~/utils/price-data-utils'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import {useI18n} from "vue-i18n";
@@ -1388,6 +1388,8 @@ const loadCountryChart = async () =>{
     return;
   }
 
+  // Left the page during the awaits above: the canvas is gone and a chart on null would leak.
+  if (isLeaving || !countryChart.value) return;
   ChartJS.getChart(countryChart.value)?.destroy();
   worldChartData.value = new ChartJS(countryChart.value, {
     type: "bubbleMap",
@@ -1454,9 +1456,12 @@ onMounted( async() => {
   const settings:any = await storage.getItem('local:settings');
   if(settings){
     isinLink.value = settings.isin_link;
-    
-    //auto update products
-    const priceUpdateDuration = settings.price_duration || 30;
+  }
+
+  if (isLeaving) return;
+  // Outside the settings block, as in List: a fresh install never auto-refreshed, and no key only produced 401s.
+  const priceUpdateDuration = Number(settings?.price_duration) > 0 ? Number(settings.price_duration) : 30;
+  if(apiKey.value){
     priceInterval = setInterval(async()=>{
       console.log("settings reloadPriceData");
       if(isPriceLoading.value) return false;
@@ -1464,6 +1469,14 @@ onMounted( async() => {
     }, priceUpdateDuration * 60 * 1000);
   }
 
+});
+
+// onMounted awaits storage and the chart before the interval; leaving during that wait must not start it afterwards.
+let isLeaving = false;
+
+onBeforeUnmount(() => {
+  isLeaving = true;
+  abortPriceRequests();
 });
 
 onUnmounted(() => {

@@ -1,17 +1,13 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 import Home from '../pages/Home.vue';
-import List from '../pages/List.vue';
-import Forecast from '../pages/Forecast.vue';
-import Settings from '../pages/Settings.vue';
-import Help from '../pages/Help.vue';
 
-
+// Home stays eager as the landing page; the rest load on first visit instead of in one 1.8 MB chunk.
 const routes = [
   { path: '/', name: 'Home', component: Home },
-  { path: '/list', name: 'list', component: List },
-  { path: '/forecast', name: 'Forecast', component: Forecast },
-  { path: '/settings', name: 'Settings', component: Settings },
-  { path: '/help', name: 'Help', component: Help },
+  { path: '/list', name: 'list', component: () => import('../pages/List.vue') },
+  { path: '/forecast', name: 'Forecast', component: () => import('../pages/Forecast.vue') },
+  { path: '/settings', name: 'Settings', component: () => import('../pages/Settings.vue') },
+  { path: '/help', name: 'Help', component: () => import('../pages/Help.vue') },
 ];
 
 const router = createRouter({

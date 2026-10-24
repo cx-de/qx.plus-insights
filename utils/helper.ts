@@ -212,7 +212,8 @@ export const parseGermanDateOnly = (input: any): string | null => {
 }
 
 export const numberToGerman = (floatValue:any, isInt = false, decimalPoints?:any) => {
-  if (floatValue === null || floatValue === undefined || isNaN(floatValue)) {
+  // isFinite, not isNaN: Infinity rendered as 'Infinity,undefined'.
+  if (floatValue === null || floatValue === undefined || !Number.isFinite(Number(floatValue))) {
     return '';
   }
 
@@ -267,6 +268,8 @@ export const sendTelegramMessage = async (token:any, channelId:any, message:any)
     }
     return result;
   } catch (error) {
+    // Description only, never the URL: it carries the bot token.
+    console.error('sendTelegramMessage error:', (error as Error)?.message);
     return null;
   }
 };
@@ -312,7 +315,7 @@ export const fetchApiUsage = async (token:any) => {
   }
 };
 
-// Relative to the feed base so local/staging builds hit their own backend; the key is optional and only links the account.
+// Relative to the feed base so the support endpoint always shares the API origin; the key is optional and only links the account.
 export const sendSupportMessage = async (form:any) => {
   try {
     const headers:any = { Accept: 'application/json' };
@@ -754,7 +757,7 @@ export const clearAllStockData = async () => {
 // Same parse as formatTimestamp: scrapers store ms numbers, ISO strings and parsed broker times.
 const timeOf = (value:any) => new Date(value).getTime() || 0;
 
-// The feed only serves 08:00-22:00 Berlin (backend services.feed.window_*), whatever the user's clock zone.
+// The feed only serves 08:00-22:00 Berlin, whatever the user's clock zone.
 const berlinClock = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', hour: 'numeric', hourCycle: 'h23' });
 const FEED_OPEN_HOUR = 8;
 const FEED_CLOSE_HOUR = 22;

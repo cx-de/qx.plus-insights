@@ -80,6 +80,7 @@ async function wikifolioRunSync(button:any) {
       await mainWikiFolioSaveDataToLocalStorage(true);
     }
   } catch (err) {
+    // Shown on the button as "Sync failed"; stored rows keep their last good state.
     console.error('wikifolioRunSync error:', err);
     state = 'error';
   } finally {
@@ -181,12 +182,13 @@ async function syncWikiFolioUser() {
       console.log('syncWikiFolioUser not found in cookies');
     }
   }catch (err) {
+    // Last known id stays in the module snapshot; a parse failure must not blank it.
     console.error('syncWikiFolioUser error:', err);
   }
 }
 
 function checkIfWikiFolioStocksLoaded() {
-  console.log("checkIfStocksLoaded");
+  console.log("checkIfWikiFolioStocksLoaded");
 
   // Find all table rows that may contain positions
   const rows = document.querySelectorAll(".c-r-table tbody .c-r-table__tr");
@@ -222,7 +224,10 @@ async function getWKNFromDetailPage(row:any, type='stock') {
   const isin = row.querySelector(".isin")?.innerText.trim();
   if (!isin) return null;
 
-  if (wknCache[isin]) return wknCache[isin];
+  const cached = wknCache[isin];
+  if (typeof cached === 'string' && cached) return cached;
+  // Failed lookups are cached too, or a dead detail page is refetched on every 10s tick.
+  if (cached?.failedAt && Date.now() - cached.failedAt < NOT_FOUND_RETRY_MS) return isin;
 
   // Certificates are keyed by ISIN: the old third-party (Vontobel) lookup always threw and fell back to it anyway.
   if (type !== 'stock') {
@@ -232,7 +237,8 @@ async function getWKNFromDetailPage(row:any, type='stock') {
   }
 
   const link = row.querySelector(".hbo-link.area")?.href;
-  if (!link) return null;
+  // ISIN, not null: a null WKN gives every such position the same accountPositionKey.
+  if (!link) return isin;
 
   let wkn:any = '';
   try{
@@ -244,19 +250,20 @@ async function getWKNFromDetailPage(row:any, type='stock') {
       .find(el => el.innerText.trim() === "WKN");
     wkn = (dt?.nextElementSibling as HTMLElement | null | undefined)?.innerText.trim() || null;
   }catch(error){
-    console.error("getWKNFromDetailPage == fromLink error",error);
+    // Treated as not found below: cached with a timestamp and retried after a day.
+    console.error('getWKNFromDetailPage error:', error);
   }
   
-  wknCache[isin] = wkn;
+  wknCache[isin] = wkn || { failedAt: Date.now() };
   saveCache(wknCache);
 
-  return wkn;
+  return wkn || isin;
 }
 
 
 //Get All Stock Data
 async function getAllStockDataWikiFolio(){
-    console.log("getAllStockData");
+    console.log("getAllStockDataWikiFolio");
     const deposite_number = wikifolioDepotId();
     
     const rows = document.querySelectorAll<HTMLElement>(".c-r-table tbody .c-r-table__tr");
@@ -284,12 +291,12 @@ async function getAllStockDataWikiFolio(){
       const stock_name = row.querySelector("a span")?.textContent.trim() ?? "";
       
       const type = currentGroup === 'stocks' ? 'stock' : 'certificate';
-      console.log("getAllStockData currentGroup",currentGroup);
-      console.log("getAllStockData type",type);
+      console.log("getAllStockDataWikiFolio currentGroup",currentGroup);
+      console.log("getAllStockDataWikiFolio type",type);
 
       const isin = isinEl!.textContent.trim();
       const wkn = await getWKNFromDetailPage(row,type);
-      console.log("getAllStockData wkn",wkn);
+      console.log("getAllStockDataWikiFolio wkn",wkn);
       
       const bid = wikifolioToNumber(row.querySelector(".tick-data .nowrap")?.textContent);
       const stocks_owned = wikifolioToNumber(row.querySelector(".tick-data-quantity")?.textContent);
@@ -384,6 +391,8 @@ export async function mainWikiFolioSaveDataToLocalStorage(strict = false){
 
     // Rows with no account_id would merge into the wrong account.
     if (!currentAccountId) return skip("account id unknown, skipping save");
+    // Same gate as the button: other pages with a .c-r-table are not the user's depot.
+    if (!window.location.href.includes("/trade/")) return skip("not on the trade page, skipping save");
     if (!checkIfWikiFolioStocksLoaded()) return skip("positions not loaded, skipping save");
 
     const freshWikifolio = await getAllStockDataWikiFolio();
@@ -403,6 +412,7 @@ export async function mainWikiFolioSaveDataToLocalStorage(strict = false){
     updateCustomRowDataWikifolio();
     return freshWikifolio;
   }catch (err) {
+    // The tick only logs and retries; the button needs the reason for its error state.
     if (strict) throw err;
     console.error('mainWikiFolioSaveDataToLocalStorage error:', err);
     return null;

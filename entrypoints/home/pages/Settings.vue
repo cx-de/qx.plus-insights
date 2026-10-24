@@ -761,7 +761,15 @@ const validateForm = () => {
 
 // --- Save / actions ---
 const isSaving = ref(false);
+// Call before any other await: the browser only shows the prompt inside the click's user gesture.
+const requestTelegramPermission = async () => {
+  if (!formFields.telegram_bot_token || !formFields.telegram_channel_id) return false;
+  return browser.permissions.request({ origins: ['https://api.telegram.org/*'] })
+    .catch(() => /* denied or unsupported: saving settings must not fail over it */ false);
+};
+
 const saveSettings = async () => {
+  void requestTelegramPermission();
   isSaving.value = true;
   validateForm();
   if (isFormInvalid.value) {
@@ -795,6 +803,8 @@ const clearData = async () => {
 
 const isSending = ref(false);
 const sendTestMessage = async () => {
+  // Awaited here so the test message is not sent while the prompt is still open.
+  await requestTelegramPermission();
   isSending.value = true;
   const testMessage = `<b>TEST</b>\n${t('settings_page.telegram_test_message')}`;
   const sendData = await sendTelegramMessage(

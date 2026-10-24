@@ -581,7 +581,7 @@
                             <!-- group expanded lines -->
                             <TableRow v-if="row.original?.isGroup && row.getIsExpanded?.() && row.original?.items" 
                                 v-for="(item, index) in visibleSubRows(row)"
-                                :key="`${row.id}-sub-${index}`"
+                                :key="`${row.id}-sub-${accountPositionKey(item.original)}`"
                                 class="group-child"
                                 :class="{ 'group-child-last': index === visibleSubRows(row).length - 1 }"
                               >
@@ -1106,6 +1106,9 @@ import {
   getUnderlyingPriceData,
   getCurrencyRate,
   calculateLatestMainListData,
+  abortPriceRequests,
+  mainListSetField,
+  mainListWriteChanges,
 } from '~/utils/price-data-utils'
 
 import {
@@ -2164,6 +2167,7 @@ const getProductData = async (forceUpdate = false) => {
   controllers.push(controller);
 
   mainListData.value = await storage.getItem('local:MAIN_LIST') || [];
+  const before = mainListData.value;
 
   const today = todayIso();
   const shouldInclude = (item:any) => forceUpdate || item.lastUpdated !== today;
@@ -2242,8 +2246,8 @@ const getProductData = async (forceUpdate = false) => {
         return item;
       }
     });
-    const clonedData = deepCloneReactiveData(mainListData.value);
-    await storage.setItem('local:MAIN_LIST',clonedData);
+    // Merge, not overwrite: a price pass may have written MAIN_LIST during this network wait.
+    await mainListWriteChanges(before, mainListData.value);
 
   } catch (err) {
     console.error('getProductData Failed to fetch product data:', err);
@@ -2273,9 +2277,13 @@ const reloadPriceData = async(forceUpdate=false) =>{
   isPriceLoading.value = true;
   try {
     // Reload forces prices only: products and peers stay once a day.
+    // Checked between stages: each starts new metered requests, and the page may be gone.
     await getPriceData(forceUpdate);
+    if (isLeaving) return;
     await getUnderlyingPriceData(forceUpdate);
+    if (isLeaving) return;
     await getCurrencyRate(forceUpdate);
+    if (isLeaving) return;
 
     const priceFields = [
       'bid','ask',
@@ -2325,6 +2333,7 @@ const getPeerProductData = async () => {
   controllers.push(controller);
 
   mainListData.value = await storage.getItem('local:MAIN_LIST') || [];
+  const before = mainListData.value;
   const today = todayIso();
   // Deduped: the same holding in two accounts is two rows but one peers request.
   const wknList = [...new Set(mainListData.value
@@ -2382,8 +2391,8 @@ const getPeerProductData = async () => {
 
     });
 
-    const clonedData = deepCloneReactiveData(mainListData.value);
-    await storage.setItem('local:MAIN_LIST',clonedData);
+    // Merge, not overwrite: a price pass may have written MAIN_LIST during this network wait.
+    await mainListWriteChanges(before, mainListData.value);
 
   } catch (err) {
     console.error('getPeerProductData Failed to fetch product data:', err);
@@ -2490,13 +2499,20 @@ const cancellAllRequests = () => {
 let priceInterval: ReturnType<typeof setInterval> | null = null;
 let alertInterval: ReturnType<typeof setInterval> | null = null;
 
+// onMounted awaits storage before it starts the intervals; leaving during that wait must not start them afterwards.
+let isLeaving = false;
+
 onBeforeUnmount(() => {
+  isLeaving = true;
   cancellAllRequests();
+  abortPriceRequests();
   stickyObserver?.disconnect();
 });
 
 onBeforeRouteLeave(() => {
+  isLeaving = true;
   cancellAllRequests();
+  abortPriceRequests();
 });
 
 onUnmounted(() => {
@@ -2532,6 +2548,7 @@ onMounted( async() => {
     telegramChannelId.value= settings.telegram_channel_id ?? '';
   }
 
+  if (isLeaving) return;
   // Outside the settings block: a fresh install has no saved settings and never auto-refreshed.
   if(apiKey.value && priceUpdateDuration.value > 0){
     priceInterval = setInterval(async()=>{
@@ -2582,9 +2599,13 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
   try {
     // Prices first: on the first open of a day the products/peers pass alone nearly fills a feed window.
     if(!isPriceReload){
+      // Checked between stages: each starts new metered requests, and the page may be gone.
       await getPriceData();
+      if (isLeaving) return;
       await getUnderlyingPriceData();
+      if (isLeaving) return;
       await getCurrencyRate();
+      if (isLeaving) return;
     }
 
     const today = todayIso();
@@ -2595,11 +2616,15 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
     if(dailyPending && !isMarketClosed()){
       // /usage is never metered; no answer means no budget, as before.
       const feedWindow:any = (await fetchApiUsage(apiKey.value) as any)?.window;
+      if (isLeaving) return;
       dailyPassBudget = Number(feedWindow?.limit) > 0 ? Math.max(0, feedWindow.limit - (Number(feedWindow.used) || 0)) : Infinity;
       await getProductData();
+      if (isLeaving) return;
       await getPeerProductData();
+      if (isLeaving) return;
       // Only rows that just got their underlying_isin are stale here, so this costs a few positions at most.
       await getUnderlyingPriceData();
+      if (isLeaving) return;
     }
     // First pass ran before cap/strike/underlying arrived; without this, new positions show a wrong Zielwert until the next price interval.
     await calculateLatestMainListData(true);
@@ -3103,16 +3128,17 @@ async function checkAlerts() {
 
         // Telegram message — build HTML safely with user-input fields escaped.
         const a = triggeredAlert.value;
+        // Newlines, not <br/>: Telegram HTML mode rejects <br> and the whole alert was dropped.
         const contextLine =
           a.contextKey === 'stock_name'
-            ? `<strong>${t('stock_name')}</strong>: ${escapeHtml(a.stockName)} <br/>`
+            ? `<strong>${t('stock_name')}</strong>: ${escapeHtml(a.stockName)}\n`
             : a.contextKey === 'group_name'
-              ? `<strong>${t('group_name')}</strong>: ${escapeHtml(a.stockName)} <br/>`
-              : `<strong>${t('total')}</strong> <br/>`;
+              ? `<strong>${t('group_name')}</strong>: ${escapeHtml(a.stockName)}\n`
+              : `<strong>${t('total')}</strong>\n`;
         let message = `🚨${t('alert')}\n\n` +
-          `<strong>${t('alert_name')}</strong>: ${escapeHtml(a.alertName)} <br/>` +
+          `<strong>${t('alert_name')}</strong>: ${escapeHtml(a.alertName)}\n` +
           contextLine +
-          `<strong>${t(a.field)}</strong> ${escapeHtml(a.condition)} <strong>${numberToGerman(a.alertValue)}</strong> <br/>` +
+          `<strong>${t(a.field)}</strong> ${escapeHtml(a.condition)} <strong>${numberToGerman(a.alertValue)}</strong>\n` +
           `<strong>${t('current')}</strong>: ${numberToGerman(a.currentValue)}`;
         
         if(telegramBotToken.value && telegramChannelId.value){
@@ -3158,8 +3184,7 @@ const updatePositionTarget = async (row:any,target:any,groupId=null) => {
   let index = mainListData.value.findIndex(item => accountPositionKey(item) === key);
   if (index !== -1) {
     mainListData.value[index].position_target_percentage = target;
-    const clonedData = deepCloneReactiveData(mainListData.value);
-    await storage.setItem('local:MAIN_LIST',clonedData);
+    await mainListSetField(key, 'position_target_percentage', target);
   }
 
   //list
@@ -3194,8 +3219,7 @@ const updateNotes = async (row:any,target:any,groupId=null) => {
   let index = mainListData.value.findIndex(item => accountPositionKey(item) === key);
   if (index !== -1) {
     mainListData.value[index].notes = target;
-    const clonedData = deepCloneReactiveData(mainListData.value);
-    await storage.setItem('local:MAIN_LIST',clonedData);
+    await mainListSetField(key, 'notes', target);
   }
 
   //list

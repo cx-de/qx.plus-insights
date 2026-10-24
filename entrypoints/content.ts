@@ -16,8 +16,6 @@ export default defineContentScript({
     'https://webtrading.justtrade.com/*',
   ],
   async main(ctx) {
-    console.log('Hello content.');
-
     const updateDuration = BROKER_REFRESH_MS;
 
     const kontoFlatexWebsite = 'konto.flatex.de';
@@ -104,7 +102,7 @@ export default defineContentScript({
     function finishSync(state:any, detail = '') {
       clearTimeout(syncResetTimer);
       setSync(state, detail);
-      syncResetTimer = setTimeout(() => setSync('idle'), state === 'done' ? 2000 : 4000);
+      syncResetTimer = ctx.setTimeout(() => setSync('idle'), state === 'done' ? 2000 : 4000);
     }
 
     async function runSync() {
@@ -143,7 +141,7 @@ export default defineContentScript({
         return finishSync('error');
       } finally {
         // An inline run re-rendered the table; nothing else will put the injected rows back.
-        await mainFlatex();
+        try { await mainFlatex(); } catch (err) { console.error('mainFlatex error:', err); }
       }
 
       syncTitle = `synced ${result.synced} · failed ${result.failed} · remaining ${result.remaining} · mode ${result.mode}${result.reason ? ' · ' + result.reason : ''}`;
@@ -173,12 +171,20 @@ export default defineContentScript({
       await flatexUpdateCustomRowData();
     }
 
+    // ctx timers stop once the extension reloads; finally keeps one failed tick from ending the loop.
+    async function brokerLoop(name:string, tick:() => Promise<any>) {
+      try {
+        await tick();
+      } catch (err) {
+        console.error(`${name} error:`, err);
+      } finally {
+        ctx.setTimeout(() => { void brokerLoop(name, tick); }, updateDuration);
+      }
+    }
+
     async function mainSmartBrokerPlus() {
       console.log("mainSmartBrokerPlus")
-      
-
       await smartBrokerSaveDataToLocalStorage();
-      setTimeout(() => mainSmartBrokerPlus(), updateDuration);
     }
 
     async function mainWikiFolio() {
@@ -187,7 +193,6 @@ export default defineContentScript({
       addSyncButtonOnWikifolio();
 
       await mainWikiFolioSaveDataToLocalStorage();
-      setTimeout(() => mainWikiFolio(), updateDuration);
     }
 
 
@@ -204,54 +209,57 @@ export default defineContentScript({
     if (window.location.href.includes(flatexWebsite)) {
 
       if (!window.location.href.includes(kontoFlatexWebsite)) {
-        //reset
+        // Scoped to flatex: www.flatex.de only resets the flatex pending prompt, never other brokers'.
         await chrome.storage.local.set({ flatexUserSync: '' });
-        // Cleared a pending prompt for ANY broker just because the user opened www.flatex.de.
         return;
       }
 
       flatexAttachDebugHelpers();
 
-      mainFlatex();
-      setInterval(async () => {
+      // Not awaited: a failed repaint must not skip the save or stop the loop from starting.
+      const paintFlatex = () => { mainFlatex().catch((err) => console.error('mainFlatex error:', err)); };
+      paintFlatex();
+      ctx.setInterval(async () => {
         // Inline sync swaps the list for detail views; scraping mid-run persists partial data.
         if (flatexSyncState.inlineInFlight) return;
-        mainFlatex();
-        await flatexSaveDataToLocalStorage();
-        // Debounced to ~10 min and iframe-only, so the page is never navigated unasked.
-        await flatexMaybeAutoSync();
+        paintFlatex();
+        try {
+          await flatexSaveDataToLocalStorage();
+          // Debounced to ~10 min and iframe-only, so the page is never navigated unasked.
+          await flatexMaybeAutoSync();
+        } catch (err) {
+          console.error('flatex tick error:', err);
+        }
       }, updateDuration);
 
-      document.addEventListener('click', (e) => {
+      ctx.addEventListener(document, 'click', (e) => {
         // Untrusted = our synthetic clicks and webcore replays; mainFlatex() must not run mid-sync.
         if (flatexSyncState.inlineInFlight || !e.isTrusted) return;
         const target = (e.target as HTMLElement).closest('.BlockSelectionItem');
         if (target) {
           console.log('BlockSelectionItem toggled');
-          setTimeout(() => {
-            mainFlatex();
-          }, 1500);
+          ctx.setTimeout(paintFlatex, 1500);
         }
-      }, true);
+      }, { capture: true });
 
     } else if (window.location.href.includes(consorsBankWebsite)) {
-      mainConsorsBank();
-      setTimeout(() => mainConsorsBank(), updateDuration);
+      // A loop, not one retry: the SPA can reach the portfolio long after the first 10 s.
+      void brokerLoop('mainConsorsBank', mainConsorsBank);
       // Delegated: re-attaching to the select on every change stacked one extra mainConsorsBank() run per event.
-      document.addEventListener('change', (event) => {
+      ctx.addEventListener(document, 'change', (event) => {
         if (!(event.target as Element)?.matches?.('select[data-type="accountSelect"]')) return;
         console.log('consorsAccountSelect changed');
-        mainConsorsBank();
+        mainConsorsBank().catch((err) => console.error('mainConsorsBank error:', err));
       });
 
     } else if (window.location.href.includes(smartBrokerPlusBankWebsite)) {
-      mainSmartBrokerPlus();
+      void brokerLoop('mainSmartBrokerPlus', mainSmartBrokerPlus);
     } else if (window.location.href.includes(wikifolioWebsite)) {
-        addCustomRowHeaderWikifolio();
-        updateCustomRowDataWikifolio();
-        mainWikiFolio();
+      addCustomRowHeaderWikifolio();
+      updateCustomRowDataWikifolio().catch((err) => console.error('updateCustomRowDataWikifolio error:', err));
+      void brokerLoop('mainWikiFolio', mainWikiFolio);
     } else if (window.location.href.includes(justtradeWebsite)) {
-      mainJusttrade();
+      mainJusttrade().catch((err) => console.error('mainJusttrade error:', err));
     }
     
   },

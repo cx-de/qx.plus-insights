@@ -9358,8 +9358,6 @@
         "export_delimiter": ";",
         "isin_link": "https://ariva.de/$ISIN",
         "price_duration": 1,
-        "telegram_bot_token": "",
-        "telegram_channel_id": "",
         "wkn_link": "https://ariva.de/$WKN"
       }
     },

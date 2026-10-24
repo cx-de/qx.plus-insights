@@ -5,12 +5,13 @@ const jsonLocalKeys = ['tableSortState', 'columnOrder', 'stickyColumns', 'tableE
 
 // At least one of these must be present, or the file is not a portfolio backup.
 const coreKeys = ['local:MAIN_LIST', 'local:LIST_DATA', 'local:settings'];
+const arrayKeys = ['local:MAIN_LIST', 'local:LIST_DATA', 'local:ALERTS', 'local:scenarios', 'local:DAILY_TOTAL', 'local:ACCOUNTS'];
 
 // Credentials and server-controlled state: never written to a backup file, never taken from one.
 // The flatex probe trio stays together: a hash from this device with an account from the file would mislabel positions.
 const privateKeys = ['local:api_key', 'local:api_auth_failed', 'local:api_auth_failed_at', 'local:api_auth_fail_count',
-  'local:flatexProbedToken', 'local:flatexProbedTokenHash', 'local:flatexProbedAccount', 'local:flatexUserSync',
-  'local:VERSION_CHECK'];
+  'local:flatexProbedToken', 'local:flatexProbedTokenHash', 'local:flatexProbedAccount', 'local:flatexProbeFailedAt', 'local:flatexUserSync',
+  'local:VERSION_CHECK', 'local:api_rate_limit', 'local:UPDATE_SNOOZE', 'local:ACCOUNT_SNOOZE', 'local:FLATEX_SYNC_LOCK'];
 const privateSettings = ['telegram_bot_token', 'telegram_channel_id'];
 
 const isCash = (row: any) => String(row?.stock_name ?? '').trim().toLowerCase() === 'cash';
@@ -129,6 +130,14 @@ function validateBackupFile(data: any): { valid: boolean; errors: string[] } {
   if (!coreKeys.some(key => keysInBackup.includes(key))) {
     errors.push("No portfolio data found in backup.");
   }
+  // Wrong shapes pass the key checks, then throw on every load (e.g. MAIN_LIST.filter on an object).
+  const valueOf = (key: string) => data.find((item: any) => item?.key === key)?.value;
+  const badList = arrayKeys.find(key => valueOf(key) != null && !Array.isArray(valueOf(key)));
+  if (badList) errors.push(`${badList} must be a list.`);
+  const settings = valueOf('local:settings');
+  if (settings != null && (typeof settings !== 'object' || Array.isArray(settings))) {
+    errors.push("local:settings must be an object.");
+  }
 
   return { valid: errors.length === 0, errors };
 }
@@ -163,6 +172,8 @@ export async function importAll(file: File) {
   const kept = await storage.getItems(privateKeys as any);
   const currentSettings: any = await storage.getItem('local:settings');
 
+  // A failed write after clear() would otherwise leave the user with no data at all.
+  const before = await storage.snapshot('local');
   // A restore, not a merge: keys absent from the backup would otherwise mix two portfolios.
   await storage.clear('local');
   const entries = parsed.extension
@@ -173,11 +184,18 @@ export async function importAll(file: File) {
     .map(field => [field, currentSettings[field]]));
   const keptSettings = !entries.some((item: any) => item.key === 'local:settings') && Object.keys(credentials).length
     ? [{ key: 'local:settings', value: credentials }] : [];
-  await storage.setItems([
-    ...entries.map((item: any) => ({ key: item.key, value: item.value })),
-    ...keptSettings,
-    ...kept.filter((item: any) => item.value !== null && item.value !== undefined),
-  ]);
+  try {
+    await storage.setItems([
+      ...entries.map((item: any) => ({ key: item.key, value: item.value })),
+      ...keptSettings,
+      ...kept.filter((item: any) => item.value !== null && item.value !== undefined),
+    ]);
+  } catch (err) {
+    console.error('importAll error:', err);
+    await storage.clear('local');
+    await storage.restoreSnapshot('local', before);
+    throw err;
+  }
 
   if (parsed.local) {
     localStorage.clear();

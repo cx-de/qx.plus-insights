@@ -81,7 +81,7 @@ async function updateCustomRowDataSmartBroker(){
   console.log("updateCustomRowDataSmartBroker");
 
   const result = await chrome.storage.local.get(['MAIN_LIST']) || [];
-  if (!result.MAIN_LIST.length) return;
+  if (!result.MAIN_LIST?.length) return;
 
   const ownRows = await accountOwnRows(result.MAIN_LIST, broker, currentAccountId);
 
@@ -90,7 +90,7 @@ async function updateCustomRowDataSmartBroker(){
   cards.forEach(card => {
     if (card.nextElementSibling?.classList?.contains("custom-extra-row")) return;
     
-    const isin = getIdFromRow(card);
+    const isin = smartBrokerIsinFromCard(card);
     if (!isin) return;
 
     const rowData = ownRows.find( x => x.isin?.toUpperCase() === isin.toUpperCase());
@@ -115,19 +115,19 @@ async function updateCustomRowDataSmartBroker(){
 }
 
 
-//Getting the ISIN of a specific stock using the anchor tag
-const getIdFromRow = (aTag:any) =>{
+// Own name: flatex exports a global getIdFromRow that reads a table cell instead.
+const smartBrokerIsinFromCard = (aTag:any) =>{
     let link = aTag.getAttribute("href");
     let arrayOfLinkPath = link.split("/");
     const ISIN = arrayOfLinkPath[arrayOfLinkPath.length - 1];
     return ISIN;
 }
 
-export function checkIfStocksLoaded(){
+function checkIfStocksLoaded(){
   console.log("checkIfStocksLoaded")
     const stockRow = document.querySelector("main > div div a");
     if(stockRow){
-        let ISIN = getIdFromRow(stockRow);
+        let ISIN = smartBrokerIsinFromCard(stockRow);
         if(ISIN.length == "12")return true;
         else return false;
     }
@@ -138,7 +138,7 @@ export function checkIfStocksLoaded(){
 
 //Get All Stock Data
 function smartBrokerGetAllStockData(){
-    console.log("getAllStockData")
+    console.log("smartBrokerGetAllStockData")
     //all stocks in an array
     const allStocksPurchased = Array.from(document.querySelectorAll("[data-testid='depot-asset-card']"));
     
@@ -146,7 +146,7 @@ function smartBrokerGetAllStockData(){
     let stockData:any[] = [];
     for(let stock of allStocksPurchased){
       const id  = crypto.randomUUID();
-      const isin = getIdFromRow(stock);
+      const isin = smartBrokerIsinFromCard(stock);
       
       const url = window.location.pathname;
       const urlParts = url.split("/");
@@ -167,20 +167,17 @@ function smartBrokerGetAllStockData(){
       const stock_name = cols[0]?.querySelector("p")?.textContent.trim() || "";
       const wkn = cols[0]?.querySelectorAll("p")[2]?.textContent.trim() || "";
       
-      let total_entry_value = cols[1]?.querySelector("p")?.textContent.trim() || 0;
-      total_entry_value = germanToNumer(total_entry_value);
+      // String fallbacks: a number 0 made germanToNumer/substring throw and one blank cell aborted every save.
+      const total_entry_value = germanToNumer(cols[1]?.querySelector("p")?.textContent.trim() || '0');
 
-      let stocks_owned = cols[1]?.querySelectorAll("p")[1]?.textContent.trim() || 0;
-      stocks_owned = germanToNumer(stocks_owned);
+      const stocks_owned = germanToNumer(cols[1]?.querySelectorAll("p")[1]?.textContent.trim() || '0');
 
-      let bid:any = cols[2]?.querySelector("p")?.textContent.trim() || 0;
-      bid = bid.substring(0, bid.length - 1).trim();
-      bid = germanToNumer(bid);
+      const bidText = cols[2]?.querySelector("p")?.textContent.trim() || '';
+      const bid = bidText ? germanToNumer(bidText.substring(0, bidText.length - 1).trim()) : 0;
       
-      let profit_loss_price = cols[4]?.querySelector(".priceClass")?.textContent.trim() || 0;
-      profit_loss_price = germanToNumer(profit_loss_price);
+      const profit_loss_price = germanToNumer(cols[4]?.querySelector(".priceClass")?.textContent.trim() || '0');
 
-      let profit_loss_percentage:any = cols[4]?.querySelector("div")?.textContent.trim() || 0;
+      let profit_loss_percentage:any = cols[4]?.querySelector("div")?.textContent.trim() || '0';
       profit_loss_percentage = profit_loss_percentage.replace('%', '');
       profit_loss_percentage = germanToNumer(profit_loss_percentage);
 
@@ -232,7 +229,8 @@ export async function smartBrokerSaveDataToLocalStorage(){
     if(checkIfStocksLoaded()){
       addSyncButtonOnSmartBroker();
       addCustomRowHeaderSmartBroker();
-      updateCustomRowDataSmartBroker();
+      // Display only: a repaint error must not skip the save below.
+      await updateCustomRowDataSmartBroker().catch((err) => console.error('updateCustomRowDataSmartBroker error:', err));
       
       
       const freshSmartBroker = smartBrokerGetAllStockData();
@@ -242,58 +240,60 @@ export async function smartBrokerSaveDataToLocalStorage(){
         return false;
       }
       const storedSmartBroker = await chrome.storage.local.get(['SMART_BROKER_PLUS']);
-      chrome.storage.local.set({
+      await chrome.storage.local.set({
         [`SMART_BROKER_PLUS`]: accountReplaceRows(storedSmartBroker.SMART_BROKER_PLUS, freshSmartBroker, broker, currentAccountId)
       });
       console.log("smartbroker: Saved Data To Local Storage!");
       return false;
     }else if(checkSmartBrokerDashboardPage()){
-      chrome.storage.local.get(['SMART_BROKER_PLUS'], (result) => {
-        const currentData = result.SMART_BROKER_PLUS || [];
-        const cashIndex = currentData.findIndex((item:any) => item.stock_name === 'Cash' && item.broker === broker
-          && item.account_id === currentAccountId);
-        
-        const now = new Date();
-        let currentTimestamp = now.toISOString();
+      const card = document.querySelector('[data-testid="portfolio-Verrechnungskonto"]')?.closest("a");
+      if (!card) return null;
+      const balanceText = card.querySelector('h4 span[aria-hidden="true"]')?.textContent?.trim() || '';
+      const accountBalance = germanToNumer(balanceText.split(' ')[0]);
+      // A masked or not-yet-rendered balance must not overwrite the stored cash with 0 or NaN.
+      if (!balanceText || isNaN(accountBalance)) {
+        console.log("smartbroker: cash not readable, skipping save");
+        return false;
+      }
 
-        const card = document.querySelector('[data-testid="portfolio-Verrechnungskonto"]')?.closest("a");
-        if (!card) return null;
-        let accountBalance:any = card.querySelector('h4 span[aria-hidden="true"]')?.textContent?.trim() || 0;
-        accountBalance = accountBalance.split(' ')[0];
-        accountBalance = germanToNumer(accountBalance);
-        
-        if (cashIndex !== -1) {
-          currentData[cashIndex].total_entry_value = accountBalance;
-          currentData[cashIndex].timestamp = currentTimestamp;
-        } else {
-          currentData.push({
-            id: crypto.randomUUID(),
-            broker: broker,
-            account_id: currentAccountId,
-            stock_name: 'Cash',
-            total_entry_value: accountBalance,
-            isGroup: false,
-            isin : '', 
-            stocks_owned:0, 
-            buy_price:0, 
-            product_type: '', 
-            wkn: '', 
-            profit_loss_percentage:0, 
-            profit_loss_price:0,
-            bid:0,
-            timestamp:currentTimestamp
-          });
-        }
-
-        chrome.storage.local.set({ SMART_BROKER_PLUS: currentData }, () => {
+      const result = await chrome.storage.local.get(['SMART_BROKER_PLUS']);
+      const currentData = result.SMART_BROKER_PLUS || [];
+      const cashIndex = currentData.findIndex((item:any) => item.stock_name === 'Cash' && item.broker === broker
+        && item.account_id === currentAccountId);
+      
+      const now = new Date();
+      let currentTimestamp = now.toISOString();
+      
+      if (cashIndex !== -1) {
+        currentData[cashIndex].total_entry_value = accountBalance;
+        currentData[cashIndex].timestamp = currentTimestamp;
+      } else {
+        currentData.push({
+          id: crypto.randomUUID(),
+          broker: broker,
+          account_id: currentAccountId,
+          stock_name: 'Cash',
+          total_entry_value: accountBalance,
+          isGroup: false,
+          isin : '', 
+          stocks_owned:0, 
+          buy_price:0, 
+          product_type: '', 
+          wkn: '', 
+          profit_loss_percentage:0, 
+          profit_loss_price:0,
+          bid:0,
+          timestamp:currentTimestamp
         });
-        
-      });
+      }
+
+      await chrome.storage.local.set({ SMART_BROKER_PLUS: currentData });
     }else{
       console.log("Can't update data, not on stocks page...");
       return;
     }
   }catch (err) {
+    // Nothing was written yet or the write failed whole; the next tick retries.
     console.error('smartBrokerSaveDataToLocalStorage error:', err);
   }
 }

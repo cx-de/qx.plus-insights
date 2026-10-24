@@ -106,26 +106,28 @@ onMounted(async () => {
 
   await detectAccountChange();
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local') return;
-    if (changes.NEW_ACCOUNTS) {
-      console.log('appp mounted onChange NEW_ACCOUNTS:', changes.NEW_ACCOUNTS.newValue);
-      detectAccountChange();
-    }
-    // A content script adopting an account cannot bump the popup's module ref.
-    // Compare membership: scrapers rewrite this key on a last_seen touch too, and
-    // reloading every page for that would fight the 10s scrape tick.
-    if (changes.ACCOUNTS) {
-      const keyset = (rows:any) => (Array.isArray(rows) ? rows : [])
-        .map((r:any) => `${r.broker}::${r.account_id}`).sort().join('|');
-      if (keyset(changes.ACCOUNTS.oldValue) !== keyset(changes.ACCOUNTS.newValue)) {
-        console.log('appp mounted onChange ACCOUNTS');
-        accountsVersion.value++;
-      }
-    }
-  });
-
+  chrome.storage.onChanged.addListener(onStorageChanged);
 });
+
+// Named so unmount can remove it; an anonymous listener doubled on every HMR remount.
+function onStorageChanged(changes:any, areaName:string) {
+  if (areaName !== 'local') return;
+  if (changes.NEW_ACCOUNTS) {
+    console.log('appp mounted onChange NEW_ACCOUNTS:', changes.NEW_ACCOUNTS.newValue);
+    detectAccountChange();
+  }
+  // Membership, not equality: scrapers touch last_seen every 10 s, and a reload per touch would fight them.
+  if (changes.ACCOUNTS) {
+    const keyset = (rows:any) => (Array.isArray(rows) ? rows : [])
+      .map((r:any) => `${r.broker}::${r.account_id}`).sort().join('|');
+    if (keyset(changes.ACCOUNTS.oldValue) !== keyset(changes.ACCOUNTS.newValue)) {
+      console.log('appp mounted onChange ACCOUNTS');
+      accountsVersion.value++;
+    }
+  }
+}
+
+onUnmounted(() => chrome.storage.onChanged.removeListener(onStorageChanged));
 </script>
 
 <style scoped>

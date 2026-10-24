@@ -1350,7 +1350,10 @@ function scenarioTotalForDate(rows:any, scenario:any, date:any) {
 const chartPanels = ref<any[]>([]);
 const isLoading = ref(true);
 const chartKey = ref(0);
+// Callers don't await: a slower forecast run resuming after a newer history run overwrote the chart.
+let recalcSeq = 0;
 const recalculateDatapoints = async() => {
+  const run = ++recalcSeq;
   chartData.value.labels = [];
   datapoints.value = [];
   // An early return below would otherwise leave the previous view's panels on screen.
@@ -1409,6 +1412,7 @@ const recalculateDatapoints = async() => {
     }
       
     const savedScenarios = await storage.getItem<any>('local:scenarios') || [];
+    if (run !== recalcSeq) return;
     const activeScenarios = savedScenarios.filter((item:any) => item.active === true);
     
     let datesForForecast = [...dates];

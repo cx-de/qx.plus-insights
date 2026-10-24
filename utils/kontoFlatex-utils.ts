@@ -42,7 +42,7 @@ async function flatexResolveAccountId() {
 // Getting the ISIN of a specific stock.
 // "0" on failure is a sentinel createEmptyRowsToFill turns into a `.row0` class — an
 // empty string there would build a bare `.row` that matches every injected row.
-export function getIdFromRow(row:any) {
+function getIdFromRow(row:any) {
   const idText = row.querySelector(".C0");
   if (!idText) {
     console.log("Couldn't scrape the Stock Id from row");
@@ -53,8 +53,6 @@ export function getIdFromRow(row:any) {
   const text = (idText.innerText || idText.textContent || "").trim();
   return text.split(" ")[0] || "0";
 }
-
-// Getting all stock Id numbers visible in the table
 
 // Creating empty rows to fill
 export function createEmptyRowsToFill() {
@@ -67,7 +65,6 @@ export function createEmptyRowsToFill() {
     rowsThatNeedExtraData[x]!.classList.add("hasExtraData");
     const rowElement = document.createElement("tr");
     setAttributesForRowWrapper(rowElement);
-    rowElement.setAttribute("id", rowsThatNeedExtraData[x]!.id);
     rowElement.classList.add("row" + getIdFromRow(rowsThatNeedExtraData[x]));
     createRowHTMLStructure(rowElement);
     insertAfter(rowsThatNeedExtraData[x], rowElement);
@@ -102,12 +99,8 @@ export function addThirdRowHeader(...inputs:any[]) {
   return true;
 }
 
-// Attributes for the wrapper to follow the same behavior as other rows
+// No copied id or inline flatex handlers: they duplicated the real row's id and fired webcore with a stale widget id.
 function setAttributesForRowWrapper(rowElement:any) {
-  const events = ["MouseUp", "MouseDown", "MouseOut", "MouseOver", "MouseLeave", "MouseEnter"];
-  events.forEach(event =>
-    rowElement.setAttribute(`on${event.toLowerCase()}`, `handle${event}(this, '__1711942656');`)
-  );
   rowElement.setAttribute("class", "I2 Last Even extraData DetailsAvailable detailsNotAvailable ariba");
 }
 
@@ -130,6 +123,8 @@ export async function flatexUpdateCustomRowData() {
     const data = await accountOwnRows(result.MAIN_LIST || [], broker, currentAccountId);
     data.forEach((currentStock) => {
       const { isin } = currentStock;
+      // Cash has isin '', and ".row" alone matches every injected row.
+      if (!isin || currentStock.stock_name === 'Cash') return;
       const currentStockRowElement = document.querySelector(".row" + isin);
   
       if (!currentStockRowElement) {
@@ -147,7 +142,8 @@ export async function flatexUpdateCustomRowData() {
   
     return true;
     } catch (error) {
-      console.log("Failed to get MAIN_LIST from storage:", error);
+      /* display-only refresh: the next tick retries */
+      console.error('flatexUpdateCustomRowData error:', error);
     }
 }
 
@@ -203,6 +199,14 @@ async function flatexTokenHash(tokenId: string) {
   return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
 
+const FLATEX_PROBE_RETRY_MS = 10 * 60 * 1000;
+
+// A failed probe was re-POSTed to flatex every 10 s tick; wait before retrying the same session.
+export function flatexProbeBackedOff(session:any, tokenHash:any, now:number) {
+  return !!tokenHash && session.flatexProbedTokenHash === tokenHash && !session.flatexProbedAccount
+    && now - (session.flatexProbeFailedAt || 0) < FLATEX_PROBE_RETRY_MS;
+}
+
 async function syncFlatexUser() {
   console.log("syncFlatexUser");
   const today = todayIso();
@@ -210,7 +214,7 @@ async function syncFlatexUser() {
   try{
 
     const flatexUserSession = await chrome.storage.local.get({
-      flatexUserSync: null, flatexProbedTokenHash: null, flatexProbedAccount: null });
+      flatexUserSync: null, flatexProbedTokenHash: null, flatexProbedAccount: null, flatexProbeFailedAt: 0 });
     const lastSync = flatexUserSession.flatexUserSync;
     const lastSyncDay = lastSync ? lastSync.slice(0, 10) : null;
 
@@ -232,12 +236,15 @@ async function syncFlatexUser() {
 
       if (sameSession) {
         currentSessionId = flatexUserSession.flatexProbedAccount;
+      } else if (flatexProbeBackedOff(flatexUserSession, tokenHash, Date.now())) {
+        console.log('syncFlatexUser probe backed off');
       } else if(windowId && tokenId){
         currentSessionId = await fetchOverview(tokenId, windowId);
         // Cache the result with its token so an accepted account is picked up on the
         // very next tick instead of waiting for tomorrow's probe.
         await chrome.storage.local.set({
-          flatexUserSync: today, flatexProbedTokenHash: tokenHash, flatexProbedAccount: currentSessionId });
+          flatexUserSync: today, flatexProbedTokenHash: tokenHash, flatexProbedAccount: currentSessionId,
+          flatexProbeFailedAt: currentSessionId ? 0 : Date.now() });
         await chrome.storage.local.remove('flatexProbedToken');
       }
       
@@ -255,6 +262,7 @@ async function syncFlatexUser() {
       console.log('syncFlatexUser not found in cookies');
     }
   }catch (err) {
+    /* the next 10 s tick re-probes; the save guard skips while the id is unknown */
     console.error('syncFlatexUser error:', err);
   }
 }
@@ -294,56 +302,49 @@ export async function flatexSaveDataToLocalStorage() {
     // below mean this tick would otherwise scrape under whatever that left behind.
     const saveAccountId = currentAccountId;
 
-    // Superseded: accountDetect returns null while a prompt is pending, and the
-    // currentAccountId guard above is what now freezes this broker's writes.
-    
-    
     if (isOnDashboardPage()) {
       console.log("flatexSaveDataToLocalStorage isOnDashboardPage");
-      chrome.storage.local.get(['KONTO_FLATEX'], (result) => {
-        const currentData = result.KONTO_FLATEX || [];
-        
-        // Kontosaldo/ Account balance
-        let accountBalance:any = 0;
-        const values = document.querySelectorAll(".DepositAndBalanceOverviewWidget .ValueRows .Value");
-        if (values.length >= 2) {
-          accountBalance = values[1]?.textContent?.trim().split(' ')[0];
-          accountBalance = germanToNumer(accountBalance);
-        }
+      const values = document.querySelectorAll(".DepositAndBalanceOverviewWidget .ValueRows .Value");
+      const accountBalance = values.length >= 2
+        ? germanToNumer(values[1]?.textContent?.trim().split(' ')[0] || '') : NaN;
+      // A half-rendered widget used to overwrite the stored cash with 0 or null.
+      if (!Number.isFinite(accountBalance)) {
+        console.log("flatex: cash not readable, skipping save");
+        return false;
+      }
 
-        const now = new Date();
-        let currentTimestamp = now.toISOString();
+      const result = await chrome.storage.local.get(['KONTO_FLATEX']);
+      const currentData = result.KONTO_FLATEX || [];
 
-        const cashIndex = currentData.findIndex((item:any) => item.stock_name === 'Cash'
-          && item.account_id === saveAccountId);
-        if (cashIndex !== -1) {
-          currentData[cashIndex].total_entry_value = accountBalance;
-          currentData[cashIndex].timestamp = currentTimestamp;
-        } else {
-          currentData.push({
-            id: crypto.randomUUID(),
-            broker: broker,
-            account_id: saveAccountId,
-            stock_name: 'Cash',
-            total_entry_value: accountBalance,
-            isGroup: false,
-            isin : '', 
-            stocks_owned:0, 
-            buy_price:0, 
-            product_type: '', 
-            wkn: '', 
-            profit_loss_percentage:0, 
-            profit_loss_price:0,
-            bid:0,
-            timestamp:currentTimestamp
-          });
-        }
-        
-        chrome.storage.local.set({ KONTO_FLATEX: currentData }, () => {
+      const now = new Date();
+      let currentTimestamp = now.toISOString();
+
+      const cashIndex = currentData.findIndex((item:any) => item.stock_name === 'Cash'
+        && item.account_id === saveAccountId);
+      if (cashIndex !== -1) {
+        currentData[cashIndex].total_entry_value = accountBalance;
+        currentData[cashIndex].timestamp = currentTimestamp;
+      } else {
+        currentData.push({
+          id: crypto.randomUUID(),
+          broker: broker,
+          account_id: saveAccountId,
+          stock_name: 'Cash',
+          total_entry_value: accountBalance,
+          isGroup: false,
+          isin : '', 
+          stocks_owned:0, 
+          buy_price:0, 
+          product_type: '', 
+          wkn: '', 
+          profit_loss_percentage:0, 
+          profit_loss_price:0,
+          bid:0,
+          timestamp:currentTimestamp
         });
-        
-      });
-
+      }
+      
+      await chrome.storage.local.set({ KONTO_FLATEX: currentData });
       return false;
     }
 
@@ -360,14 +361,15 @@ export async function flatexSaveDataToLocalStorage() {
       }
 
       const storedFlatex = await chrome.storage.local.get(['KONTO_FLATEX']);
-      chrome.storage.local.set({
+      await chrome.storage.local.set({
         [`KONTO_FLATEX`]: accountReplaceRows(storedFlatex.KONTO_FLATEX, stockData, broker, saveAccountId)
       });
-      console.log("fltex: Saved Data To Local Storage!");
-      flatexUpdateCustomRowData();
+      console.log("flatex: Saved Data To Local Storage!");
+      await flatexUpdateCustomRowData();
       return false;
     }
   }catch (err) {
+    /* a failed tick keeps the stored rows; the next tick retries */
     console.error('flatexSaveDataToLocalStorage error:', err);
   }
 }
@@ -611,6 +613,7 @@ function debugEnabled() {
   try {
     return !!localStorage.getItem('qxSyncDebug');
   } catch {
+    /* storage blocked: debug stays off */
     return false;
   }
 }
@@ -802,6 +805,7 @@ function flatexNeedsPurchaseDate(
 
 export const flatexSyncState:any = {
   inFlight: false,
+  starting: false,
   // Only while the VISIBLE page is driven — iframe runs let the periodic scrape keep running.
   inlineInFlight: false,
   abortRequested: false,
@@ -859,6 +863,7 @@ function flatexWaitFor(
       try {
         value = predicate();
       } catch {
+        /* DOM mid-swap: treat as not ready yet and poll again */
         value = null;
       }
       if (value) finish(value);
@@ -893,6 +898,7 @@ function flatexWaitFor(
         });
         observedDoc = doc;
       } catch {
+        /* doc navigated away: polling still covers the wait */
         observer = null;
         observedDoc = null; // poll-only fallback
       }
@@ -1061,6 +1067,7 @@ async function loadTabHint() {
     const result = await chrome.storage.local.get([TAB_HINT_KEY]);
     tabHint = result[TAB_HINT_KEY] || null;
   } catch {
+    /* no hint is the cold-start default */
     tabHint = null;
   }
   return tabHint;
@@ -1147,6 +1154,7 @@ function isRendered(el:any) {
   try {
     return typeof el.getClientRects !== 'function' || el.getClientRects().length > 0;
   } catch {
+    /* measuring failed: assume rendered rather than report the overlay closed */
     return true;
   }
 }
@@ -1430,6 +1438,7 @@ function hardResetEnabled() {
   try {
     return !!localStorage.getItem('qxSyncHardReset');
   } catch {
+    /* storage blocked: hard reset stays off */
     return false;
   }
 }
@@ -1463,7 +1472,9 @@ async function acquireSyncLock() {
 
     const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await chrome.storage.local.set({ [SYNC_LOCK_KEY]: { token, at: Date.now() } });
-    return token;
+    // Read-then-write isn't atomic: two tabs can both write, and only the last writer owns the lock.
+    const confirm = await chrome.storage.local.get([SYNC_LOCK_KEY]);
+    return confirm[SYNC_LOCK_KEY]?.token === token ? token : null;
   } catch (err) {
     console.error('acquireSyncLock error:', err);
     return null;
@@ -1510,6 +1521,7 @@ function noCloseOverride() {
   try {
     return !!localStorage.getItem('qxSyncNoClose');
   } catch {
+    /* storage blocked: override stays off */
     return false;
   }
 }
@@ -1708,6 +1720,7 @@ const REPROBE_MS:any = {
   no_shell: 24 * HOUR,
   no_depot: 24 * HOUR,
   no_detail: 24 * HOUR,
+  error: 6 * HOUR,
 };
 
 async function readIframeSupport() {
@@ -1715,6 +1728,7 @@ async function readIframeSupport() {
     const result = await chrome.storage.local.get([IFRAME_SUPPORT_KEY]);
     return result[IFRAME_SUPPORT_KEY] || null;
   } catch {
+    /* unknown support means probe again */
     return null;
   }
 }
@@ -1769,7 +1783,7 @@ async function flatexOpenSyncFrame(): Promise<any> {
     const headers = await flatexProbeFramingHeaders();
     if (headers.blocked) {
       await recordIframeSupport(false, 'xfo_denied');
-      console.info(`[qx:kaufdaten] framing blocked by headers (x-frame-options: ${headers.xfo})`);
+      console.log(`[qx:kaufdaten] framing blocked by headers (x-frame-options: ${headers.xfo})`);
       return { ok: false, reason: 'xfo_denied' };
     }
   }
@@ -1795,7 +1809,7 @@ async function flatexOpenSyncFrame(): Promise<any> {
   // Single exit funnel so no path can forget to persist the reason.
   const fail = async (reason:any, extra?:any) => {
     flatexDebugLog('frame unusable:', reason, extra ?? '');
-    console.info(`[qx:kaufdaten] iframe unavailable (${reason}) — falling back`);
+    console.log(`[qx:kaufdaten] iframe unavailable (${reason}) — falling back`);
     dispose();
     await recordIframeSupport(false, reason);
     return { ok: false, reason };
@@ -1803,47 +1817,53 @@ async function flatexOpenSyncFrame(): Promise<any> {
 
   document.body.appendChild(iframe);
 
-  // Phase 1: is it framed at all? An inaccessible contentDocument means blocked.
-  const reachable = await flatexWaitFor(() => {
-    try {
+  // A throw here (e.g. contentDocument gone after a login redirect) leaked the logged-in frame.
+  try {
+    // Phase 1: is it framed at all? An inaccessible contentDocument means blocked.
+    const reachable = await flatexWaitFor(() => {
+      try {
+        const doc = iframe.contentDocument;
+        return doc && doc.body ? doc : null;
+      } catch {
+        return 'blocked';
+      }
+    }, { timeoutMs: 8000, pollMs: 250 });
+
+    if (reachable === 'blocked') return fail('framing_blocked');
+    if (!reachable) return fail('load_timeout');
+
+    // Phase 2: has webcore rendered? The old gate passed on a script tag — hence it never worked.
+    const rendered = await flatexWaitFor(() => {
       const doc = iframe.contentDocument;
-      return doc && doc.body ? doc : null;
-    } catch {
-      return 'blocked';
+      if (!doc || doc.readyState !== 'complete') return null;
+      return doc.querySelector(`${TOP_NAV_SELECTOR}, ${DEPOT_ROW_SELECTOR}`) ? doc : null;
+    }, { timeoutMs: IFRAME_LOAD_TIMEOUT_MS, pollMs: 300 });
+
+    if (!rendered) {
+      const doc = iframe.contentDocument;
+      if (doc?.querySelector('input[type="password"]')) return fail('login');
+      return fail('no_shell', { readyState: doc?.readyState });
     }
-  }, { timeoutMs: 8000, pollMs: 250 });
 
-  if (reachable === 'blocked') return fail('framing_blocked');
-  if (!reachable) return fail('load_timeout');
+    // Lazy getters: a reload inside the frame replaces them and a captured ref goes stale.
+    const ctx = {
+      get doc() {
+        return iframe.contentDocument;
+      },
+      get win() {
+        return iframe.contentWindow;
+      },
+    };
 
-  // Phase 2: has webcore rendered? The old gate passed on a script tag — hence it never worked.
-  const rendered = await flatexWaitFor(() => {
-    const doc = iframe.contentDocument;
-    if (!doc || doc.readyState !== 'complete') return null;
-    return doc.querySelector(`${TOP_NAV_SELECTOR}, ${DEPOT_ROW_SELECTOR}`) ? doc : null;
-  }, { timeoutMs: IFRAME_LOAD_TIMEOUT_MS, pollMs: 300 });
+    const depot = await flatexEnsureDepotList(ctx);
+    if (!depot.ok) return fail('no_depot', depot.diag);
 
-  if (!rendered) {
-    const doc = iframe.contentDocument;
-    if (doc?.querySelector('input[type="password"]')) return fail('login');
-    return fail('no_shell', { readyState: doc?.readyState });
+    await recordIframeSupport(true);
+    return { ok: true, ctx, dispose };
+  } catch (err) {
+    console.error('flatexOpenSyncFrame error:', err);
+    return fail('error');
   }
-
-  // Lazy getters: a reload inside the frame replaces them and a captured ref goes stale.
-  const ctx = {
-    get doc() {
-      return iframe.contentDocument;
-    },
-    get win() {
-      return iframe.contentWindow;
-    },
-  };
-
-  const depot = await flatexEnsureDepotList(ctx);
-  if (!depot.ok) return fail('no_depot', depot.diag);
-
-  await recordIframeSupport(true);
-  return { ok: true, ctx, dispose };
 }
 
 /* ------------------------------------------------------------------------- *
@@ -1874,7 +1894,7 @@ async function saveDiag(result:any) {
 }
 
 function logSummary(result:any) {
-  console.info(
+  console.log(
     `[qx:kaufdaten] mode=${result.mode} reason=${result.reason ?? 'none'} ` +
       `skipped=${result.skipped ?? 'none'} synced=${result.synced} failed=${result.failed} ` +
       `remaining=${result.remaining} aborted=${result.aborted} ` +
@@ -1884,11 +1904,20 @@ function logSummary(result:any) {
 
 // Hidden iframe when possible; the visible page only if the caller allows it.
 export async function flatexRunSync(options:any = {}) {
-  const { force = false, allowInline = false, profile = 'background', onProgress } = options;
-
-  if (flatexSyncState.inFlight) {
+  // Claimed before the first await: inFlight is only set ~25 s later, so two callers both got through.
+  if (flatexSyncState.inFlight || flatexSyncState.starting) {
     return { mode: 'inline', synced: 0, failed: 0, remaining: 0, aborted: false, skipped: 'in_flight' };
   }
+  flatexSyncState.starting = true;
+  try {
+    return await flatexRunSyncOnce(options);
+  } finally {
+    flatexSyncState.starting = false;
+  }
+}
+
+async function flatexRunSyncOnce(options:any) {
+  const { force = false, allowInline = false, profile = 'background', onProgress } = options;
 
   // Same account guard as the sync run, here only to skip booting a frame for nothing.
   if (!currentAccountId) {
@@ -1975,7 +2004,7 @@ export async function flatexRunSync(options:any = {}) {
 
 // Called from the periodic scrape. Debounced hard, and never touches the visible page.
 export async function flatexMaybeAutoSync() {
-  if (flatexSyncState.inFlight) return;
+  if (flatexSyncState.inFlight || flatexSyncState.starting) return;
   if (Date.now() - lastAutoSyncAt < AUTO_SYNC_INTERVAL_MS) return;
   if (!(await flatexShouldTryIframe())) return;
 
@@ -2012,7 +2041,7 @@ export function flatexAttachDebugHelpers() {
     probeFrame: async () => {
       const frame = await flatexOpenSyncFrame();
       if (frame.ok) {
-        console.info('[qx:kaufdaten] frame OK');
+        console.log('[qx:kaufdaten] frame OK');
         frame.dispose();
         return { ok: true };
       }
@@ -2036,14 +2065,19 @@ export function flatexAttachDebugHelpers() {
         TAB_HINT_KEY,
         PURCHASE_CACHE_KEY,
       ]);
-      console.log(data);
+      // Counts only: the bank page console must never show the cached quantities and prices.
+      console.log('qxSync.diag', {
+        diag: data[DIAG_KEY]?.skipped ?? null,
+        iframeSupported: data[IFRAME_SUPPORT_KEY]?.supported ?? null,
+        purchaseEntries: Object.keys(data[PURCHASE_CACHE_KEY] || {}).length,
+      });
       return data;
     },
     reset: async () => {
       await chrome.storage.local.remove([IFRAME_SUPPORT_KEY, TAB_HINT_KEY, DIAG_KEY]);
       await flatexClearPurchaseDateCache();
-      console.info('[qx:kaufdaten] caches cleared');
+      console.log('[qx:kaufdaten] caches cleared');
     },
   };
-  console.info('[qx:kaufdaten] debug helpers on window.qxSync');
+  console.log('[qx:kaufdaten] debug helpers on window.qxSync');
 }

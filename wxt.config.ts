@@ -18,7 +18,7 @@ export default defineConfig({
     includeSources: [
       'assets/**', 'components/**', 'entrypoints/**', 'lib/**', 'public/**', 'utils/**',
       'components.json', 'package.json', 'package-lock.json', 'tsconfig.json', 'wxt.config.ts',
-      'README.md', 'LICENSE', 'SECURITY.md', 'examples/**',
+      'README.md', 'LICENSE', 'SECURITY.md', 'PRIVACY.md', 'examples/**',
     ],
   },
   manifest: ({ browser }) => ({
@@ -30,6 +30,8 @@ export default defineConfig({
     ...(browser !== 'firefox' && { minimum_chrome_version: '116' }),
     // Derived from API_BASE_URL so the code can never call a host the manifest doesn't allow
     host_permissions: [`${new URL(API_BASE_URL).origin}/*`],
+    // Telegram alerts are opt-in, so the third-party host is asked for only when the user saves a bot
+    optional_host_permissions: ['https://api.telegram.org/*'],
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'self';"
     },
@@ -42,7 +44,7 @@ export default defineConfig({
         gecko: {
           id: 'insights@qx.plus',
           strict_min_version: '140.0',
-          // Feed calls send holdings ISINs and the API key; SupportWidget sends name, email, message and screenshot
+          // Feed calls send holdings ISINs and the API key; SupportWidget sends name, email, message and screenshot; Telegram alerts send position names and values
           data_collection_permissions: {
             required: ['financialAndPaymentInfo', 'personallyIdentifyingInfo', 'personalCommunications', 'authenticationInfo'],
           },
