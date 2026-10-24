@@ -1390,6 +1390,7 @@ const recalculateDatapoints = async() => {
         tension: 0.4,
         cubicInterpolationMode: 'monotone',
         isHistory: true,
+        pointRadius: 0,
         accountKey: group.key,
         endLabel: t('history'),
       }));
@@ -1609,6 +1610,7 @@ const recalculateDatapoints = async() => {
           backgroundColor: customColors[0],
           cubicInterpolationMode: 'monotone',
           isHistory: true,
+          pointRadius: 0,
           accountKey: group.key,
           endLabel: t('history'),
         },

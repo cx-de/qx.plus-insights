@@ -475,7 +475,7 @@
 
                                   <template v-else-if="cell.column.id === 'future_total_value'">
                                     <span :title="getTitleForHL('future_total_value', row.original.future_total_value)" :class="getClassForHL('future_total_value', row.original.future_total_value)">
-                                      {{ row.original.future_total_value ? numberToGerman(row.original.future_total_value) : ''  }}
+                                      {{ formatFutureTotal(row.original.future_total_value) }}
                                     </span>
                                   </template>
 
@@ -647,7 +647,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'future_total_value'">
-                                  {{  item.original.future_total_value ? numberToGerman(item.original.future_total_value) : ''  }}
+                                  {{ formatFutureTotal(item.original.future_total_value) }}
                                 </template>
 
                                 <template v-else-if="column.id === 'type'">
@@ -2066,6 +2066,9 @@ const getScopedGroupTotals = (groupId:any) => {
 
 // A negative balance is a Wertpapierkredit, so it reads as credit rather than minus-cash.
 const cashAmount = (row:any) => Math.abs(Number(row?.total_entry_value) || 0);
+
+// 0 is a real result (worthless put at valuation), not "no value"; 2 decimals skips the <5 auto-bump to 0,0000.
+const formatFutureTotal = (v:any) => v === 0 ? numberToGerman(0, false, 2) : v ? numberToGerman(v) : '';
 
 const cashLabel = (row:any) => {
   const base = (Number(row?.total_entry_value) || 0) < 0 ? t('loan_capital') : t('cash');
