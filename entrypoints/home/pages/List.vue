@@ -1099,7 +1099,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, fetchFeed, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso } from '~/utils/helper';
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso } from '~/utils/helper';
 
 import { 
   getPriceData,
@@ -2153,6 +2153,8 @@ const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(lab
 
 const controllers: AbortController[] = [];
 let chunkSize = 20;
+// Positions the daily products/peers pass may still spend in the current feed window; the rest waits for the next tick.
+let dailyPassBudget = Infinity;
 
 
 const getProductData = async (forceUpdate = false) => {
@@ -2179,6 +2181,8 @@ const getProductData = async (forceUpdate = false) => {
     
     for (const chunk of wknChunks) {
       try {
+        if (chunk.length > dailyPassBudget) break;
+        dailyPassBudget -= chunk.length;
         const wknParam = chunk.join(',');
         const url = `${apiBaseUrl}products?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wknParam)}`;
         const apiData = await fetchFeed(url, controller.signal);
@@ -2200,6 +2204,8 @@ const getProductData = async (forceUpdate = false) => {
 
     for (const chunk of isinChunks) {
       try {
+        if (chunk.length > dailyPassBudget) break;
+        dailyPassBudget -= chunk.length;
         const isinParam = chunk.join(',');
         const url = `${apiBaseUrl}products?apikey=${encodeURIComponent(apiKey.value)}&isin=${encodeURIComponent(isinParam)}`;
         const apiData = await fetchFeed(url, controller.signal);
@@ -2266,12 +2272,10 @@ const reloadPriceData = async(forceUpdate=false) =>{
 
   isPriceLoading.value = true;
   try {
-    if(forceUpdate){
-      await getProductData(true);
-    }
-    await getPriceData();
-    await getUnderlyingPriceData();
-    await getCurrencyRate();
+    // Reload forces prices only: products and peers stay once a day.
+    await getPriceData(forceUpdate);
+    await getUnderlyingPriceData(forceUpdate);
+    await getCurrencyRate(forceUpdate);
 
     const priceFields = [
       'bid','ask',
@@ -2359,7 +2363,8 @@ const getPeerProductData = async () => {
   try {
     // One request per wkn, so run a few at a time instead of strictly one after another.
     for (const batch of chunkArray(wknList, 4)) {
-      if (apiAuthFailed.value || isApiRateLimited()) break;
+      if (apiAuthFailed.value || isApiRateLimited() || batch.length > dailyPassBudget) break;
+      dailyPassBudget -= batch.length;
       await Promise.all(batch.map(fetchPeers));
     }
     
@@ -2575,14 +2580,26 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
   }
   activeRefreshes.value++;
   try {
-    //update price and product
-    await getProductData();
-    await getPeerProductData();
-
+    // Prices first: on the first open of a day the products/peers pass alone nearly fills a feed window.
     if(!isPriceReload){
       await getPriceData();
       await getUnderlyingPriceData();
       await getCurrencyRate();
+    }
+
+    const today = todayIso();
+    const rows:any[] = await storage.getItem('local:MAIN_LIST') || [];
+    // Same filters as getProductData/getPeerProductData, or a row they never stamp keeps this true all day.
+    const dailyPending = rows.some(r =>
+      ((r.type === 'stock' ? r.wkn : r.isin) && r.lastUpdated !== today) || (r.wkn && r.peerslastUpdated !== today));
+    if(dailyPending && !isMarketClosed()){
+      // /usage is never metered; no answer means no budget, as before.
+      const feedWindow:any = (await fetchApiUsage(apiKey.value) as any)?.window;
+      dailyPassBudget = Number(feedWindow?.limit) > 0 ? Math.max(0, feedWindow.limit - (Number(feedWindow.used) || 0)) : Infinity;
+      await getProductData();
+      await getPeerProductData();
+      // Only rows that just got their underlying_isin are stale here, so this costs a few positions at most.
+      await getUnderlyingPriceData();
     }
     // First pass ran before cap/strike/underlying arrived; without this, new positions show a wrong Zielwert until the next price interval.
     await calculateLatestMainListData(true);

@@ -151,13 +151,13 @@ describe('isMarketClosed', () => {
   };
 
   it('is closed without an API key', () => {
-    at(new Date(2026, 8, 28, 12));
+    at(new Date(Date.UTC(2026, 8, 28, 10)));
     apiKey.value = '';
     expect(isMarketClosed()).toBe(true);
   });
 
   it('is closed while the key is latched as rejected', () => {
-    at(new Date(2026, 8, 28, 12));
+    at(new Date(Date.UTC(2026, 8, 28, 10)));
     apiKey.value = 'key';
     apiAuthFailed.value = true;
     expect(isMarketClosed()).toBe(true);
@@ -165,15 +165,33 @@ describe('isMarketClosed', () => {
 
   it('is closed on Saturday and Sunday', () => {
     apiKey.value = 'key';
-    at(new Date(2026, 8, 26, 12));
+    at(new Date(Date.UTC(2026, 8, 26, 10)));
     expect(isMarketClosed()).toBe(true);
-    vi.setSystemTime(new Date(2026, 8, 27, 12));
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 27, 10)));
     expect(isMarketClosed()).toBe(true);
   });
 
   it('is open on a weekday with a valid key', () => {
     apiKey.value = 'key';
-    at(new Date(2026, 8, 28, 12));
+    at(new Date(Date.UTC(2026, 8, 28, 10)));
+    expect(isMarketClosed()).toBe(false);
+  });
+
+  it('follows the feed service hours 08:00-22:00 Berlin', () => {
+    apiKey.value = 'key';
+    // CEST (UTC+2)
+    at(new Date(Date.UTC(2026, 8, 28, 5, 59)));
+    expect(isMarketClosed()).toBe(true);
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 28, 6, 0)));
+    expect(isMarketClosed()).toBe(false);
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 28, 19, 59)));
+    expect(isMarketClosed()).toBe(false);
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 28, 20, 0)));
+    expect(isMarketClosed()).toBe(true);
+    // CET (UTC+1), after the October DST switch
+    vi.setSystemTime(new Date(Date.UTC(2026, 10, 2, 6, 59)));
+    expect(isMarketClosed()).toBe(true);
+    vi.setSystemTime(new Date(Date.UTC(2026, 10, 2, 7, 0)));
     expect(isMarketClosed()).toBe(false);
   });
 });

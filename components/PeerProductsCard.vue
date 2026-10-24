@@ -110,6 +110,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 
 import { sortableHeader } from '~/utils/table-utils';
+import { getPeerPrices } from '~/utils/price-data-utils';
 import { CirclePlus } from 'lucide-vue-next';
 
 import { h, ref } from 'vue'
@@ -128,13 +129,11 @@ const products = ref<any[]>([]);
 const getPeersPriceData = async () => {
   // Only a missing or rejected key stops this — isMarketClosed() would also blank it every weekend.
   if (!apiKey.value || apiAuthFailed.value) { isLoading.value = false; return; }
-  const wknChunks = props.peer_members.join(',');
   try {
-      const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wknChunks)}`;
-      const apiData = await fetchFeed(url);
-      if(apiData && apiData.status==1){
+      const data = await getPeerPrices(props.peer_members);
+      if(data){
         const apiMap: Record<string, any> = Object.fromEntries(
-          (apiData.data || []).map((item: any) => [item.wkn, item])
+          data.map((item: any) => [item.wkn, item])
         );
         products.value = props.peer_members.map((wkn: string) => ({
           wkn,

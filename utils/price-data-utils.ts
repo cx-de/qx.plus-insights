@@ -23,24 +23,38 @@ const PAYOUT_LAG_DAYS = 7;
 // Annualizing a few days of gain gives absurd rates (+5% in 2 days is +743.000% p.a.).
 const MIN_HOLD_DAYS_FOR_PA = 30;
 
-let cachedPriceUpdateDuration:any = null;
+// Read each call: a cached copy kept a changed interval out until the dashboard was reopened.
 const getPriceUpdateDuration = async () => {
-  if (cachedPriceUpdateDuration !== null) {
-    return cachedPriceUpdateDuration;
-  }
-  
   let priceUpdateDuration = 30;
   try {
     const settings:any = await storage.getItem('local:settings');
-    if (settings && settings.price_duration) {
-      priceUpdateDuration = settings.price_duration;
+    if (settings && Number(settings.price_duration) > 0) {
+      priceUpdateDuration = Number(settings.price_duration);
     }
   } catch (e) {
     console.error("Error fetching settings:", e);
   }
-  cachedPriceUpdateDuration = priceUpdateDuration;
   return priceUpdateDuration;
 };
+
+// Shared by every peers cell for one interval: each hover was a fresh metered /price bundle.
+const peerPriceCache = new Map<string, { at: number, data: any[] }>();
+
+export const getPeerPrices = async (peerMembers: string[]) => {
+  const wkns = peerMembers.join(',');
+  const cached = peerPriceCache.get(wkns);
+  if (cached && Date.now() - cached.at < await getPriceUpdateDuration() * 60_000) return cached.data;
+  const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wkns)}`;
+  const apiData = await fetchFeed(url);
+  if (!apiData || apiData.status != 1) return null;
+  const data = apiData.data || [];
+  peerPriceCache.set(wkns, { at: Date.now(), data });
+  return data;
+};
+
+// 10% slack: a timer tick lands seconds before the stamp expires, which would double the real interval.
+const isStale = (stampedAt:any, updateMinutes:number, now:number) =>
+  !stampedAt || now >= new Date(stampedAt).getTime() + updateMinutes * 60_000 * 0.9;
 
 
 export const reloadPriceData = async () => {
@@ -92,7 +106,7 @@ export const reloadPriceData = async () => {
   }
 };
 
-export const getPriceData = async (forceUpdate = true) => {
+export const getPriceData = async (forceUpdate = false) => {
   if (isMarketClosed()) return;
   
   const controller = new AbortController();
@@ -105,12 +119,7 @@ export const getPriceData = async (forceUpdate = true) => {
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
   
-  const needsUpdate = (item: any) => {
-    if (forceUpdate || !item.priceUpdatedAt) return true;
-    const lastUpdatedTime = new Date(item.priceUpdatedAt).getTime();
-    const nextUpdateTime = lastUpdatedTime + updateMinutes * 60_000;
-    return now >= nextUpdateTime;
-  };
+  const needsUpdate = (item: any) => forceUpdate || isStale(item.priceUpdatedAt, updateMinutes, now);
 
   let allApiData: any[] = [];
   let failed = false;
@@ -169,10 +178,14 @@ export const getPriceData = async (forceUpdate = true) => {
           timestamp: timestamp ?? item.timestamp ?? Date.now(),
           priceUpdatedAt: currentDatetime,
         };
+      }else if(!needsUpdate(item)){
+        // Skipped as still fresh: stamping it now would push its next refresh a whole interval out.
+        return item;
       }else{
-        if(item.page_bid){
+        // Only when the feed answered without this product: a 403/429 must keep the last feed price, not the old broker one.
+        if(item.page_bid && !failed){
           return { ...item,
-            bid: item.page_bid != null ? parseFloat(item.page_bid) : (item.bid != null ? item.bid : 0),
+            bid: parseFloat(item.page_bid),
             ...freshStamp
           };
         }else{
@@ -192,7 +205,7 @@ export const getPriceData = async (forceUpdate = true) => {
   }
 };
 
-export const getUnderlyingPriceData = async (forceUpdate = true) => {
+export const getUnderlyingPriceData = async (forceUpdate = false) => {
   if (isMarketClosed()) return;
   
   const controller = new AbortController();
@@ -203,12 +216,7 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
   const currentDatetime = new Date().toISOString();
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
-  const needsUpdate = (item: any) => {
-    if (forceUpdate || !item.underlyingPriceUpdatedAt) return true;
-    const lastUpdatedTime = new Date(item.underlyingPriceUpdatedAt).getTime();
-    const nextUpdateTime = lastUpdatedTime + updateMinutes * 60_000;
-    return now >= nextUpdateTime;
-  };
+  const needsUpdate = (item: any) => forceUpdate || isStale(item.underlyingPriceUpdatedAt, updateMinutes, now);
 
   const uisinList = [...new Set(mainListData.filter((item:any) => item.underlying_isin && needsUpdate(item))
     .map((item:any) => item.underlying_isin)
@@ -264,7 +272,7 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
   }
 };
 
-export const getCurrencyRate = async (forceUpdate = true) => {
+export const getCurrencyRate = async (forceUpdate = false) => {
   if (isMarketClosed()) return;
   
   const controller = new AbortController();
@@ -275,12 +283,7 @@ export const getCurrencyRate = async (forceUpdate = true) => {
   const currentDatetime = new Date().toISOString();
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
-  const needsUpdate = (item: any) => {
-    if (forceUpdate || !item.currencyRateUpdatedAt) return true;
-    const lastUpdatedTime = new Date(item.currencyRateUpdatedAt).getTime();
-    const nextUpdateTime = lastUpdatedTime + updateMinutes * 60_000;
-    return now >= nextUpdateTime;
-  };
+  const needsUpdate = (item: any) => forceUpdate || isStale(item.currencyRateUpdatedAt, updateMinutes, now);
 
   const currencyList = [...new Set(mainListData
     .filter((item:any) => item.currency && needsUpdate(item))
@@ -316,6 +319,8 @@ export const getCurrencyRate = async (forceUpdate = true) => {
           currency_rate: bid,
           currencyRateUpdatedAt: currentDatetime
         };
+      }else if(!needsUpdate(item)){
+        return item;
       }else {
         let currencyRate = item.currency_rate || 1;
         return {
@@ -410,8 +415,9 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
           const filteredNewItem = Object.fromEntries(
             Object.entries(newItem).filter(([key]) => allowedFields.includes(key))
           );
+          // Once the feed delivered a rate, the broker's scraped one is older.
+          if (existingItem.currencyRateUpdatedAt) delete filteredNewItem.currency_rate;
 
-          
           const merged = {...existingItem, ...filteredNewItem};
           mergedData.push(merged);
         } else {

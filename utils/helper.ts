@@ -104,6 +104,8 @@ export const fetchFeed = async (url:any, signal?:any) => {
     // The body tells a JSON "invalid key" apart from a WAF/CDN block page.
     const body = await res.text().catch(() => /* body is diagnostics only */ '');
     console.error('fetchFeed auth error:', res.status, redactApiKey(url), redactApiKey(body.slice(0, 200)));
+    // Outside service hours says nothing about the key; probing it here latched good keys dead overnight.
+    if (res.status === 403 && body.includes('"service_window_closed"')) return null;
     // One 401/403 can be a server blip; a second request decides before prices stop.
     const rejected = await confirmApiAuthFailed();
     if (!rejected) console.error('fetchFeed transient auth error:', res.status);
@@ -443,6 +445,8 @@ export const getLatestData = async () => {
         const filteredFields = Object.fromEntries(
           Object.entries(newItem).filter(([key]) => allowedFields.includes(key))
         );
+        // A broker scrape from yesterday must not replace the feed's newer price time.
+        if (timeOf(currentItem.timestamp) > timeOf(newItem.timestamp)) delete filteredFields.timestamp;
         mergedData.push({ ...currentItem, ...filteredFields });
         newDataMap.delete(key); // processed
       }
@@ -747,10 +751,13 @@ export const clearAllStockData = async () => {
   
 }
 
-function isWeekend(date = new Date()) {
-  const day = date.getDay(); // 0 = Sunday, 6 = Saturday
-  return day === 0 || day === 6;
-}
+// Same parse as formatTimestamp: scrapers store ms numbers, ISO strings and parsed broker times.
+const timeOf = (value:any) => new Date(value).getTime() || 0;
+
+// The feed only serves 08:00-22:00 Berlin (backend services.feed.window_*), whatever the user's clock zone.
+const berlinClock = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', hour: 'numeric', hourCycle: 'h23' });
+const FEED_OPEN_HOUR = 8;
+const FEED_CLOSE_HOUR = 22;
 
 export function isMarketClosed() {
   if(!apiKey.value){
@@ -762,13 +769,15 @@ export function isMarketClosed() {
     return true;
   }
 
-  const today = new Date();
-  if (isWeekend(today)){
+  const parts = berlinClock.formatToParts(new Date());
+  const weekday = parts.find(p => p.type === 'weekday')?.value;
+  const hour = Number(parts.find(p => p.type === 'hour')?.value);
+  if (weekday === 'Sat' || weekday === 'Sun'){
     return true;
   }
 
- 
-  return false;
+  // Night-time calls are refused anyway, and their fallback used to swap feed prices for old broker ones.
+  return hour < FEED_OPEN_HOUR || hour >= FEED_CLOSE_HOUR;
 }
 
 
