@@ -8,6 +8,7 @@ const routes = [
   { path: '/forecast', name: 'Forecast', component: () => import('../pages/Forecast.vue') },
   { path: '/settings', name: 'Settings', component: () => import('../pages/Settings.vue') },
   { path: '/help', name: 'Help', component: () => import('../pages/Help.vue') },
+  { path: '/:pathMatch(.*)*', redirect: '/' },
 ];
 
 const router = createRouter({

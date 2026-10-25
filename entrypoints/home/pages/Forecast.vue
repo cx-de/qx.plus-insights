@@ -302,7 +302,7 @@
                       <div class="flex flex-wrap justify-between gap-x-3 gap-y-1 rounded-md bg-background px-3 py-2 text-xs tabular-nums" aria-live="polite">
                         <span>{{ $t('scenarios.virtual_puts.premium') }} <strong class="font-semibold">{{ virtualPutPreview.premium ? `${formatChartNumber(virtualPutPreview.premium, 2)} €` : '–' }}</strong></span>
                         <span class="text-muted-foreground">{{ virtualPutDistanceText }}</span>
-                        <span v-if="virtualPutPreview.iv" class="w-full text-muted-foreground">{{ $t('scenarios.virtual_puts.iv_preview', { value: formatChartNumber(virtualPutPreview.iv, 1) }) }}</span>
+                        <span v-if="virtualPutPreview.iv" class="w-full text-muted-foreground">{{ $t('scenarios.virtual_puts.iv_preview', { value: formatChartNumber(virtualPutPreview.iv, 2) }) }}</span>
                         <span v-if="virtualPutIvWarning" class="w-full font-medium text-amber-700 dark:text-amber-400">{{ virtualPutIvWarning }}</span>
                       </div>
 
@@ -480,6 +480,9 @@
                                   <template v-else-if="forecastTableNonPriceFields.includes(cell.column.id)">
                                       {{ row.original[cell.column.id] }}
                                   </template>
+                                  <template v-else-if="cell.column.id === 'currency_rate'">
+                                    {{ currencyRateText(row.original.currency_rate) }}
+                                  </template>
                                   <template v-else>
                                     {{ row.original[cell.column.id] != null && row.original[cell.column.id] !== '' ? numberToGerman(row.original[cell.column.id]) : '' }}
                                   </template>
@@ -587,6 +590,7 @@ import {
   deepCloneReactiveData,
   calculateFutureTotalValue,
   todayIso,
+  currencyRateText,
 } from '~/utils/helper'
 import { virtualPutRow, virtualPutSigma, virtualPutValidate } from '~/utils/virtual-put-utils'
 
@@ -792,9 +796,9 @@ function endLabelText(dataset:any, last:any) {
   const base = dataset.baseData?.[last];
   // Effect vs the forecast, so a put-hedged portfolio rising in a falling market reads as intended.
   let effect = Number.isFinite(base) && base ? (value / base - 1) * 100 : null;
-  // Rounds to zero either way; "-0.0%" read as a loss.
-  if (effect !== null && Math.abs(effect) < 0.05) effect = 0;
-  const effectText = effect === null ? '' : ` (${effect > 0 ? '+' : ''}${formatChartNumber(effect, 1)}%)`;
+  // Rounds to zero either way; "-0.00%" read as a loss.
+  if (effect !== null && Math.abs(effect) < 0.005) effect = 0;
+  const effectText = effect === null ? '' : ` (${effect > 0 ? '+' : ''}${formatChartNumber(effect, 2)}%)`;
   return `${dataset.endLabel} · ${formatChartNumber(value)}${effectText}`;
 }
 
@@ -1519,7 +1523,7 @@ const recalculateDatapoints = async() => {
           anchorBase[i] + value - scenarioTotalForDate(group.rows, neutralScenario, datesForForecast[i]));
         const formattedEndDate = end.toLocaleString('en-US', { month: 'short', year: 'numeric' });
         chartData.value.datasets.push({
-          label: `${t('scenario')} ${index + 1} (${market > 0 ? '+' : ''}${market}%) ${t('until')} ${formattedEndDate}`,
+          label: `${t('scenario')} ${index + 1} (${market > 0 ? '+' : ''}${formatChartNumber(market, 2)}%) ${t('until')} ${formattedEndDate}`,
 
           data: anchoredData,
           scenario: scenario,
@@ -1529,7 +1533,7 @@ const recalculateDatapoints = async() => {
           backgroundColor: market > 0 ? '#16a34a' : '#ef4444',
           cubicInterpolationMode: 'monotone',
           accountKey: group.key,
-          endLabel: `${market > 0 ? '+' : ''}${market}%`,
+          endLabel: `${market > 0 ? '+' : ''}${formatChartNumber(market, 2)}%`,
           baseData: anchorBase,
           todayTotal: newDatapoints[0],
 
@@ -1551,7 +1555,7 @@ const recalculateDatapoints = async() => {
             backgroundColor: market > 0 ? '#16a34a' : '#ef4444',
             cubicInterpolationMode: 'monotone',
             accountKey: group.key,
-            endLabel: `${market > 0 ? '+' : ''}${market}% + ${t('scenarios.virtual_puts.short')}`,
+            endLabel: `${market > 0 ? '+' : ''}${formatChartNumber(market, 2)}% + ${t('scenarios.virtual_puts.short')}`,
             baseData: anchorBase,
             todayTotal: newDatapoints[0],
           };
@@ -1851,9 +1855,9 @@ const virtualPutIvWarning = computed(() => {
 const virtualPutDistanceText = computed(() => {
   const distance = virtualPutPreview.value.distance;
   if (distance === null) return '';
-  // Under 0.05 % rounds to 0.0, which reads better as at the price.
-  if (Math.abs(distance) < 0.05) return t('scenarios.virtual_puts.distance_at');
-  const value = formatChartNumber(Math.abs(distance), 1);
+  // Under 0.005 % rounds to 0.00, which reads better as at the price.
+  if (Math.abs(distance) < 0.005) return t('scenarios.virtual_puts.distance_at');
+  const value = formatChartNumber(Math.abs(distance), 2);
   return t(distance < 0 ? 'scenarios.virtual_puts.distance_below' : 'scenarios.virtual_puts.distance_above', { value });
 });
 
@@ -2043,7 +2047,7 @@ const marketPresets = [-10, -5, 5, 10];
 const formatMarket = (value:any) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return '';
-  const abs = new Intl.NumberFormat(locale.value === 'de' ? 'de-DE' : 'en-US', { maximumFractionDigits: 2 }).format(Math.abs(n));
+  const abs = new Intl.NumberFormat(locale.value === 'de' ? 'de-DE' : 'en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(n));
   return `${n > 0 ? '+' : n < 0 ? '−' : ''}${abs} %`;
 };
 
@@ -2362,7 +2366,7 @@ const prepareForecastData = async () => {
     const end = s.timeframe.end.replace(/-/g, "").slice(2);     // YYMMDD
     return {
       id: `${s.market}_${start}_${end}`,
-      label: `${s.market}% (${formatDate(s.timeframe.start)} - ${formatDate(s.timeframe.end)})`,
+      label: `${formatChartNumber(s.market, 2)}% (${formatDate(s.timeframe.start)} - ${formatDate(s.timeframe.end)})`,
     };
   });
 

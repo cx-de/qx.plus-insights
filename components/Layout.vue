@@ -69,7 +69,7 @@
   <script setup lang="ts">
   import {computed, ref} from "vue";
   
-  import { getApiKey, saveDailyTotal, todayIso } from '~/utils/helper'
+  import { applyTheme, getApiKey, saveDailyTotal, todayIso } from '~/utils/helper'
   import ApiKeyNotice from '~/components/ApiKeyNotice.vue'
   import SupportWidget from '~/components/SupportWidget.vue'
   
@@ -107,17 +107,10 @@
   const { t } = useI18n();
   
   
-  const theme = ref(localStorage.getItem('theme') || 'light');
-  const setTheme = (themeName:any) => {
-  
-    if(themeName==="light"){
-      document.documentElement.classList.remove('dark');
-    }else{
-      document.documentElement.classList.add('dark');
-    }
-  }
-  
-  setTheme(theme.value);
+  applyTheme();
+  const darkScheme = matchMedia('(prefers-color-scheme: dark)');
+  // Re-reads the stored choice, so only 'system' reacts to the OS switch.
+  const onSchemeChange = () => applyTheme();
   const menuItems = computed(() => {
     let items:any[] = [];
 
@@ -228,8 +221,10 @@ async function savePortfolioHistory() {
 let historyInterval:any = null;
 let authInterval:any = null;
 onMounted( async() => {
+  // Before the await, or an unmount during it would leave the listener behind.
+  darkScheme.addEventListener('change', onSchemeChange);
   await getApiKey()
-  
+
   //history
   savePortfolioHistory();
   const MINUTE = 60 * 1000;
@@ -244,6 +239,7 @@ onMounted( async() => {
 onUnmounted(() => {
   clearInterval(historyInterval);
   clearInterval(authInterval);
+  darkScheme.removeEventListener('change', onSchemeChange);
 });
   
   </script>

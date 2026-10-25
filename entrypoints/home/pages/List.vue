@@ -333,6 +333,8 @@
                                     <template v-else-if="cell.column.id === 'stock_name'">
                                       {{ cashLabel(row.original) }}
                                     </template>
+                                    <!-- Repeated in WKN so the line still reads as cash once the name column is scrolled away. -->
+                                    <template v-else-if="cell.column.id === 'wkn'">{{ cashBaseLabel(row.original) }}</template>
                                     <template v-else-if="cell.column.id === 'total_entry_value' || cell.column.id === 'total_value'">
                                       {{ numberToGerman(cashAmount(row.original)) }}
                                     </template>
@@ -417,7 +419,7 @@
                                   <template v-else-if="cell.column.id === 'profit_loss_percentage'">
                                     <span :title="getTitleForHL('profit_loss_percentage', row.original.profit_loss_percentage)" :class="[getClassForHL('profit_loss_percentage', row.original.profit_loss_percentage),
                                       getClassForAlert('profit_loss_percentage', row.original)]">
-                                      {{  numberToGerman(row.original.profit_loss_percentage)  }}
+                                      {{  numberToGerman(row.original.profit_loss_percentage, false, 2)  }}
                                     </span>
                                   </template>
 
@@ -455,7 +457,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'profit_loss_target_pa'">
-                                    {{  row.original.profit_loss_target_pa ? numberToGerman(row.original.profit_loss_target_pa)+'%' : ''  }}
+                                    {{  row.original.profit_loss_target_pa ? numberToGerman(row.original.profit_loss_target_pa, false, 2)+'%' : ''  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'profit_loss_target_per_day'">
@@ -497,7 +499,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'currency_rate'">
-                                    {{ numberToGerman(row.original.currency_rate,false,4)  }}
+                                    {{ currencyRateText(row.original.currency_rate) }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'underlying_isin'">
@@ -547,7 +549,7 @@
                                   <template v-else-if="cell.column.id === 'sideways_return_pa'">
                                     <span :title="getTitleForHL('sideways_return_pa', row.original.sideways_return_pa)" :class="[getClassForHL('sideways_return_pa', row.original.sideways_return_pa),
                                       getClassForAlert('sideways_return_pa', row.original)]">
-                                      {{  row.original.sideways_return_pa ? numberToGerman(row.original.sideways_return_pa)+'%' : '' }}
+                                      {{  row.original.sideways_return_pa ? numberToGerman(row.original.sideways_return_pa, false, 2)+'%' : '' }}
                                     </span>
                                   </template>
 
@@ -557,7 +559,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'implied_volatility'">
-                                    <span>{{ row.original.implied_volatility ? numberToGerman(row.original.implied_volatility)+'%' : '' }}</span>
+                                    <span>{{ row.original.implied_volatility ? numberToGerman(row.original.implied_volatility, false, 2)+'%' : '' }}</span>
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'actions'">
@@ -598,6 +600,7 @@
                                 <!-- Same as the top-level cash line: only value, broker and account columns mean anything. -->
                                 <template v-else-if="isCashRow(item.original)">
                                   <template v-if="column.id === 'stock_name'">{{ cashLabel(item.original) }}</template>
+                                  <template v-else-if="column.id === 'wkn'">{{ cashBaseLabel(item.original) }}</template>
                                   <template v-else-if="column.id === 'total_entry_value' || column.id === 'total_value'">
                                     {{ numberToGerman(cashAmount(item.original)) }}
                                   </template>
@@ -683,7 +686,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'profit_loss_percentage'">
-                                  {{  numberToGerman(item.original.profit_loss_percentage)  }}
+                                  {{  numberToGerman(item.original.profit_loss_percentage, false, 2)  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'bid'">
@@ -707,7 +710,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'profit_loss_target_pa'">
-                                  {{  item.original.profit_loss_target_pa ? numberToGerman(item.original.profit_loss_target_pa)+'%' : ''  }}
+                                  {{  item.original.profit_loss_target_pa ? numberToGerman(item.original.profit_loss_target_pa, false, 2)+'%' : ''  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'profit_loss_target_per_day'">
@@ -735,7 +738,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'currency_rate'">
-                                  {{ numberToGerman(item.original.currency_rate,false,4)  }}
+                                  {{ currencyRateText(item.original.currency_rate) }}
                                 </template>
 
                                 <template v-else-if="column.id === 'underlying_price'">
@@ -755,7 +758,7 @@
                                  </template>
 
                                 <template v-else-if="column.id === 'sideways_return_pa'">
-                                    {{ numberToGerman(item.original.sideways_return_pa)+'%' }}
+                                    {{ numberToGerman(item.original.sideways_return_pa, false, 2)+'%' }}
                                 </template>
 
                                 <template v-else-if="column.id === 'timestamp'">
@@ -1099,7 +1102,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso } from '~/utils/helper';
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso, currencyRateText } from '~/utils/helper';
 
 import { 
   getPriceData,
@@ -2070,8 +2073,10 @@ const cashAmount = (row:any) => Math.abs(Number(row?.total_entry_value) || 0);
 // 0 is a real result (worthless put at valuation), not "no value"; 2 decimals skips the <5 auto-bump to 0,0000.
 const formatFutureTotal = (v:any) => v === 0 ? numberToGerman(0, false, 2) : v ? numberToGerman(v) : '';
 
+const cashBaseLabel = (row:any) => (Number(row?.total_entry_value) || 0) < 0 ? t('loan_capital') : t('cash');
+
 const cashLabel = (row:any) => {
-  const base = (Number(row?.total_entry_value) || 0) < 0 ? t('loan_capital') : t('cash');
+  const base = cashBaseLabel(row);
   // Only worth naming the account when more than one is on screen.
   if (accountViewIsAll() || accountViewSelected.value.length > 1) {
     return `${base} · ${accountLabel(row?.broker, row?.account_id)}`;

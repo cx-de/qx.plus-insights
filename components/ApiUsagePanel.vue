@@ -77,7 +77,7 @@
           ></div>
         </div>
         <div class="mt-2 flex items-baseline justify-between gap-3 text-xs text-muted-foreground tabular-nums">
-          <span class="whitespace-nowrap">{{ $t('settings_page.usage_used_of_percent', { used: fmt(usage.today.used), limit: fmt(usage.today.limit), percent: dailyPercent }) }}</span>
+          <span class="whitespace-nowrap">{{ $t('settings_page.usage_used_of_percent', { used: fmt(usage.today.used), limit: fmt(usage.today.limit), percent: numberToGerman(dailyPercent, false, 2) }) }}</span>
           <span class="text-right">{{ todayResetsIn }}</span>
         </div>
 
@@ -202,7 +202,7 @@ const dailyPercent = computed(() => {
   const d = usage.value?.today;
   if (!d || !d.limit) return 0;
   // Floor, not round: 99.6% must not read as a red 100% while calls still go through
-  return Math.min(100, Math.floor((d.used / d.limit) * 100));
+  return Math.min(100, Math.floor((d.used * 10000) / d.limit) / 100);
 });
 
 // Same 80% threshold as the near-limit alert, so the colour and the warning appear together.

@@ -273,7 +273,7 @@
                 <div>
                   <h3 id="theme_heading" class="block text-sm font-medium mb-1">{{ $t('theme') }}</h3>
                   <p class="text-xs text-muted-foreground mb-3">{{ $t('theme_description') }}</p>
-                  <div class="grid grid-cols-2 gap-3 max-w-md" role="radiogroup" aria-labelledby="theme_heading">
+                  <div class="grid grid-cols-3 gap-3 max-w-xl" role="radiogroup" aria-labelledby="theme_heading">
                     <button
                       type="button"
                       @click="theme = 'light'; saveTheme()"
@@ -308,6 +308,24 @@
                       <div class="flex items-center justify-between">
                         <span class="text-sm font-medium">{{ $t('dark') }}</span>
                         <Check v-if="theme === 'dark'" class="h-4 w-4 text-primary" />
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      @click="theme = 'system'; saveTheme()"
+                      role="radio"
+                      :aria-checked="theme === 'system'"
+                      :class="[
+                        'group cursor-pointer border-2 rounded-lg p-3 text-left transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                        theme === 'system' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-muted-foreground/40'
+                      ]"
+                    >
+                      <div class="aspect-video rounded-md bg-linear-to-br from-gray-100 to-gray-900 mb-2 flex items-center justify-center border">
+                        <Monitor class="h-6 w-6 text-slate-500" />
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium">{{ $t('system') }}</span>
+                        <Check v-if="theme === 'system'" class="h-4 w-4 text-primary" />
                       </div>
                     </button>
                   </div>
@@ -532,7 +550,7 @@
 import { ref, reactive, computed, onMounted, h, defineComponent } from 'vue';
 
 
-import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman, todayIso } from '~/utils/helper'
+import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman, todayIso, applyTheme } from '~/utils/helper'
 import { storage } from '#imports';
 import { useI18n } from "vue-i18n";
 
@@ -552,7 +570,7 @@ import { exportAll, importAll, previewBackup } from '@/lib/storage-utils';
 import ApiUsagePanel from '@/components/ApiUsagePanel.vue';
 
 import {
-  Sun, Moon, Bot, Send, EyeOff, Eye, Loader2, Upload, Download,
+  Sun, Moon, Monitor, Bot, Send, EyeOff, Eye, Loader2, Upload, Download,
   KeyRound, Link2, Archive, Palette, Bell, AlertTriangle, Trash2,
   Languages, Check, HelpCircle, FileSpreadsheet,
 } from "lucide-vue-next";
@@ -618,10 +636,6 @@ const SaveButton = defineComponent({
 
 // --- Theme ---
 const theme = ref(localStorage.getItem('theme') || 'light');
-
-const applyTheme = (themeName: string) => {
-  document.documentElement.classList.toggle('dark', themeName === 'dark');
-};
 
 applyTheme(theme.value);
 

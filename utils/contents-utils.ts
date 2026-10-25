@@ -45,7 +45,7 @@ function updateColumnValue(data:any, col:any){
     }else if(col==="profit_loss_target"){
       colVal = numberToGerman(data[col])+' €';
     }else if(col==="profit_loss_target_pa"){
-      colVal = numberToGerman(data[col])+' %';
+      colVal = numberToGerman(data[col], false, 2)+' %';
     }else if(col==="underlying_price"){
       colVal = numberToGerman(data[col]);
     }else{

@@ -1107,12 +1107,12 @@ async function getTopGainersAndLosers() {
   ).filter(Boolean);
   console.log("getTopGainersAndLosers all changes", changes);
 
-  // Split into gainers and losers
+  // Under half a cent prints as 0,00, so float noise must not count as a move.
   const positiveChanges = changes
-    .filter((item:any) => item.change > 0)
+    .filter((item:any) => item.change >= 0.005)
     .sort((a:any, b:any) => b.change - a.change);
   const negativeChanges = changes
-    .filter((item:any) => item.change < 0)
+    .filter((item:any) => item.change <= -0.005)
     .sort((a:any, b:any) => a.change - b.change);
 
   

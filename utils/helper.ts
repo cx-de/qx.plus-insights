@@ -168,6 +168,12 @@ export const sleep = (ms:number) => new Promise((resolve) => setTimeout(resolve,
 // UTC date as YYYY-MM-DD, the key format of every daily snapshot in storage.
 export const todayIso = () => new Date().toISOString().slice(0, 10);
 
+// 'system' resolves at apply time, so an OS switch needs no stored change.
+export const applyTheme = (themeName = localStorage.getItem('theme') || 'light') => {
+  const dark = themeName === 'dark' || (themeName === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark', dark);
+};
+
 export const germanToNumer = (germanAmount:any)=> {
   // Remove the thousands separator (.)
   const cleanedAmount = germanAmount.replace(/\./g, '');
@@ -237,6 +243,9 @@ export const numberToGerman = (floatValue:any, isInt = false, decimalPoints?:any
   const formattedIntegerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return isInt ? formattedIntegerPart : `${formattedIntegerPart},${decimalPart}`;
 }
+
+// EUR lines carry rate 1; only a real FX rate is worth a cell.
+export const currencyRateText = (rate:any) => numberToGerman(rate, false, 4) === numberToGerman(1, false, 4) ? '' : numberToGerman(rate, false, 4);
 
 
 export const sendTelegramMessage = async (token:any, channelId:any, message:any) => {

@@ -1,12 +1,13 @@
 <template>
   <div>
-    <button type="button" data-support-ignore
-      class="fixed right-0 top-1/2 z-40 flex -translate-y-1/2 items-center gap-1.5 rounded-l-md bg-primary px-2.5 py-2 text-sm font-medium text-primary-foreground shadow-lg transition-opacity hover:opacity-90 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+    <!-- Sidebar bottom (mobile: header right); a floating tab on the right covered table values -->
+    <button type="button" data-support-ignore :title="$t('support')"
+      class="fixed right-3 top-1.5 z-40 flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 sm:bottom-4 sm:left-2.5 sm:right-auto sm:top-auto"
       :disabled="capturing" @click="openSupport()">
-      <span v-if="countdown" class="h-4 w-4 text-center leading-4 tabular-nums">{{ countdown }}</span>
-      <Loader2 v-else-if="capturing" class="h-4 w-4 animate-spin" />
-      <LifeBuoy v-else class="h-4 w-4" />
-      <span class="hidden sm:inline">{{ $t('support') }}</span>
+      <span v-if="countdown" class="h-5 w-5 text-center leading-5 tabular-nums">{{ countdown }}</span>
+      <Loader2 v-else-if="capturing" class="h-5 w-5 animate-spin" />
+      <LifeBuoy v-else class="h-5 w-5" />
+      <span class="sr-only">{{ $t('support') }}</span>
     </button>
 
     <Dialog v-model:open="isOpen">
