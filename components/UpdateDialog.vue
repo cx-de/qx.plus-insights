@@ -34,10 +34,13 @@ import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescript
 import { versionNextUpdate, versionSnooze, versionUpdateNow } from '~/utils/version-utils';
 
 // Held back while another dialog (the account switch) needs an answer first.
-defineProps<{ blocked?: boolean }>();
+const props = defineProps<{ blocked?: boolean }>();
+// Lets App hold the welcome dialog back: a forced update must never wait behind onboarding.
+const shown = defineModel<boolean>('shown', { default: false });
 
 const { locale } = useI18n();
 const info = ref<any>(null);
+watch(() => !!info.value && !props.blocked, (value) => { shown.value = value; }, { immediate: true });
 const updating = ref(false);
 const unavailable = ref(false);
 

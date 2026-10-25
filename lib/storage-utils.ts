@@ -217,3 +217,14 @@ export async function importAll(file: File) {
 
   return { valid: true, summary: backupSummary(entries) };
 }
+
+// Back to a fresh install, minus the API key and the user's language and theme; removes loaded sample data.
+export async function resetAll() {
+  console.log('resetAll');
+  const kept = await storage.getItems(privateKeys as any);
+  await storage.clear('local');
+  await storage.setItems(kept.filter((item: any) => item.value !== null && item.value !== undefined));
+  const keepLocal = ['theme', 'lang'].map(key => [key, localStorage.getItem(key)]);
+  localStorage.clear();
+  for (const [key, value] of keepLocal) if (value) localStorage.setItem(key as string, value);
+}

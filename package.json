@@ -2,7 +2,7 @@
   "name": "qx-plus-insights",
   "description": "QX+ Insights browser extension: extra market data and portfolio insights for German online brokers.",
   "private": true,
-  "version": "2.10.18",
+  "version": "2.10.19",
   "type": "module",
   "engines": {
     "node": ">=22"

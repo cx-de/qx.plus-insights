@@ -31,6 +31,10 @@
           </div>
         </dl>
 
+        <div class="flex justify-center mt-6">
+          <Button variant="outline" @click="restartTour()">{{ $t('tour.restart') }}</Button>
+        </div>
+
         <div class="flex justify-center mt-8">
           <a href="https://github.com/cx-de/qx.plus-insights" target="_blank" rel="noopener noreferrer"
              aria-label="GitHub" title="GitHub"
@@ -55,9 +59,16 @@ import { useI18n } from 'vue-i18n';
 import pkg from '@/package.json'
 
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 
 const { t } = useI18n();
+
+// WelcomeDialog in App.vue watches TOUR and opens on 'choose'.
+async function restartTour() {
+  await chrome.storage.local.remove('TOUR_DISMISSED');
+  await chrome.storage.local.set({ TOUR: { broker: null, step: 'choose' } });
+}
 document.title = t('help');
 const version = ref(pkg.version); 
 onMounted( async() => {

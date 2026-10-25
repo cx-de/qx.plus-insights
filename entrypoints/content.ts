@@ -4,7 +4,10 @@ import {
   flatexRunSync,
   flatexMaybeAutoSync,
   flatexAttachDebugHelpers,
+  flatexOpenDashboard,
+  flatexOpenDepotList,
 } from '~/utils/kontoFlatex-utils';
+import { flatexTourTick, flatexTourSyncDone } from '~/utils/tour-utils';
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from '~/utils/constants';
 
 export default defineContentScript({
@@ -120,6 +123,9 @@ export default defineContentScript({
 
       try {
         setSync('saving');
+        // One click walks the round users did by hand: Dashboard for cash, then "Alle" for every position.
+        if (await flatexOpenDashboard()) await flatexSaveDataToLocalStorage();
+        await flatexOpenDepotList();
         await flatexSaveDataToLocalStorage();
 
         setSync('fetching');
@@ -144,6 +150,8 @@ export default defineContentScript({
         try { await mainFlatex(); } catch (err) { console.error('mainFlatex error:', err); }
       }
 
+      // Not awaited into the button state: the guide is optional and must not delay the result.
+      void flatexTourSyncDone(ctx);
       syncTitle = `synced ${result.synced} · failed ${result.failed} · remaining ${result.remaining} · mode ${result.mode}${result.reason ? ' · ' + result.reason : ''}`;
 
       if (result.skipped === 'in_flight' || result.skipped === 'locked') return finishSync('busy');
@@ -219,12 +227,15 @@ export default defineContentScript({
       // Not awaited: a failed repaint must not skip the save or stop the loop from starting.
       const paintFlatex = () => { mainFlatex().catch((err) => console.error('mainFlatex error:', err)); };
       paintFlatex();
+      void flatexTourTick(ctx);
       ctx.setInterval(async () => {
         // Inline sync swaps the list for detail views; scraping mid-run persists partial data.
         if (flatexSyncState.inlineInFlight) return;
         paintFlatex();
         try {
           await flatexSaveDataToLocalStorage();
+          // After the save, so the step it checks reads this tick's data.
+          await flatexTourTick(ctx);
           // Debounced to ~10 min and iframe-only, so the page is never navigated unasked.
           await flatexMaybeAutoSync();
         } catch (err) {

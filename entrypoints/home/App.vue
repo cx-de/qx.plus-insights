@@ -1,5 +1,6 @@
 <template>
   <Layout>
+    <SampleDataBanner />
     <RouterView />
 
     <!-- new account -->
@@ -25,7 +26,8 @@
       </AlertDialogContent>
     </AlertDialog>
 
-    <UpdateDialog :blocked="isNewAccount" />
+    <WelcomeDialog :blocked="isNewAccount || isUpdateShown" />
+    <UpdateDialog v-model:shown="isUpdateShown" :blocked="isNewAccount" />
   </Layout>
 
 </template>
@@ -33,6 +35,9 @@
 <script lang="ts" setup>
 import Layout from '@/components/Layout.vue';
 import UpdateDialog from '@/components/UpdateDialog.vue';
+import WelcomeDialog from '@/components/WelcomeDialog.vue';
+import SampleDataBanner from '@/components/SampleDataBanner.vue';
+import { resetAll } from '@/lib/storage-utils';
 import { todayIso } from "~/utils/helper";
 
 import { Button } from "@/components/ui/button"
@@ -40,6 +45,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 
 const isNewAccount = ref(false);
+const isUpdateShown = ref(false);
 // A plain `let` here was never reactive; the dialog only appeared to update because
 // the template re-read it when isNewAccount flipped.
 const pendingAccount = ref<any>(null);
@@ -94,6 +100,13 @@ const replaceNewAccount = async () => {
 
 const detectAccountChange = async () =>{
   const next = await accountNextPrompt();
+  // A real account met the sample's fake one: drop the sample so the real one is adopted as the first, unasked.
+  if (next && (await storage.getItem('local:SAMPLE_DATA'))) {
+    console.log('detectAccountChange: removing sample data for', next.broker);
+    await resetAll();
+    location.reload();
+    return;
+  }
   pendingAccount.value = next;
   isNewAccount.value = !!next;
   console.log('detectAccountChange pendingAccount:', next);

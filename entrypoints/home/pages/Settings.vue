@@ -805,6 +805,8 @@ const clearData = async () => {
   await clearAllStockData();
   await storage.setItem('local:scenarios', []);
   await storage.setItem('local:SCENARIO_VIRTUAL_PUTS', []);
+  // A half-done guide or the sample flag would otherwise reopen against data that no longer exists.
+  await storage.removeItems(['local:TOUR', 'local:TOUR_CELEBRATED', 'local:SAMPLE_DATA']);
   const keepTheme = localStorage.getItem('theme');
   const keepLang = localStorage.getItem('lang');
   localStorage.clear();

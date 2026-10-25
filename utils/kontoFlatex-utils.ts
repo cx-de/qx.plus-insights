@@ -577,8 +577,10 @@ const KNOWN_WRONG_TAB_RE =
 
 const TOP_NAV_SELECTOR = '.BlockSelectionItemContainer .BlockSelectionItem';
 const DEPOT_TAB_RE = /(depotbestand|depot|bestand|portfolio|holding)/i;
-// Corroborated by fetchOverview(): overviewEntryBlockSelectionWidget.selecteditemindex = "3".
-const DEPOT_TAB_WIDGET_HINT = 'overviewEntryBlockSelectionWidget.items[3]';
+// Live markup: items[0] Dashboard, items[1] Alle, items[3] Derivate; the old items[3] hint picked Derivate.
+const DEPOT_TAB_WIDGET_HINT = 'overviewEntryBlockSelectionWidget.items[1]';
+const DEPOT_TAB_LABEL = 'alle';
+const DASHBOARD_VALUES_SELECTOR = '.DepositAndBalanceOverviewWidget .ValueRows .Value';
 // Historical hardcode, kept only as a tiebreaker — webcore ids are not contractual.
 const LEGACY_DEPOT_TAB_ID = '__1551384479';
 
@@ -1351,6 +1353,7 @@ function findDepotTab(ctx:any) {
       const key = el.getAttribute('data-widgetname') || '';
       const label = normLabel(el);
       let score = 0;
+      if (label === DEPOT_TAB_LABEL) score += 200;
       if (key.includes(DEPOT_TAB_WIDGET_HINT)) score += 100;
       if (DEPOT_TAB_RE.test(label)) score += 50;
       if (el.id === LEGACY_DEPOT_TAB_ID) score += 20;
@@ -1360,6 +1363,38 @@ function findDepotTab(ctx:any) {
 
   const best = candidates[0];
   return best && best.score > 0 ? best.el : null;
+}
+
+// The cash balance only renders on the Dashboard tab, which carries a "Dashboard" class in the live markup.
+function findDashboardTab(ctx:any) {
+  return Array.from<any>(ctx.doc.querySelectorAll(TOP_NAV_SELECTOR))
+    .filter(el => !el.closest('.DetailsCategorySelection'))
+    .find(el => el.classList.contains('Dashboard') || normLabel(el) === 'dashboard') || null;
+}
+
+// Sync QX+ part one: Dashboard for the cash balance. The tab switch is webcore ajax, so the page never reloads.
+export async function flatexOpenDashboard(ctx:any = { doc: document, win: window }) {
+  console.log('flatexOpenDashboard');
+  const ready = () => (ctx.doc.querySelectorAll(DASHBOARD_VALUES_SELECTOR).length >= 2 ? true : null);
+  if (ready()) return true;
+  const tab = findDashboardTab(ctx);
+  if (!tab) return false;
+  flatexClickRow(ctx, tab);
+  return !!(await flatexWaitFor(ready, { timeoutMs: LIST_TIMEOUT_MS, ctx }));
+}
+
+// Sync QX+ part two: "Alle" for every position. Waits on the selected tab too: rows alone may be a filtered view.
+export async function flatexOpenDepotList(ctx:any = { doc: document, win: window }) {
+  console.log('flatexOpenDepotList');
+  const ready = () => {
+    const tab = findDepotTab(ctx);
+    return tab && isSelectedTab(tab) && ctx.doc.querySelectorAll(DEPOT_ROW_SELECTOR).length ? true : null;
+  };
+  if (ready()) return true;
+  const tab = findDepotTab(ctx);
+  if (!tab) return false;
+  flatexClickRow(ctx, tab);
+  return !!(await flatexWaitFor(ready, { timeoutMs: LIST_TIMEOUT_MS, ctx }));
 }
 
 // Close overlays, then re-navigate — a full nav rebuilds what the close button cannot.

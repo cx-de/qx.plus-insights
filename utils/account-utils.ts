@@ -32,6 +32,15 @@ const CUR_ID_KEYS:any = {
   'justTRADE': 'local:CUR_JUSTTRADEID',
 };
 
+// Every supported broker's display name, so UI lists grow with CUR_ID_KEYS instead of a copy.
+export const ACCOUNT_BROKERS = Object.keys(CUR_ID_KEYS);
+
+// Sample data must not hand its fake ids to the scrapers: with one account per broker they fall back to it.
+export async function accountClearCurrentIds() {
+  console.log('accountClearCurrentIds');
+  await storage.removeItems(Object.values(CUR_ID_KEYS));
+}
+
 // Every store that holds position rows, so migration and pruning never miss one.
 const ROW_STORES = [
   'local:MAIN_LIST',
