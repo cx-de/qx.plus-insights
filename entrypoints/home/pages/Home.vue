@@ -1,7 +1,8 @@
 <template>
   <div>
 
-    <div class="flex flex-wrap justify-between items-center gap-4 mt-2 min-h-8">
+    <!-- Hidden while every child renders nothing (one account, no prices yet): min-h-8 left an empty band -->
+    <div class="hidden has-[>*>*]:flex flex-wrap justify-between items-center gap-4 mt-2 min-h-8">
 
       <div class="flex items-center gap-4">
         <AccountFilter @change="updateBroker()" />
