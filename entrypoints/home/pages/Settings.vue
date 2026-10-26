@@ -657,7 +657,8 @@ const onLanguageChange = async (lang: string) => {
 // --- API key ---
 const apiKey = ref('');
 // The usage panel follows the stored key, not the input, so typing doesn't fire a request per keystroke.
-const savedApiKey = ref('');
+// null until storage answers, so the panel shows its skeleton instead of flashing "no key".
+const savedApiKey = ref<string | null>(null);
 const usage = ref<any>(null);
 const pricedPositions = ref(0);
 

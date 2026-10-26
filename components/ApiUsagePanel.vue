@@ -30,25 +30,31 @@
       </div>
 
       <!-- Skeleton traces the data layout row for row, so the swap is in place -->
-      <div v-else-if="loading && !usage" class="flex flex-col" aria-busy="true">
-        <div class="mb-2 flex items-end justify-between gap-3">
-          <Skeleton class="h-4 w-20" />
-          <Skeleton class="h-7 w-14" />
+      <div v-else-if="pending" class="flex flex-col" aria-busy="true">
+        <div class="flex h-6 items-center justify-between gap-3">
+          <Skeleton class="h-4 w-14" />
+          <Skeleton class="h-5 w-28 rounded-full" />
         </div>
-        <Skeleton class="h-2.5 w-full" />
-        <div class="mt-2 flex justify-between gap-3">
+        <div class="mb-2 mt-1 flex h-7 items-center gap-2">
+          <Skeleton class="h-6 w-24" />
+          <Skeleton class="h-3 w-24" />
+        </div>
+        <Skeleton class="h-2.5 w-full rounded-full" />
+        <div class="mt-2 flex h-4 items-center justify-between gap-3">
           <Skeleton class="h-3 w-28" />
           <Skeleton class="h-3 w-24" />
         </div>
-        <div class="mt-4 space-y-2 border-t pt-4">
-          <Skeleton class="h-3 w-full" />
-          <Skeleton class="h-3 w-full" />
+        <div class="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 border-t pt-4">
+          <template v-for="i in 4" :key="i">
+            <div class="flex h-4 items-center"><Skeleton class="h-3 w-20" /></div>
+            <div class="flex h-4 items-center justify-end"><Skeleton class="h-3 w-24" /></div>
+          </template>
         </div>
       </div>
 
       <!-- Daily only: it is the one quota the backend enforces; plans.monthly_api_limit is stale and blocks nothing -->
       <div v-else-if="usage" class="flex flex-col">
-        <div class="flex items-center justify-between gap-3">
+        <div class="flex h-6 items-center justify-between gap-3">
           <span class="text-sm font-medium">{{ $t('settings_page.usage_today_label') }}</span>
           <!-- Calls outside service hours are rejected, so say whether they work right now -->
           <span v-if="serviceStatus" class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
@@ -57,7 +63,7 @@
           </span>
         </div>
         <!-- Headline is what's left: the number a user acts on, same as the portal billing card -->
-        <p class="mb-2 mt-1 flex items-baseline gap-2">
+        <p class="mb-2 mt-1 flex h-7 items-baseline gap-2">
           <span class="text-2xl font-semibold leading-none tabular-nums" :class="toneText(dailyPercent)">{{ fmt(dailyRemaining) }}</span>
           <span class="text-xs text-muted-foreground">{{ $t('settings_page.usage_left_today') }}</span>
         </p>
@@ -76,7 +82,7 @@
             :style="{ width: `${dailyPercent}%` }"
           ></div>
         </div>
-        <div class="mt-2 flex items-baseline justify-between gap-3 text-xs text-muted-foreground tabular-nums">
+        <div class="mt-2 flex h-4 items-baseline justify-between gap-3 text-xs text-muted-foreground tabular-nums">
           <span class="whitespace-nowrap">{{ $t('settings_page.usage_used_of_percent', { used: fmt(usage.today.used), limit: fmt(usage.today.limit), percent: numberToGerman(dailyPercent, false, 2) }) }}</span>
           <span class="text-right">{{ todayResetsIn }}</span>
         </div>
@@ -113,7 +119,7 @@
         </dl>
       </div>
 
-      <div v-if="apiKey && (usage || loading)" class="mt-4 flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+      <div v-if="pending || (apiKey && usage)" class="mt-4 flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
         <span v-if="updatedAt">{{ $t('settings_page.usage_updated', { time: updatedAt }) }}</span>
         <Button
           type="button"
@@ -141,7 +147,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { fetchApiUsage, numberToGerman, portalUrl } from '~/utils/helper';
 
-const props = defineProps<{ apiKey: string }>();
+const props = defineProps<{ apiKey: string | null }>();
 const emit = defineEmits<{ (e: 'usage', value: any): void }>();
 const { t, locale } = useI18n();
 
@@ -163,6 +169,7 @@ const EMPTY_STATES: any = {
 };
 
 const emptyState = computed(() => {
+  if (props.apiKey === null) return null;
   const kind = !props.apiKey ? 'no_key' : failure.value;
   const state = kind && EMPTY_STATES[kind];
   if (!state) return null;
@@ -172,6 +179,9 @@ const emptyState = computed(() => {
     description: t(`settings_page.${state.key}_desc`),
   };
 });
+
+// A null key means Settings is still reading storage: same skeleton as a fetch.
+const pending = computed(() => props.apiKey === null || (loading.value && !usage.value));
 
 const load = async () => {
   if (!props.apiKey) return;

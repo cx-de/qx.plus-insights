@@ -1,14 +1,17 @@
 <template>
   <!-- Sample banner: keeps made-up numbers from being mistaken for a real portfolio. -->
   <div v-if="isSample" role="status"
-    class="flex flex-wrap items-center gap-x-4 gap-y-3 rounded-xl border bg-muted/50 px-4 py-3 text-sm">
+    class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border bg-card bg-[radial-gradient(120%_80%_at_100%_0%,rgb(59_130_246/0.06),transparent_55%)] px-4 py-2.5 text-sm shadow-xs">
     <div class="flex min-w-0 flex-1 items-center gap-3">
-      <Info class="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-      <span class="text-foreground">{{ $t('tour.sample.banner') }}</span>
+      <!-- Same tinted icon chip as the Home chart cards, so the notice reads as part of the app -->
+      <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400">
+        <Info class="h-4 w-4" aria-hidden="true" />
+      </span>
+      <span class="font-medium text-foreground">{{ $t('tour.sample.banner') }}</span>
     </div>
     <div class="flex flex-wrap items-center gap-2">
+      <Button size="sm" variant="outline" class="bg-background" @click="remove()">{{ $t('tour.sample.remove') }}</Button>
       <Button size="sm" @click="connect()">{{ $t('tour.sample.connect') }}</Button>
-      <Button size="sm" variant="ghost" @click="remove()">{{ $t('tour.sample.remove') }}</Button>
     </div>
   </div>
 </template>
