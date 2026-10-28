@@ -52,7 +52,7 @@ async function addSyncButtonOnSmartBroker() {
 
   syncBtn = document.createElement("button");
   syncBtn.setAttribute("data-testid", "sync-button");
-  syncBtn.className ="flex justify-center gap-x-1.5 p-1  font-semibold text-onSurface-primary text-10 text-label-xs inline-block mt-2";
+  syncBtn.className ="sync-qx-button flex justify-center gap-x-1.5 p-1  font-semibold text-onSurface-primary text-10 text-label-xs inline-block mt-2";
   attachSyncFeedback(syncBtn, smartBrokerSaveDataToLocalStorage);
   container.appendChild(syncBtn);
 }

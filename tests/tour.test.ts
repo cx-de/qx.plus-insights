@@ -1,32 +1,41 @@
 import { describe, it, expect } from 'vitest';
-import { flatexTourNextStep, tourHasBrokerData, tourSummary } from '@/utils/tour-utils';
+import { TOUR_BROKERS, tourNextStep, tourHasBrokerData, tourSummary } from '@/utils/tour-utils';
 
 const position = { broker: 'Flatex', stock_name: 'Product X', isin: 'DE000X' };
 const cash = { broker: 'Flatex', stock_name: 'Cash' };
+const flatex = TOUR_BROKERS.flatex;
+const consors = TOUR_BROKERS.consorsbank;
 
-describe('flatexTourNextStep', () => {
-  it('waits on the login step until the depot overview is open', () => {
-    expect(flatexTourNextStep('login', [], false)).toBe('login');
-    expect(flatexTourNextStep('login', [], true)).toBe('sync');
+describe('tourNextStep', () => {
+  it('waits on the login step until the depot page is open', () => {
+    expect(tourNextStep('login', [], flatex, false)).toBe('login');
+    expect(tourNextStep('login', [], flatex, true)).toBe('sync');
   });
 
-  it('finishes the sync step only once positions and cash are both stored', () => {
-    expect(flatexTourNextStep('sync', [position], true)).toBe('sync');
-    expect(flatexTourNextStep('sync', [cash], true)).toBe('sync');
-    expect(flatexTourNextStep('sync', [position, cash], true)).toBe('finish');
+  it('finishes the flatex sync step only once positions and cash are both stored', () => {
+    expect(tourNextStep('sync', [position], flatex, true)).toBe('sync');
+    expect(tourNextStep('sync', [cash], flatex, true)).toBe('sync');
+    expect(tourNextStep('sync', [position, cash], flatex, true)).toBe('finish');
+  });
+
+  it('finishes other brokers on positions alone', () => {
+    const row = { ...position, broker: 'Consorsbank' };
+    expect(tourNextStep('sync', [{ ...cash, broker: 'Consorsbank' }], consors, true)).toBe('sync');
+    expect(tourNextStep('sync', [row], consors, true)).toBe('finish');
   });
 
   it('ignores rows from other brokers', () => {
-    expect(flatexTourNextStep('sync', [{ ...position, broker: 'Consorsbank' }, cash], true)).toBe('sync');
+    expect(tourNextStep('sync', [{ ...position, broker: 'Consorsbank' }, cash], flatex, true)).toBe('sync');
+    expect(tourNextStep('sync', [position, cash], consors, true)).toBe('sync');
   });
 
   it('runs straight through for a user whose data is already stored', () => {
-    expect(flatexTourNextStep('login', [position, cash], true)).toBe('finish');
+    expect(tourNextStep('login', [position, cash], flatex, true)).toBe('finish');
   });
 
   it('never moves past finish or done on its own', () => {
-    expect(flatexTourNextStep('finish', [position, cash], true)).toBe('finish');
-    expect(flatexTourNextStep('done', null, true)).toBe('done');
+    expect(tourNextStep('finish', [position, cash], flatex, true)).toBe('finish');
+    expect(tourNextStep('done', null, flatex, true)).toBe('done');
   });
 });
 

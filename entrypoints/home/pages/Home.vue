@@ -1003,7 +1003,22 @@ async function getTopGainersAndLosers() {
   const history:any = (await storage.getItem('local:portfolio_history')) || [];
   console.log("getTopGainersAndLosers history", history);
 
-  if (history.length < 2) {
+  // MAIN_LIST carries the feed's last_value_yesterday, so one price request is enough for a move.
+  const records: any = (await storage.getItem('local:MAIN_LIST')) || [];
+  const todayRows = records.filter((item: any) => !isCash(item.stock_name)).map((item: any) => ({
+    name: item.stock_name,
+    isin: item.isin,
+    broker: item.broker,
+    account_id: item.account_id,
+    deposite_number: item.deposite_number,
+    stocks_owned: Number(item.stocks_owned) || 0,
+    total_value: Number(item.total_value) || 0,
+    bid: Number(item.bid) || 0,
+    last_value_yesterday: Number(item.last_value_yesterday) || 0,
+  }));
+  const hasYesterdayClose = todayRows.some((item: any) => item.last_value_yesterday > 0);
+
+  if (!todayRows.length || (history.length < 2 && !hasYesterdayClose)) {
     // Cleared, not skipped: a filter switch would otherwise keep the previous account's movers.
     allGainers.value = [];
     allLosers.value = [];
@@ -1013,9 +1028,8 @@ async function getTopGainersAndLosers() {
     return { gainers: [], losers: [] };
   }
 
-  // Get last two days (yesterday & today)
-  const todayEntry = history[history.length - 1];
-  const yesterdayEntry = history[history.length - 2];
+  // Previous saved day: the fallback for rows the feed sent no last_value_yesterday for.
+  const yesterdayEntry = history.length >= 2 ? history[history.length - 2] : null;
 
   // Per-account rows, merged same-broker when combined: the switch decides, not the filter.
   const pickRows = (rows: any) => {
@@ -1023,41 +1037,19 @@ async function getTopGainersAndLosers() {
     return accountViewCombined.value ? accountCombineRows(kept) : kept;
   };
 
-  // Today and yesterday are scoped independently: requiring both to carry `accounts` sent any
-  // day written before the per-account breakdown back to the unfiltered ISIN fold.
-  let todayRows = todayEntry.accounts;
-  if (!todayRows && !accountViewIsAll()) {
-    // Home can load before Layout rewrites today's entry; MAIN_LIST holds the same rows.
-    const records: any = (await storage.getItem('local:MAIN_LIST')) || [];
-    todayRows = records.filter((item: any) => !isCash(item.stock_name)).map((item: any) => ({
-      name: item.stock_name,
-      isin: item.isin,
-      broker: item.broker,
-      account_id: item.account_id,
-      deposite_number: item.deposite_number,
-      stocks_owned: Number(item.stocks_owned) || 0,
-      total_value: Number(item.total_value) || 0,
-    }));
-  }
-  const scoped = !!todayRows;
-  const todayData = scoped ? pickRows(todayRows) : todayEntry.data;
+  const todayData = pickRows(todayRows);
   // Merged yesterday is still exact per account: unit price is the same in every account.
-  const yesterdayScoped = scoped && !!yesterdayEntry.accounts;
-  const yesterdayData = yesterdayScoped ? pickRows(yesterdayEntry.accounts) : yesterdayEntry.data;
+  const yesterdayScoped = !!yesterdayEntry?.accounts;
+  const yesterdayData = !yesterdayEntry ? [] : yesterdayScoped ? pickRows(yesterdayEntry.accounts) : yesterdayEntry.data;
   // Separate view names the account on products held in several, or the rows read as duplicates.
-  const displayName = scoped && !accountViewCombined.value
+  const displayName = !accountViewCombined.value
     ? accountSuffixer(todayData, (i: any) => i.name)
     : (i: any) => i.name;
 
-  // Convert yesterday's data to a map for quick lookup
-
-  // Scoped rows are per account, so the same ISIN appears twice and needs the account in its key.
+  // Rows are per account, so the same ISIN appears twice and needs the account in its key.
   // Combined keys on broker|isin both days: a product held in one account yesterday and two
   // today is merged only today, and an account-bearing key would never find its partner.
-  const rowKeyOf = (item:any) => {
-    if (!scoped) return item.isin;
-    return accountViewCombined.value ? `${item.broker}|${item.isin}` : accountRowKey(item);
-  };
+  const rowKeyOf = (item:any) => accountViewCombined.value ? `${item.broker}|${item.isin}` : accountRowKey(item);
   // A merged yesterday has no broker or account, so today's rows must look it up by ISIN.
   const lookupKeyOf = (item:any) => yesterdayScoped ? rowKeyOf(item) : item.isin;
 
@@ -1068,24 +1060,26 @@ async function getTopGainersAndLosers() {
     ])
   );
 
-  // Calculate changes for today's stocks
-
   const changes = todayData.map(
     (item: any) => {
-      const yesterdayItem = yesterdayMap.get(lookupKeyOf(item));
-      if (!yesterdayItem) return null;
-
       const todayQty = item?.stocks_owned || 0;
-      const yesterdayQty = yesterdayItem.qty;
-      if (yesterdayQty === 0 || todayQty === 0) return null;
+      if (todayQty === 0) return null;
+      let todayPrice = item.total_value / todayQty;
 
-      const yesterdayPrice = yesterdayItem.value / yesterdayQty;
-      const todayPrice = item.total_value / todayQty;
+      let yesterdayPrice = 0;
+      let overlapQty = todayQty;
+      if (item.last_value_yesterday > 0 && item.bid > 0) {
+        // bid, not total_value: total_value lags until the next calculation pass after a price request.
+        todayPrice = item.bid;
+        yesterdayPrice = item.last_value_yesterday;
+      } else {
+        const yesterdayItem = yesterdayMap.get(lookupKeyOf(item));
+        if (!yesterdayItem || yesterdayItem.qty === 0) return null;
+        yesterdayPrice = yesterdayItem.value / yesterdayItem.qty;
+        // Units bought or sold since the snapshot are not a price move.
+        overlapQty = Math.min(todayQty, yesterdayItem.qty);
+      }
 
-      // Calculate overlap quantity
-      const overlapQty = todayQty >= yesterdayQty ? yesterdayQty : todayQty;
-
-      // ✅ Calculate change based on price difference only
       const priceChange = todayPrice - yesterdayPrice;
       const change = priceChange * overlapQty;
       const changePercent = yesterdayPrice > 0 ? (priceChange / yesterdayPrice) * 100 : 0;

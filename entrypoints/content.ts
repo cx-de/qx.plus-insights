@@ -7,7 +7,7 @@ import {
   flatexOpenDashboard,
   flatexOpenDepotList,
 } from '~/utils/kontoFlatex-utils';
-import { flatexTourTick, flatexTourSyncDone } from '~/utils/tour-utils';
+import { tourTick, flatexTourSyncDone } from '~/utils/tour-utils';
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from '~/utils/constants';
 
 export default defineContentScript({
@@ -227,7 +227,7 @@ export default defineContentScript({
       // Not awaited: a failed repaint must not skip the save or stop the loop from starting.
       const paintFlatex = () => { mainFlatex().catch((err) => console.error('mainFlatex error:', err)); };
       paintFlatex();
-      void flatexTourTick(ctx);
+      void tourTick(ctx);
       ctx.setInterval(async () => {
         // Inline sync swaps the list for detail views; scraping mid-run persists partial data.
         if (flatexSyncState.inlineInFlight) return;
@@ -235,7 +235,7 @@ export default defineContentScript({
         try {
           await flatexSaveDataToLocalStorage();
           // After the save, so the step it checks reads this tick's data.
-          await flatexTourTick(ctx);
+          await tourTick(ctx);
           // Debounced to ~10 min and iframe-only, so the page is never navigated unasked.
           await flatexMaybeAutoSync();
         } catch (err) {
@@ -272,6 +272,9 @@ export default defineContentScript({
     } else if (window.location.href.includes(justtradeWebsite)) {
       mainJusttrade().catch((err) => console.error('mainJusttrade error:', err));
     }
-    
+
+    // flatex ticks its guide right after each save above; the other brokers save in their own loops.
+    if (!window.location.href.includes(flatexWebsite)) void brokerLoop('tourTick', () => tourTick(ctx));
+
   },
 });

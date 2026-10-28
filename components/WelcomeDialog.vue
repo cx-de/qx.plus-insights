@@ -29,10 +29,10 @@
 
         <div class="mt-6 flex flex-col gap-3">
           <!-- The real account is the goal, so it is the one filled action; the sample stays a quiet alternative. -->
-          <button v-for="(broker, key) in TOUR_BROKERS" :key="key" type="button" class="choice choice-primary" @click="view = String(key)">
+          <button type="button" class="choice choice-primary" @click="view = 'pick'">
             <span class="choice-icon"><Landmark class="h-5 w-5" aria-hidden="true" /></span>
             <span class="min-w-0 flex-1">
-              <span class="choice-title">{{ $t('tour.connect_title', { broker: broker.name }) }}</span>
+              <span class="choice-title">{{ $t('tour.connect_any_title') }}</span>
               <span class="choice-text">{{ $t('tour.connect_text') }}</span>
             </span>
             <ArrowRight class="h-5 w-5 shrink-0" aria-hidden="true" />
@@ -48,6 +48,25 @@
         </div>
 
         <button type="button" class="link mt-6 justify-self-start" @click="dismiss()">{{ $t('tour.dont_show') }}</button>
+      </template>
+
+      <!-- Pick the broker to start with; the others can follow later from Help. -->
+      <template v-else-if="view === 'pick'">
+        <button type="button" class="link mb-4 inline-flex items-center gap-1 justify-self-start" @click="view = 'choose'">
+          <ArrowLeft class="h-4 w-4" aria-hidden="true" />{{ $t('tour.back') }}
+        </button>
+        <DialogHeader class="text-left">
+          <DialogTitle class="text-xl leading-tight tracking-tight">{{ $t('tour.pick_title') }}</DialogTitle>
+          <DialogDescription class="leading-relaxed">{{ $t('tour.pick_text') }}</DialogDescription>
+        </DialogHeader>
+
+        <div class="mt-6 flex flex-col gap-2">
+          <button v-for="(broker, key) in TOUR_BROKERS" :key="key" type="button" class="choice" @click="view = String(key)">
+            <span class="choice-icon"><Landmark class="h-5 w-5" aria-hidden="true" /></span>
+            <span class="choice-title min-w-0 flex-1">{{ broker.name }}</span>
+            <ArrowRight class="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          </button>
+        </div>
       </template>
 
       <!-- Sample data -->
@@ -114,7 +133,7 @@
       </template>
 
       <template v-else-if="broker">
-        <button v-if="!started" type="button" class="link mb-4 inline-flex items-center gap-1 justify-self-start" @click="view = 'choose'">
+        <button v-if="!started" type="button" class="link mb-4 inline-flex items-center gap-1 justify-self-start" @click="view = 'pick'">
           <ArrowLeft class="h-4 w-4" aria-hidden="true" />{{ $t('tour.back') }}
         </button>
         <DialogHeader class="text-left">
@@ -134,10 +153,10 @@
             </span>
             <div class="pb-5">
               <div class="font-medium leading-6 text-foreground">
-                {{ $t(`tour.${view}.${step}_title`) }}
+                {{ $t(`tour.steps.${step}_title`, { broker: broker.name }) }}
                 <span v-if="index < currentIndex" class="sr-only">({{ $t('tour.step_done') }})</span>
               </div>
-              <div class="text-sm leading-relaxed text-muted-foreground">{{ $t(`tour.${view}.${step}_text`) }}</div>
+              <div class="text-sm leading-relaxed text-muted-foreground">{{ $t(`tour.${tourStepTextKey(view, String(step))}`, { broker: broker.name }) }}</div>
             </div>
           </li>
         </ol>
@@ -160,7 +179,7 @@ import { ArrowLeft, ArrowRight, Check, Download, Landmark, Sparkles } from 'luci
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { importAll, resetAll } from '@/lib/storage-utils';
-import { TOUR_BROKERS, TOUR_DATA_KEYS, tourHasBrokerData, tourSummary } from '~/utils/tour-utils';
+import { TOUR_BROKERS, TOUR_DATA_KEYS, tourHasBrokerData, tourStepTextKey, tourSummary } from '~/utils/tour-utils';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
 import { ACCOUNT_BROKERS, accountClearCurrentIds } from '~/utils/account-utils';

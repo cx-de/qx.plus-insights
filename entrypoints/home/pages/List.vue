@@ -1680,11 +1680,8 @@ const table = useVueTable({
     get sorting() {return sorting.value },
     get rowSelection() { return rowSelection.value },
     get expanded() { return expanded.value },
-    get globalFilter() { return globalFilter.value },
+    // no globalFilter here: newFilteredData already searches, and TanStack's pass drops every row when a group is first
     get columnFilters() { return columnFilters.value },
-  },
-  onGlobalFilterChange: (updater) => {
-    globalFilter.value = updater
   },
   onSortingChange: setSorting,
   onExpandedChange: setExpanded,

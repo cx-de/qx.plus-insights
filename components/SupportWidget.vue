@@ -11,95 +11,109 @@
     </button>
 
     <Dialog v-model:open="isOpen">
-      <!-- Header and Send stay put while only the middle scrolls, so Send is reachable on short laptop screens. -->
-      <DialogContent class="flex max-h-[92vh] max-w-4xl flex-col gap-0 p-0" data-support-ignore>
-        <DialogHeader class="shrink-0 px-6 pb-4 pt-6">
+      <!-- Screenshot beside the form on wide screens so Send never drops below the fold; without one, a plain narrow form. -->
+      <DialogContent :class="['flex max-h-[92vh] flex-col gap-0 p-0', showShot ? 'max-w-6xl' : 'max-w-lg']" data-support-ignore
+        @open-auto-focus.prevent="messageRef?.focus()">
+        <DialogHeader class="shrink-0 border-b px-6 py-4">
           <DialogTitle class="flex items-center gap-2"><LifeBuoy class="h-5 w-5" />{{ $t('support') }}</DialogTitle>
           <DialogDescription>{{ $t('support_description') }}</DialogDescription>
         </DialogHeader>
 
-        <div v-if="reference" class="flex flex-col items-center gap-3 px-6 pb-8 pt-4 text-center">
+        <div v-if="reference" class="flex flex-col items-center gap-3 px-6 pb-8 pt-6 text-center">
           <CircleCheck class="h-10 w-10 text-green-600" />
           <p class="text-sm">{{ $t('support_sent') }}</p>
           <p class="font-mono text-lg font-semibold">{{ reference }}</p>
           <Button variant="outline" @click="isOpen = false">{{ $t('support_close') }}</Button>
         </div>
 
-        <form v-else class="flex min-h-0 flex-1 flex-col" @submit.prevent="submit">
-          <div class="grid min-h-0 flex-1 gap-4 overflow-y-auto px-6 py-1">
-            <div v-if="screenshot" class="grid gap-2">
-              <div class="flex flex-wrap items-center justify-between gap-2 text-sm">
-                <span><span class="font-medium">{{ $t('support_screenshot') }}</span>
-                  <span class="text-muted-foreground"> ({{ $t('support_annotate_hint') }})</span></span>
-                <label class="flex cursor-pointer items-center gap-2">
-                  <input v-model="includeScreenshot" type="checkbox" class="h-4 w-4 accent-primary" />
+        <form v-else class="grid min-h-0 flex-1 overflow-y-auto" :class="showShot && 'md:grid-cols-[minmax(0,1fr)_20rem] md:overflow-hidden'" @submit.prevent="submit">
+          <section v-if="showShot" class="flex min-h-0 flex-col gap-3 bg-muted/40 p-4 md:overflow-y-auto md:p-6">
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="flex items-center gap-0.5 rounded-lg border bg-background p-1 shadow-xs" role="toolbar" :aria-label="$t('support_annotate_hint')">
+                <button v-for="item in tools" :key="item.key" type="button" :class="[iconButton, tool === item.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground']"
+                  :title="$t(item.label)" :aria-label="$t(item.label)" :aria-pressed="tool === item.key"
+                  @click="tool = item.key"><component :is="item.icon" class="h-4 w-4" /></button>
+                <span class="mx-1 h-5 w-px bg-border" />
+                <button v-for="c in colors" :key="c" type="button" :class="[iconButton, 'hover:bg-accent']" :aria-label="c"
+                  :aria-pressed="tool !== 'redact' && color === c" @click="pickColor(c)">
+                  <span class="h-4 w-4 rounded-full ring-offset-2 ring-offset-background"
+                    :class="tool !== 'redact' && color === c && 'ring-2 ring-foreground'" :style="{ backgroundColor: c }" />
+                </button>
+                <span class="mx-1 h-5 w-px bg-border" />
+                <button type="button" :class="[iconButton, 'text-muted-foreground hover:bg-accent hover:text-foreground']"
+                  :title="$t('support_undo')" :aria-label="$t('support_undo')"
+                  :disabled="!strokes.length" @click="undoStroke"><Undo2 class="h-4 w-4" /></button>
+                <button type="button" :class="[iconButton, 'text-muted-foreground hover:bg-accent hover:text-foreground']"
+                  :title="$t('support_clear')" :aria-label="$t('support_clear')"
+                  :disabled="!strokes.length" @click="clearStrokes"><Eraser class="h-4 w-4" /></button>
+              </div>
+              <Button type="button" size="sm" variant="ghost" class="ml-auto h-8" :title="$t('support_retake_hint')"
+                @click="openSupport(RETAKE_DELAY)"><Camera class="mr-1.5 h-4 w-4" />{{ $t('support_retake') }}</Button>
+            </div>
+            <div class="relative">
+              <canvas ref="canvasRef" class="w-full touch-none rounded-md border bg-background shadow-sm"
+                :class="tool === 'text' ? 'cursor-text' : 'cursor-crosshair'"
+                @pointerdown="startStroke" @pointermove="moveStroke" @pointerup="endStroke" @pointerleave="endStroke" @pointercancel="endStroke" />
+              <input v-if="pendingText" ref="textInputRef" v-model="pendingText.value" maxlength="80"
+                class="absolute min-w-32 rounded border border-input bg-background px-1.5 py-0.5 text-sm shadow-sm"
+                :style="{ left: `${pendingText.left}px`, top: `${pendingText.top}px`, color: pendingText.color }"
+                @keydown.enter.prevent="commitText" @keydown.esc.stop.prevent="pendingText = null" @blur="commitText" />
+            </div>
+            <p class="text-xs text-muted-foreground">{{ $t('support_annotate_hint') }}</p>
+          </section>
+
+          <section class="flex min-h-0 flex-col" :class="showShot && 'border-t md:border-l md:border-t-0'">
+            <div class="grid flex-1 content-start gap-4 p-4 md:overflow-y-auto md:p-6">
+              <div class="grid gap-1.5">
+                <label class="text-sm font-medium" for="support-message">{{ $t('support_message') }}</label>
+                <textarea id="support-message" ref="messageRef" v-model="message" rows="7" maxlength="5000"
+                  :placeholder="$t('support_message_placeholder')"
+                  class="flex w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring" />
+                <p v-if="errors.message" class="text-xs text-destructive">{{ errors.message }}</p>
+                <p v-else-if="charsNeeded" class="text-xs text-muted-foreground">{{ $t('support_chars_needed', { n: charsNeeded }) }}</p>
+                <p v-if="errors.screenshot" class="text-xs text-destructive">{{ errors.screenshot }}</p>
+              </div>
+
+              <template v-if="!hasValidKey">
+                <div class="grid gap-1.5">
+                  <label class="text-sm font-medium" for="support-name">{{ $t('support_name') }}</label>
+                  <Input id="support-name" v-model="name" maxlength="100" autocomplete="name" :placeholder="$t('support_name_placeholder')" />
+                  <p v-if="errors.name" class="text-xs text-destructive">{{ errors.name }}</p>
+                </div>
+                <div class="grid gap-1.5">
+                  <label class="text-sm font-medium" for="support-email">{{ $t('support_email') }}</label>
+                  <Input id="support-email" v-model="email" type="email" maxlength="255" autocomplete="email" :placeholder="$t('support_email_placeholder')" />
+                  <p v-if="errors.email" class="text-xs text-destructive">{{ errors.email }}</p>
+                </div>
+              </template>
+
+              <!-- What leaves the device sits next to Send, not under the canvas. -->
+              <div v-if="screenshot" class="grid gap-2.5 rounded-md border p-3 text-sm">
+                <label class="flex cursor-pointer items-center justify-between gap-3">
                   {{ $t('support_include_screenshot') }}
+                  <Switch v-model="includeScreenshot" />
                 </label>
+                <template v-if="includeScreenshot">
+                  <label class="flex cursor-pointer items-center justify-between gap-3">
+                    {{ $t('support_hide_numbers') }}
+                    <Switch v-model="hideNumbers" />
+                  </label>
+                  <p class="text-xs leading-relaxed text-muted-foreground">{{ $t('support_privacy_hint') }}</p>
+                </template>
+                <p v-else class="text-xs text-muted-foreground">{{ $t('support_screenshot_off') }}</p>
               </div>
-              <div class="relative">
-                <canvas ref="canvasRef" class="w-full touch-none rounded-md border"
-                  :class="!includeScreenshot ? 'opacity-30' : tool === 'text' ? 'cursor-text' : 'cursor-crosshair'"
-                  @pointerdown="startStroke" @pointermove="moveStroke" @pointerup="endStroke" @pointerleave="endStroke" @pointercancel="endStroke" />
-                <input v-if="pendingText" ref="textInputRef" v-model="pendingText.value" maxlength="80"
-                  class="absolute min-w-32 rounded border border-input bg-background px-1.5 py-0.5 text-sm shadow-sm"
-                  :style="{ left: `${pendingText.left}px`, top: `${pendingText.top}px`, color: pendingText.color }"
-                  @keydown.enter.prevent="commitText" @keydown.esc.stop.prevent="pendingText = null" @blur="commitText" />
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <Button v-for="item in tools" :key="item.key" type="button" size="icon" class="h-7 w-7"
-                  :variant="tool === item.key ? 'default' : 'outline'" :title="$t(item.label)" :disabled="!includeScreenshot"
-                  @click="tool = item.key"><component :is="item.icon" class="h-4 w-4" /></Button>
-                <span class="mx-0.5 h-5 w-px bg-border" />
-                <button v-for="c in colors" :key="c" type="button" :aria-label="c"
-                  class="h-7 w-7 rounded border-2 transition-transform"
-                  :class="tool !== 'redact' && color === c ? 'scale-110 border-foreground' : 'border-transparent'"
-                  :style="{ backgroundColor: c }" :disabled="!includeScreenshot" @click="pickColor(c)" />
-                <Button type="button" size="icon" variant="outline" class="h-7 w-7" :title="$t('support_undo')"
-                  :disabled="!includeScreenshot || !strokes.length" @click="undoStroke"><Undo2 class="h-4 w-4" /></Button>
-                <Button type="button" size="icon" variant="outline" class="h-7 w-7" :title="$t('support_clear')"
-                  :disabled="!includeScreenshot || !strokes.length" @click="clearStrokes"><Eraser class="h-4 w-4" /></Button>
-                <label class="ml-auto flex cursor-pointer items-center gap-2 text-sm">
-                  <input v-model="hideNumbers" type="checkbox" class="h-4 w-4 accent-primary" :disabled="!includeScreenshot" />
-                  {{ $t('support_hide_numbers') }}
-                </label>
-                <Button type="button" size="sm" variant="outline" class="h-7" :title="$t('support_retake_hint')"
-                  @click="openSupport(RETAKE_DELAY)"><Camera class="mr-1.5 h-4 w-4" />{{ $t('support_retake') }}</Button>
-              </div>
-              <p class="text-xs text-muted-foreground">{{ $t('support_privacy_hint') }}</p>
-            </div>
-            <p v-else class="text-sm text-muted-foreground">{{ $t('support_no_screenshot') }}</p>
-
-            <div v-if="!hasValidKey" class="grid gap-3 sm:grid-cols-2">
-              <div class="grid gap-1.5">
-                <label class="text-sm font-medium" for="support-name">{{ $t('support_name') }}</label>
-                <Input id="support-name" v-model="name" maxlength="100" autocomplete="name" :placeholder="$t('support_name_placeholder')" />
-                <p v-if="errors.name" class="text-xs text-destructive">{{ errors.name }}</p>
-              </div>
-              <div class="grid gap-1.5">
-                <label class="text-sm font-medium" for="support-email">{{ $t('support_email') }}</label>
-                <Input id="support-email" v-model="email" type="email" maxlength="255" autocomplete="email" :placeholder="$t('support_email_placeholder')" />
-                <p v-if="errors.email" class="text-xs text-destructive">{{ errors.email }}</p>
-              </div>
+              <p v-else class="rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">{{ $t('support_no_screenshot') }}</p>
             </div>
 
-            <div class="grid gap-1.5">
-              <label class="text-sm font-medium" for="support-message">{{ $t('support_message') }}</label>
-              <textarea id="support-message" v-model="message" rows="5" maxlength="5000"
-                :placeholder="$t('support_message_placeholder')"
-                class="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring" />
-              <p v-if="errors.message" class="text-xs text-destructive">{{ errors.message }}</p>
-              <p v-if="errors.screenshot" class="text-xs text-destructive">{{ errors.screenshot }}</p>
+            <div class="grid shrink-0 gap-2 border-t p-4 md:px-6">
+              <p v-if="formError" class="text-sm text-destructive">{{ formError }}</p>
+              <Button type="submit" class="w-full" :disabled="sending || !!charsNeeded">
+                <Loader2 v-if="sending" class="mr-2 h-4 w-4 animate-spin" />
+                <Send v-else class="mr-2 h-4 w-4" />
+                {{ sending ? $t('support_sending') : $t('support_send') }}
+              </Button>
             </div>
-          </div>
-
-          <div class="grid shrink-0 gap-2 border-t px-6 py-4">
-            <p v-if="formError" class="text-sm text-destructive">{{ formError }}</p>
-            <Button type="submit" class="w-full" :disabled="sending || message.trim().length < 10">
-              <Loader2 v-if="sending" class="mr-2 h-4 w-4 animate-spin" />
-              <Send v-else class="mr-2 h-4 w-4" />
-              {{ sending ? $t('support_sending') : $t('support_send') }}
-            </Button>
-          </div>
+          </section>
         </form>
       </DialogContent>
     </Dialog>
@@ -113,6 +127,7 @@ import { domToCanvas } from 'modern-screenshot';
 import { Camera, CircleCheck, Eraser, EyeOff, Highlighter, LifeBuoy, Loader2, MoveUpRight, Pencil, Send, Square, Type, Undo2 } from 'lucide-vue-next';
 import { Button } from '~/components/ui/button';
 import { Input } from '~/components/ui/input';
+import { Switch } from '~/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog';
 import { apiAuthFailed, apiKey, getApiKey, sendSupportMessage, sleep } from '~/utils/helper';
 
@@ -136,6 +151,7 @@ const MASK_COLOR = '#374151';
 const RETAKE_DELAY = 3;
 // Digit runs incl. German/English separators, so "1.234,56" is one mask, not three.
 const NUMBER_RE = /\d(?:[\d.,'\s]*\d)?/g;
+const iconButton = 'flex h-8 w-8 items-center justify-center rounded-md transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40';
 
 const isOpen = ref(false);
 const capturing = ref(false);
@@ -150,6 +166,7 @@ const tool = ref('pen');
 const color = ref(colors[0]);
 const pendingText = ref<any>(null);
 const textInputRef = ref<HTMLInputElement | null>(null);
+const messageRef = ref<HTMLTextAreaElement | null>(null);
 const strokes = ref<any[]>([]);
 const name = ref('');
 const email = ref('');
@@ -160,6 +177,9 @@ const reference = ref('');
 let drawing: any = null;
 // Must match sendSupportMessage: a dead key is not sent, so the user needs name/email to be reachable.
 const hasValidKey = computed(() => !!apiKey.value && !apiAuthFailed.value);
+const showShot = computed(() => !!screenshot.value && includeScreenshot.value);
+// Matches the backend's 10-character minimum, so a disabled Send says why.
+const charsNeeded = computed(() => Math.max(0, 10 - message.value.trim().length));
 
 
 const openSupport = async (delay = 0) => {
@@ -172,6 +192,8 @@ const openSupport = async (delay = 0) => {
     await sleep(1000);
   }
   countdown.value = 0;
+  // Two frames so the spinner paints before the capture blocks the main thread.
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   try {
     await getApiKey();
   } catch (error) {
@@ -232,10 +254,21 @@ const captureViewport = async () => {
       height,
       scale,
       backgroundColor: background,
+      // The dashboard ships no web fonts, so scanning every stylesheet for @font-face only costs time.
+      font: false,
       style: { marginTop: `${-window.scrollY}px`, marginLeft: `${-window.scrollX}px` },
       // The Support button and any open dialog are not part of what the user is reporting.
-      filter: (node: any) => !(node instanceof Element && node.hasAttribute('data-support-ignore')),
+      filter: (node: any) => {
+        if (!(node instanceof Element)) return true;
+        if (node.hasAttribute('data-support-ignore')) return false;
+        // Rows below the fold were rendered only to be cropped away; above the fold must stay, or the scroll offset misaligns.
+        // shortcut: a fixed child inside a parent below the fold is dropped too; add a position check if one shows up.
+        const r = node.getBoundingClientRect();
+        return !(r.height && r.top > height);
+      },
     });
+    // drawImage throws on a 0×0 canvas, which broke redraw() while the dialog opened.
+    if (!shot.width || !shot.height) return null;
     // The shifted body no longer covers the bottom strip, which would turn black in the JPEG.
     const canvas = document.createElement('canvas');
     canvas.width = shot.width;

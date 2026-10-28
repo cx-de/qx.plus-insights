@@ -34,7 +34,7 @@ async function remove() {
 async function connect() {
   console.log('SampleDataBanner connect');
   await resetAll();
-  await chrome.storage.local.set({ TOUR: { broker: 'flatex', step: 'choose' } });
+  await chrome.storage.local.set({ TOUR: { broker: null, step: 'choose' } });
   location.reload();
 }
 

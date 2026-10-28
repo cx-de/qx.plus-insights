@@ -3,9 +3,26 @@ import { i18n } from '~/entrypoints/home/i18n';
 import { numberToGerman } from './helper';
 
 // One entry per broker the welcome dialog offers; step order is the order the user walks them.
+// name is the stored row `broker`; url's host also tells the content script which guide this page runs.
 export const TOUR_BROKERS:any = {
   flatex: {
     name: 'Flatex', url: 'https://konto.flatex.de', rowsKey: 'KONTO_FLATEX', idKey: 'CUR_FLATEXID',
+    steps: ['login', 'sync', 'finish'], cash: true,
+  },
+  consorsbank: {
+    name: 'Consorsbank', url: 'https://www.consorsbank.de/web/Mein-Konto-und-Depot/Konto/Kontouebersicht',
+    rowsKey: 'consorsBank', idKey: 'CUR_CONSORSBANKID', steps: ['login', 'sync', 'finish'],
+  },
+  smartbroker: {
+    name: 'Smartbroker+', url: 'https://app.smartbrokerplus.de/', rowsKey: 'SMART_BROKER_PLUS', idKey: 'CUR_SMARTBROKERID',
+    steps: ['login', 'sync', 'finish'],
+  },
+  wikifolio: {
+    name: 'Wikifolio', url: 'https://www.wikifolio.com/', rowsKey: 'WIKIFOLIO', idKey: 'CUR_WIKIFOLIO',
+    steps: ['login', 'sync', 'finish'],
+  },
+  justtrade: {
+    name: 'justTRADE', url: 'https://webtrading.justtrade.com/', rowsKey: 'JUSTTRADE', idKey: 'CUR_JUSTTRADEID',
     steps: ['login', 'sync', 'finish'],
   },
 };
@@ -37,13 +54,19 @@ let tourTarget:any = null;
 let shownStep = '';
 
 // Advances only on what the scraper actually stored, so a step is never ticked off by a click alone.
-// Known limit: rows carry no save time, so a restarted guide with old flatex data ticks through right after login.
-export function flatexTourNextStep(step:any, rows:any, onOverview:boolean) {
-  const flatex = (Array.isArray(rows) ? rows : []).filter((r:any) => r?.broker === 'Flatex');
-  if (step === 'login' && onOverview) step = 'sync';
-  // Positions and cash both stored means Sync QX+ ran its full round (or the user walked the tabs by hand).
-  if (step === 'sync' && flatex.some((r:any) => r.stock_name === 'Cash') && flatex.some((r:any) => r.stock_name !== 'Cash')) step = 'finish';
+// Known limit: rows carry no save time, so a restarted guide with old data ticks through right after login.
+export function tourNextStep(step:any, rows:any, broker:any, onDepot:boolean) {
+  const own = (Array.isArray(rows) ? rows : []).filter((r:any) => r?.broker === broker.name);
+  if (step === 'login' && onDepot) step = 'sync';
+  // flatex needs cash too: positions alone are only half of its Sync QX+ round.
+  const done = own.some((r:any) => r.stock_name !== 'Cash') && (!broker.cash || own.some((r:any) => r.stock_name === 'Cash'));
+  if (step === 'sync' && done) step = 'finish';
   return step;
+}
+
+// The guide whose broker owns this page, or '' on a site no guide runs on.
+function tourPageBroker() {
+  return Object.keys(TOUR_BROKERS).find(key => new URL(TOUR_BROKERS[key].url).hostname === location.hostname) || '';
 }
 
 // A finished Sync QX+ press closes the step on whatever it stored: a cash-only depot or a missed cash read must not strand the guide.
@@ -54,18 +77,19 @@ export async function flatexTourSyncDone(ctx:any) {
     console.log('flatexTourSyncDone', TOUR?.step, stored);
     if (TOUR?.broker !== 'flatex' || TOUR.step !== 'sync' || !stored) return;
     await tourSet('finish');
-    await flatexTourTick(ctx);
+    await tourTick(ctx);
   } catch (err) {
     /* the guide is optional; the sync result is already on the button */
     console.error('flatexTourSyncDone error:', err);
   }
 }
 
-function tourTargetFor(step:string) {
-  return step === 'sync' ? document.querySelector('.sync-qx-button') : null;
+// Every scraper renders this button only on its depot page once logged in, so it doubles as the "on depot" check.
+function tourSyncButton() {
+  return document.querySelector('.sync-qx-button');
 }
 
-// Below the target when it is on screen, otherwise a corner card, so a changed flatex layout only loses the pointer.
+// Below the target when it is on screen, otherwise a corner card, so a changed bank layout only loses the pointer.
 function tourPlace() {
   if (!tourCard) return;
   const rect = tourTarget?.isConnected ? tourTarget.getBoundingClientRect() : null;
@@ -80,7 +104,7 @@ function tourPlace() {
 // Merged, not replaced: the dashboard keeps its own flags (celebrated) on the same object.
 async function tourSet(step:string, extra:any = {}) {
   const { TOUR } = await chrome.storage.local.get('TOUR');
-  await chrome.storage.local.set({ TOUR: { ...TOUR, broker: 'flatex', step, ...extra } });
+  await chrome.storage.local.set({ TOUR: { ...TOUR, step, ...extra } });
 }
 
 async function ensureTourUi(ctx:any) {
@@ -90,11 +114,11 @@ async function ensureTourUi(ctx:any) {
     position: 'inline',
     anchor: 'body',
     append: 'last',
-    // Keeps our clicks away from flatex and from the BlockSelectionItem listener in content.ts.
+    // Keeps our clicks away from the bank page and from the BlockSelectionItem listener in content.ts.
     isolateEvents: true,
     onMount(container:any) {
       const style = document.createElement('style');
-      // The dashboard's light theme tokens (assets/tailwind.css); flatex is always light.
+      // The dashboard's light theme tokens (assets/tailwind.css); the bank pages are light.
       style.textContent = `
         .card { --fg: hsl(222.2 47.4% 11.2%); --muted-fg: hsl(215.4 16.3% 46.9%); --border: hsl(214.3 31.8% 91.4%);
           --muted: hsl(210 40% 96.1%); --ring: hsl(215 20.2% 65.1%);
@@ -140,10 +164,11 @@ function tourButton(label:string, className:string, onClick:() => Promise<void>)
   return button;
 }
 
-function renderTourCard(ctx:any, step:string, lang:any, summary:any) {
+function renderTourCard(ctx:any, key:string, step:string, lang:any, summary:any) {
   // Explicit locale, not the global one: the Sync button keeps its own and the bank origin has no 'lang'.
   const t = (key:string, values:any = {}) => lang ? i18n.global.t(`tour.${key}`, values, { locale: lang }) : i18n.global.t(`tour.${key}`, values);
-  const steps = TOUR_BROKERS.flatex.steps;
+  const broker = TOUR_BROKERS[key];
+  const steps = broker.steps;
   const current = steps.indexOf(step);
   const head = document.createElement('div');
   head.className = 'head';
@@ -164,15 +189,15 @@ function renderTourCard(ctx:any, step:string, lang:any, summary:any) {
     progress.append(segment);
   }
   const title = document.createElement('h2');
-  title.textContent = step === 'finish' ? t('card_done_title') : t(`flatex.${step}_title`);
+  title.textContent = step === 'finish' ? t('card_done_title') : t(`steps.${step}_title`, { broker: broker.name });
   const text = document.createElement('p');
-  text.textContent = step !== 'finish' ? t(`flatex.${step}_text`)
+  text.textContent = step !== 'finish' ? t(tourStepTextKey(key, step), { broker: broker.name })
     : summary.cash === null ? t('card_done_text_no_cash', { positions: summary.positions })
     : t('card_done_text', { positions: summary.positions, cash: numberToGerman(summary.cash, false, 2) });
 
   const actions = document.createElement('div');
   actions.className = 'actions';
-  const go = (next:string, extra:any = {}) => async () => { await tourSet(next, extra); await flatexTourTick(ctx); };
+  const go = (next:string, extra:any = {}) => async () => { await tourSet(next, extra); await tourTick(ctx); };
   if (step === 'finish') {
     // Stays on 'finish' so the dashboard still shows the connected screen; only this card goes away.
     actions.append(tourButton(t('close'), 'skip', go('finish', { cardClosed: true })));
@@ -192,30 +217,39 @@ function renderTourCard(ctx:any, step:string, lang:any, summary:any) {
   tourCard.replaceChildren(head, progress, title, text, actions);
 }
 
-export async function flatexTourTick(ctx:any) {
+// Login and finish read the same for every broker; only where the Sync QX+ button sits differs.
+export function tourStepTextKey(key:string, step:string) {
+  return step === 'sync' ? `${key}.sync_text` : `steps.${step}_text`;
+}
+
+export async function tourTick(ctx:any) {
   try {
-    const { TOUR, KONTO_FLATEX, CUR_FLATEXID } = await chrome.storage.local.get(['TOUR', 'KONTO_FLATEX', 'CUR_FLATEXID']);
-    if (TOUR?.broker !== 'flatex' || !TOUR_BROKERS.flatex.steps.includes(TOUR.step) || TOUR.cardClosed) {
+    const key = tourPageBroker();
+    const broker = TOUR_BROKERS[key];
+    const { TOUR } = await chrome.storage.local.get('TOUR');
+    if (!broker || TOUR?.broker !== key || !broker.steps.includes(TOUR.step) || TOUR.cardClosed) {
       tourUi?.remove();
       tourUi = tourCard = null;
       shownStep = '';
       return;
     }
 
-    const step = flatexTourNextStep(TOUR.step, KONTO_FLATEX, location.href.includes('overviewFormAction.do'));
+    const stored = await chrome.storage.local.get([broker.rowsKey, broker.idKey]);
+    const rows = stored[broker.rowsKey];
+    const step = tourNextStep(TOUR.step, rows, broker, !!tourSyncButton());
     if (step !== TOUR.step) await tourSet(step);
 
     await ensureTourUi(ctx);
     if (step !== shownStep) {
-      console.log('flatexTourTick', step);
-      renderTourCard(ctx, step, TOUR.lang, tourSummary(KONTO_FLATEX, 'Flatex', CUR_FLATEXID));
+      console.log('tourTick', key, step);
+      renderTourCard(ctx, key, step, TOUR.lang, tourSummary(rows, broker.name, stored[broker.idKey]));
       shownStep = step;
     }
-    // Re-found every tick: webcore rebuilds the tab bar and the sync button on every re-render.
-    tourTarget = tourTargetFor(step);
+    // Re-found every tick: the bank SPAs rebuild the tab bar and the sync button on every re-render.
+    tourTarget = step === 'sync' ? tourSyncButton() : null;
     tourPlace();
   } catch (err) {
     /* the guide is optional; a failed tick must never stop the scrape loop */
-    console.error('flatexTourTick error:', err);
+    console.error('tourTick error:', err);
   }
 }

@@ -153,7 +153,7 @@
     "by_issuer": "by issuer",
     "geography": "Geography",
     "no_movers_yet": "No movers yet",
-    "movers_will_appear_after_snapshots": "Top movers appear once we've captured at least two price snapshots — usually within a minute.",
+    "movers_will_appear_after_snapshots": "Top movers appear once prices have loaded — usually within a minute.",
     "show": "Show",
     "hide": "Hide",
     "api_key_tested_successfully": "API key tested successfully",
@@ -557,10 +557,10 @@
 
     "support": "Support",
     "support_description": "Send a message to QX+. We attach a screenshot of this page so we can see what you see.",
-    "support_screenshot": "Screenshot",
-    "support_annotate_hint": "pick a tool, then click & drag on the screenshot",
+    "support_screenshot_off": "The screenshot will not be sent. Only your message goes to QX+.",
+    "support_annotate_hint": "Pick a tool, then click and drag on the screenshot to mark what you mean.",
     "support_include_screenshot": "Include screenshot",
-    "support_privacy_hint": "Numbers in text are hidden automatically, but charts are not. Cover anything else with the eye button, or untick \"Include screenshot\".",
+    "support_privacy_hint": "Numbers in text are hidden automatically, but charts are not. Cover anything else with the eye button, or turn off \"Include screenshot\".",
     "support_no_screenshot": "No screenshot could be taken. You can still send your message.",
     "support_tool_pen": "Draw",
     "support_tool_highlight": "Highlighter",
@@ -579,6 +579,7 @@
     "support_email_placeholder": "you@example.com",
     "support_message": "Message",
     "support_message_placeholder": "Describe the problem or your idea (at least 10 characters)",
+    "support_chars_needed": "{n} more characters to send",
     "support_send": "Send",
     "support_sending": "Sending…",
     "support_sent": "Thank you! Your message has reached QX+. Your reference:",
@@ -590,6 +591,9 @@
         "welcome_text": "See all your investments in one place. How would you like to start?",
         "connect_title": "Connect my {broker} account",
         "connect_text": "Bring in your real positions. Takes about 2 minutes.",
+        "connect_any_title": "Connect my broker account",
+        "pick_title": "Which broker do you want to connect first?",
+        "pick_text": "You can add more brokers later.",
         "before_start": "We guide you step by step. Keep this window open: each step gets a tick when it is done.",
         "in_progress": "Continue in the {broker} tab. Each step gets a tick here as soon as it is done.",
         "start": "Start with {broker}",
@@ -632,13 +636,27 @@
             "connect": "Connect my real account",
             "remove": "Remove sample data"
         },
-        "flatex": {
-            "login_title": "Log in to flatex",
+        "steps": {
+            "login_title": "Log in to {broker}",
             "login_text": "Log in as you always do. QX+ never sees your password.",
             "sync_title": "Click “Sync QX+”",
-            "sync_text": "The orange button above your depot. One click reads your positions, cash balance and purchase dates. It takes up to a minute; keep the flatex tab open.",
             "finish_title": "Done",
             "finish_text": "QX+ shows what was brought in and opens your portfolio."
+        },
+        "flatex": {
+            "sync_text": "The orange button above your depot. One click reads your positions, cash balance and purchase dates. It takes up to a minute; keep the flatex tab open."
+        },
+        "consorsbank": {
+            "sync_text": "Open your account overview. The orange button sits next to “Ihre Konten im Überblick” or beside the depot selector. One click reads your positions and cash balance."
+        },
+        "smartbroker": {
+            "sync_text": "Open your depot. QX+ reads your positions on its own; the “Sync QX+” button in the page header saves them right away."
+        },
+        "wikifolio": {
+            "sync_text": "Open the trade page of your wikifolio. The orange button sits in its header. One click reads your positions."
+        },
+        "justtrade": {
+            "sync_text": "Open the DEPOT tab. The orange button sits next to it. One click reads your positions."
         }
     }
 }

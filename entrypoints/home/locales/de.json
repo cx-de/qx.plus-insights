@@ -153,7 +153,7 @@
   "by_issuer": "nach Emittent",
   "geography": "Geografie",
   "no_movers_yet": "Noch keine Bewegungen",
-  "movers_will_appear_after_snapshots": "Top-Bewegungen erscheinen, sobald mindestens zwei Kursabfragen erfasst wurden – meist innerhalb einer Minute.",
+  "movers_will_appear_after_snapshots": "Top-Bewegungen erscheinen, sobald die Kurse geladen sind – meist innerhalb einer Minute.",
   "show": "Anzeigen",
   "hide": "Ausblenden",
   "api_key_tested_successfully": "API-Schlüssel erfolgreich getestet",
@@ -556,10 +556,10 @@
 
     "support": "Support",
     "support_description": "Senden Sie eine Nachricht an QX+. Wir hängen einen Screenshot dieser Seite an, damit wir sehen, was Sie sehen.",
-    "support_screenshot": "Screenshot",
-    "support_annotate_hint": "Werkzeug wählen, dann auf dem Screenshot klicken & ziehen",
+    "support_screenshot_off": "Der Screenshot wird nicht gesendet. Nur Ihre Nachricht geht an QX+.",
+    "support_annotate_hint": "Werkzeug wählen, dann auf dem Screenshot klicken und ziehen, um zu markieren, was Sie meinen.",
     "support_include_screenshot": "Screenshot mitsenden",
-    "support_privacy_hint": "Zahlen im Text werden automatisch ausgeblendet, Diagramme jedoch nicht. Verdecken Sie weitere Stellen mit dem Augen-Symbol oder entfernen Sie den Haken bei \"Screenshot mitsenden\".",
+    "support_privacy_hint": "Zahlen im Text werden automatisch ausgeblendet, Diagramme jedoch nicht. Verdecken Sie weitere Stellen mit dem Augen-Symbol oder schalten Sie \"Screenshot mitsenden\" aus.",
     "support_no_screenshot": "Es konnte kein Screenshot erstellt werden. Sie können Ihre Nachricht trotzdem senden.",
     "support_tool_pen": "Zeichnen",
     "support_tool_highlight": "Textmarker",
@@ -578,6 +578,7 @@
     "support_email_placeholder": "ihre.adresse@beispiel.de",
     "support_message": "Nachricht",
     "support_message_placeholder": "Beschreiben Sie das Problem oder Ihre Idee (mindestens 10 Zeichen)",
+    "support_chars_needed": "Noch {n} Zeichen bis zum Senden",
     "support_send": "Senden",
     "support_sending": "Wird gesendet…",
     "support_sent": "Vielen Dank! Ihre Nachricht ist bei QX+ angekommen. Ihre Referenz:",
@@ -589,6 +590,9 @@
         "welcome_text": "Alle Ihre Geldanlagen an einem Ort. Wie möchten Sie starten?",
         "connect_title": "Mein {broker}-Konto verbinden",
         "connect_text": "Holen Sie Ihre echten Positionen. Dauert etwa 2 Minuten.",
+        "connect_any_title": "Mein Broker-Konto verbinden",
+        "pick_title": "Mit welchem Broker möchten Sie beginnen?",
+        "pick_text": "Weitere Broker können Sie später hinzufügen.",
         "before_start": "Wir führen Sie Schritt für Schritt. Lassen Sie dieses Fenster offen: Jeder erledigte Schritt bekommt einen Haken.",
         "in_progress": "Machen Sie im {broker}-Tab weiter. Jeder Schritt bekommt hier einen Haken, sobald er erledigt ist.",
         "start": "Mit {broker} starten",
@@ -631,13 +635,27 @@
             "connect": "Mein echtes Konto verbinden",
             "remove": "Beispieldaten entfernen"
         },
-        "flatex": {
-            "login_title": "Bei flatex anmelden",
+        "steps": {
+            "login_title": "Bei {broker} anmelden",
             "login_text": "Melden Sie sich wie gewohnt an. QX+ sieht Ihr Passwort nie.",
             "sync_title": "Auf „Sync QX+“ klicken",
-            "sync_text": "Der orange Knopf über Ihrem Depot. Ein Klick liest Positionen, Kontostand und Kaufdaten. Das dauert bis zu einer Minute; lassen Sie den flatex-Tab offen.",
             "finish_title": "Fertig",
             "finish_text": "QX+ zeigt, was übernommen wurde, und öffnet Ihr Portfolio."
+        },
+        "flatex": {
+            "sync_text": "Der orange Knopf über Ihrem Depot. Ein Klick liest Positionen, Kontostand und Kaufdaten. Das dauert bis zu einer Minute; lassen Sie den flatex-Tab offen."
+        },
+        "consorsbank": {
+            "sync_text": "Öffnen Sie Ihre Kontoübersicht. Der orange Knopf steht neben „Ihre Konten im Überblick“ oder neben der Depotauswahl. Ein Klick liest Positionen und Kontostand."
+        },
+        "smartbroker": {
+            "sync_text": "Öffnen Sie Ihr Depot. QX+ liest Ihre Positionen von selbst; der Knopf „Sync QX+“ im Seitenkopf speichert sie sofort."
+        },
+        "wikifolio": {
+            "sync_text": "Öffnen Sie die Handelsseite Ihres wikifolios. Der orange Knopf steht in ihrem Kopfbereich. Ein Klick liest Ihre Positionen."
+        },
+        "justtrade": {
+            "sync_text": "Öffnen Sie den Tab DEPOT. Der orange Knopf steht direkt daneben. Ein Klick liest Ihre Positionen."
         }
     }
 }
