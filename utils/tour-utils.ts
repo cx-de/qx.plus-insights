@@ -25,6 +25,10 @@ export const TOUR_BROKERS:any = {
     name: 'justTRADE', url: 'https://webtrading.justtrade.com/', rowsKey: 'JUSTTRADE', idKey: 'CUR_JUSTTRADEID',
     steps: ['login', 'sync', 'finish'],
   },
+  scalable: {
+    name: 'Scalable Capital', url: 'https://de.scalable.capital/cockpit', rowsKey: 'SCALABLE', idKey: 'CUR_SCALABLEID',
+    steps: ['login', 'sync', 'finish'], cash: true, ownLogin: true,
+  },
 };
 
 // What the "connected" screen reports; only the last 4 digits of the account so it is recognisable, not readable.
@@ -42,7 +46,7 @@ export function tourSummary(rows:any, brokerName:string, accountId:any) {
   };
 }
 
-export const TOUR_DATA_KEYS = ['KONTO_FLATEX', 'consorsBank', 'SMART_BROKER_PLUS', 'WIKIFOLIO', 'JUSTTRADE'];
+export const TOUR_DATA_KEYS = ['KONTO_FLATEX', 'consorsBank', 'SMART_BROKER_PLUS', 'WIKIFOLIO', 'JUSTTRADE', 'SCALABLE'];
 
 export function tourHasBrokerData(stored:any) {
   return TOUR_DATA_KEYS.some(key => Array.isArray(stored?.[key]) && stored[key].length > 0);

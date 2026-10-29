@@ -339,6 +339,12 @@
     "exchangeTradedFund": "ETF",
     "consors_bank": "Consorsbank",
     "justtrade": "justTRADE",
+    "scalable": "Scalable Capital",
+    "scalable_sync_needed": "{count} position(s) need Sync QX+ to update quantity and buy-in",
+    "scalable_not_read": "{count} position(s) could not be read",
+    "scalable_translate_off": "Turn off Chrome translate for this page",
+    "scalable_account_pending": "Accept the new Scalable Capital account in the QX+ dashboard first",
+    "scalable_overlay": "QX+ is reading your positions, please wait…",
     "backup": "Backup",
     "import": "Import",
     "export_csv_settings": "Export CSV Settings",
@@ -668,6 +674,11 @@
         },
         "justtrade": {
             "sync_text": "Open the DEPOT tab. The orange button sits next to it. One click reads your positions."
+        },
+        "scalable": {
+            "login_title": "Log in to Scalable Capital",
+            "login_text": "Log in as usual and open your Broker depot. QX+ never sees your password.",
+            "sync_text": "Click the orange “Sync QX+” button next to the tabs. QX+ reads your cash and positions, then opens each new position briefly to read its buy-in price and returns to the list. Please don't click while it runs."
         }
     }
 }

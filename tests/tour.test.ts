@@ -43,6 +43,7 @@ describe('tour step keys', () => {
   it('gives brokers whose button sits past the start page their own login step', () => {
     expect(tourStepTitleKey('smartbroker', 'login')).toBe('smartbroker.login_title');
     expect(tourStepTextKey('wikifolio', 'login')).toBe('wikifolio.login_text');
+    expect(tourStepTextKey('scalable', 'login')).toBe('scalable.login_text');
   });
 
   it('keeps the shared login step for the others and per-broker sync text for all', () => {

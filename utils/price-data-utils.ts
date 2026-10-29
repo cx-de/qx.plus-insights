@@ -418,7 +418,8 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
   const smartBrokerData = (await storage.getItem('local:SMART_BROKER_PLUS') as any[]) || [];
   const wikifolioData = (await storage.getItem('local:WIKIFOLIO') as any[]) || [];
   const justtradeData = (await storage.getItem('local:JUSTTRADE') as any[]) || [];
-  const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData];
+  const scalableData = (await storage.getItem('local:SCALABLE') as any[]) || [];
+  const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData, ...scalableData];
   if (!newStockData || newStockData.length === 0) {
     return false;
   }

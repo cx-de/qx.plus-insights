@@ -17,6 +17,7 @@ export default defineContentScript({
     'https://www.consorsbank.de/*',
     'https://www.wikifolio.com/*',
     'https://webtrading.justtrade.com/*',
+    'https://de.scalable.capital/*',
   ],
   async main(ctx) {
     const updateDuration = BROKER_REFRESH_MS;
@@ -27,6 +28,7 @@ export default defineContentScript({
     const smartBrokerPlusBankWebsite = 'app.smartbrokerplus.de';
     const wikifolioWebsite = 'wikifolio.com';
     const justtradeWebsite = 'webtrading.justtrade.com';
+    const scalableWebsite = 'de.scalable.capital';
     
     /* --- Sync QX+ button ------------------------------------------------------
      * One button does everything: persist the depot, then fill in any missing
@@ -271,6 +273,8 @@ export default defineContentScript({
       void brokerLoop('mainWikiFolio', mainWikiFolio);
     } else if (window.location.href.includes(justtradeWebsite)) {
       mainJusttrade().catch((err) => console.error('mainJusttrade error:', err));
+    } else if (window.location.href.includes(scalableWebsite)) {
+      void brokerLoop('mainScalable', mainScalable);
     }
 
     // flatex ticks its guide right after each save above; the other brokers save in their own loops.

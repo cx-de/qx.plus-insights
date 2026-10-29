@@ -30,6 +30,7 @@ const CUR_ID_KEYS:any = {
   'Consorsbank': 'local:CUR_CONSORSBANKID',
   'Smartbroker+': 'local:CUR_SMARTBROKERID',
   'justTRADE': 'local:CUR_JUSTTRADEID',
+  'Scalable Capital': 'local:CUR_SCALABLEID',
 };
 
 // Every supported broker's display name, so UI lists grow with CUR_ID_KEYS instead of a copy.
@@ -50,6 +51,7 @@ const ROW_STORES = [
   'local:SMART_BROKER_PLUS',
   'local:WIKIFOLIO',
   'local:JUSTTRADE',
+  'local:SCALABLE',
 ] as const;
 
 
@@ -717,6 +719,12 @@ export async function accountClearData(broker:any, accountId:any) {
       const isins:any = (await storage.getItem('local:JUSTTRADE_ISINS')) || {};
       for (const key of Object.keys(isins)) if (key.startsWith(`${accountId}|`)) delete isins[key];
       await storage.setItem('local:JUSTTRADE_ISINS', isins);
+    }
+    if (broker === 'Scalable Capital') {
+      // Buy-in cache is keyed "account|portfolio|isin"; a re-added account must re-read its positions.
+      const positions:any = (await storage.getItem('local:SCALABLE_POSITIONS')) || {};
+      for (const key of Object.keys(positions)) if (key.startsWith(`${accountId}|`)) delete positions[key];
+      await storage.setItem('local:SCALABLE_POSITIONS', positions);
     }
     accountsVersion.value++;
     return true;

@@ -4,7 +4,7 @@ QX+ Insights provides real-time market data and in-depth financial analysis with
 
 ## Key Features
 
-🏦 Enhanced Details – View extra insights that are not available by default on Flatex, Smartbroker+, Consorsbank, justTRADE and wikifolio (more brokers will follow)
+🏦 Enhanced Details – View extra insights that are not available by default on Flatex, Smartbroker+, Consorsbank, justTRADE, Scalable Capital and wikifolio (more brokers will follow)
 
 🔎 Seamless Integration – QX+ Insights works directly within the broker pages of these platforms without any extra setup
 

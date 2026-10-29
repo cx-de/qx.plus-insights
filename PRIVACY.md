@@ -4,7 +4,7 @@ QX+ Insights keeps your portfolio data in your browser's extension storage. It h
 
 ## Data stored on your device
 
-- Positions, cash balances and account labels that the extension reads from the broker pages you open (flatex, Smartbroker+, Consorsbank, wikifolio, justTRADE).
+- Positions, cash balances and account labels that the extension reads from the broker pages you open (flatex, Smartbroker+, Consorsbank, wikifolio, justTRADE, Scalable Capital).
 - Your settings, alerts, groups, notes, targets, forecast scenarios and daily portfolio totals.
 - Your QX+ API key and, if you set them up, your Telegram bot token and channel id.
 
@@ -27,7 +27,7 @@ Only if you enable Telegram alerts: the alert text (product name, alert name, co
 
 ## Broker websites
 
-The extension reads the broker pages you already have open. On flatex and wikifolio it also loads pages from the same broker site, using your existing login, to fill in purchase dates and WKNs. Nothing from these pages is sent anywhere except as listed above.
+The extension reads the broker pages you already have open. On flatex and wikifolio it also loads pages from the same broker site, using your existing login, to fill in purchase dates and WKNs. On Scalable Capital, pressing Sync QX+ opens your position pages in the same tab to read buy-in prices. Nothing from these pages is sent anywhere except as listed above.
 
 ## Contact
 

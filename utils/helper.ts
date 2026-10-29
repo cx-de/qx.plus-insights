@@ -365,8 +365,9 @@ export const getLatestData = async () => {
   const smartBrokerData:any = await storage.getItem('local:SMART_BROKER_PLUS') || [];
   const wikifolioData:any = await storage.getItem('local:WIKIFOLIO') || [];
   const justtradeData:any = await storage.getItem('local:JUSTTRADE') || [];
+  const scalableData:any = await storage.getItem('local:SCALABLE') || [];
   
-  const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData]
+  const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData, ...scalableData]
     .filter(item => !frozenBrokers.includes(item.broker));
   if (!newStockData) {
     return false;
@@ -750,6 +751,11 @@ export const clearAllStockData = async () => {
   await storage.setItem('local:JUSTTRADE', []);
   await storage.removeItem('local:CUR_JUSTTRADEID');
   await storage.removeItem('local:JUSTTRADE_ISINS');
+
+  //Scalable Capital
+  await storage.setItem('local:SCALABLE', []);
+  await storage.removeItem('local:CUR_SCALABLEID');
+  await storage.removeItem('local:SCALABLE_POSITIONS');
 
   //accounts
   await storage.removeItem('local:ACCOUNTS');
