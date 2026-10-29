@@ -15,11 +15,11 @@ export const TOUR_BROKERS:any = {
   },
   smartbroker: {
     name: 'Smartbroker+', url: 'https://app.smartbrokerplus.de/', rowsKey: 'SMART_BROKER_PLUS', idKey: 'CUR_SMARTBROKERID',
-    steps: ['login', 'sync', 'finish'],
+    steps: ['login', 'sync', 'finish'], ownLogin: true,
   },
   wikifolio: {
     name: 'Wikifolio', url: 'https://www.wikifolio.com/', rowsKey: 'WIKIFOLIO', idKey: 'CUR_WIKIFOLIO',
-    steps: ['login', 'sync', 'finish'],
+    steps: ['login', 'sync', 'finish'], ownLogin: true,
   },
   justtrade: {
     name: 'justTRADE', url: 'https://webtrading.justtrade.com/', rowsKey: 'JUSTTRADE', idKey: 'CUR_JUSTTRADEID',
@@ -70,17 +70,22 @@ function tourPageBroker() {
 }
 
 // A finished Sync QX+ press closes the step on whatever it stored: a cash-only depot or a missed cash read must not strand the guide.
-export async function flatexTourSyncDone(ctx:any) {
+export async function tourSyncDone() {
   try {
-    const { TOUR, KONTO_FLATEX } = await chrome.storage.local.get(['TOUR', 'KONTO_FLATEX']);
-    const stored = (Array.isArray(KONTO_FLATEX) ? KONTO_FLATEX : []).some((r:any) => r?.broker === 'Flatex');
-    console.log('flatexTourSyncDone', TOUR?.step, stored);
-    if (TOUR?.broker !== 'flatex' || TOUR.step !== 'sync' || !stored) return;
+    const key = tourPageBroker();
+    const broker = TOUR_BROKERS[key];
+    if (!broker) return;
+    const stored = await chrome.storage.local.get(['TOUR', broker.rowsKey]);
+    const rows = stored[broker.rowsKey];
+    const saved = (Array.isArray(rows) ? rows : []).some((r:any) => r?.broker === broker.name);
+    console.log('tourSyncDone', key, stored.TOUR?.step, saved);
+    if (stored.TOUR?.broker !== key || stored.TOUR.step !== 'sync' || !saved) return;
     await tourSet('finish');
-    await tourTick(ctx);
+    // Before the first loop tick there is no context yet; that tick then renders the finished card.
+    if (tourCtx) await tourTick(tourCtx);
   } catch (err) {
     /* the guide is optional; the sync result is already on the button */
-    console.error('flatexTourSyncDone error:', err);
+    console.error('tourSyncDone error:', err);
   }
 }
 
@@ -166,7 +171,7 @@ function tourButton(label:string, className:string, onClick:() => Promise<void>)
 
 function renderTourCard(ctx:any, key:string, step:string, lang:any, summary:any) {
   // Explicit locale, not the global one: the Sync button keeps its own and the bank origin has no 'lang'.
-  const t = (key:string, values:any = {}) => lang ? i18n.global.t(`tour.${key}`, values, { locale: lang }) : i18n.global.t(`tour.${key}`, values);
+  const t = (key:string, values:any = {}, plural?:number) => i18n.global.t(`tour.${key}`, values, { ...(lang ? { locale: lang } : {}), ...(plural === undefined ? {} : { plural }) });
   const broker = TOUR_BROKERS[key];
   const steps = broker.steps;
   const current = steps.indexOf(step);
@@ -189,11 +194,13 @@ function renderTourCard(ctx:any, key:string, step:string, lang:any, summary:any)
     progress.append(segment);
   }
   const title = document.createElement('h2');
-  title.textContent = step === 'finish' ? t('card_done_title') : t(`steps.${step}_title`, { broker: broker.name });
+  title.textContent = step === 'finish' ? t('card_done_title') : t(tourStepTitleKey(key, step), { broker: broker.name });
   const text = document.createElement('p');
+  // Worded, not a bare number: a cash-only depot read "0 Positionen", which looked like a failed sync.
+  const positions = t('positions_count', { count: summary.positions }, summary.positions);
   text.textContent = step !== 'finish' ? t(tourStepTextKey(key, step), { broker: broker.name })
-    : summary.cash === null ? t('card_done_text_no_cash', { positions: summary.positions })
-    : t('card_done_text', { positions: summary.positions, cash: numberToGerman(summary.cash, false, 2) });
+    : summary.cash === null ? t('card_done_text_no_cash', { positions })
+    : t('card_done_text', { positions, cash: numberToGerman(summary.cash, false, 2) });
 
   const actions = document.createElement('div');
   actions.className = 'actions';
@@ -217,12 +224,20 @@ function renderTourCard(ctx:any, key:string, step:string, lang:any, summary:any)
   tourCard.replaceChildren(head, progress, title, text, actions);
 }
 
-// Login and finish read the same for every broker; only where the Sync QX+ button sits differs.
+// Sync differs per broker; login too where the button only appears past the start page, since that is what ticks it.
 export function tourStepTextKey(key:string, step:string) {
-  return step === 'sync' ? `${key}.sync_text` : `steps.${step}_text`;
+  return step === 'sync' || (step === 'login' && TOUR_BROKERS[key]?.ownLogin) ? `${key}.${step}_text` : `steps.${step}_text`;
 }
 
+export function tourStepTitleKey(key:string, step:string) {
+  return step === 'login' && TOUR_BROKERS[key]?.ownLogin ? `${key}.login_title` : `steps.${step}_title`;
+}
+
+// Kept from the loop, so a Sync press can redraw the card at once without every scraper passing it along.
+let tourCtx:any = null;
+
 export async function tourTick(ctx:any) {
+  tourCtx = ctx;
   try {
     const key = tourPageBroker();
     const broker = TOUR_BROKERS[key];

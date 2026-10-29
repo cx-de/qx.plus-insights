@@ -96,39 +96,53 @@
       <!-- Connect a broker -->
       <!-- Connected: proof of what arrived, so the user can check it against the bank before trusting it -->
       <template v-else-if="broker && finished">
-        <span class="done-badge" aria-hidden="true"><Check class="h-6 w-6" stroke-width="3" /></span>
-        <DialogHeader class="mt-4 text-left">
-          <DialogTitle class="text-2xl font-semibold leading-tight tracking-tight">{{ $t('tour.connected_title') }}</DialogTitle>
-          <DialogDescription class="text-[15px] leading-relaxed">
-            {{ summary.account
-              ? $t('tour.connected_text', { broker: broker.name, account: summary.account })
-              : $t('tour.connected_text_no_id', { broker: broker.name }) }}
-          </DialogDescription>
+        <DialogHeader class="text-left">
+          <div class="flex items-center gap-3.5">
+            <span ref="doneBadge" class="done-badge" :style="{ background: SYNC_COLOR_DONE }" aria-hidden="true"><Check class="h-6 w-6" stroke-width="3" /></span>
+            <div class="min-w-0">
+              <DialogTitle class="text-2xl font-semibold leading-tight tracking-tight">{{ $t('tour.connected_title') }}</DialogTitle>
+              <!-- The account as the user knows it from the bank: broker name and the last digits, nothing more. -->
+              <p class="mt-0.5 text-sm text-muted-foreground">
+                {{ $t('tour.connected_account', { broker: broker.name }) }}<span v-if="summary.account" class="ml-1.5 tabular-nums">{{ summary.account }}</span>
+              </p>
+            </div>
+          </div>
+          <DialogDescription class="mt-4 text-[15px] leading-relaxed">{{ $t('tour.connected_text', { broker: broker.name }) }}</DialogDescription>
         </DialogHeader>
 
-        <dl class="stats mt-6">
-          <div class="stat">
-            <dt>{{ $t('tour.stat_positions') }}</dt>
-            <dd>{{ numberToGerman(summary.positions, true) }}</dd>
+        <!-- The sum first, as the one big number; the rows below are what the user checks against the bank. -->
+        <div class="receipt mt-5">
+          <div class="receipt-total">
+            <span>{{ $t('tour.stat_total') }}</span>
+            <strong>{{ numberToGerman(summary.invested + (summary.cash || 0), false, 2) }} €</strong>
           </div>
-          <div class="stat">
-            <dt>{{ $t('tour.stat_cash') }}</dt>
-            <dd>{{ summary.cash === null ? '–' : `${numberToGerman(summary.cash, false, 2)} €` }}</dd>
-          </div>
-          <div class="stat">
-            <dt>{{ $t('tour.stat_invested') }}</dt>
-            <dd>{{ numberToGerman(summary.invested, false, 2) }} €</dd>
-          </div>
-          <div class="stat">
-            <dt>{{ $t('tour.stat_dates') }}</dt>
-            <dd>{{ $t('tour.dates_of', { found: summary.withDates, total: summary.positions }) }}</dd>
-          </div>
-        </dl>
+          <dl>
+            <div class="receipt-row">
+              <dt>
+                {{ $t('tour.stat_positions') }}
+                <span v-if="!summary.positions" class="receipt-hint">{{ $t('tour.no_positions_hint') }}</span>
+              </dt>
+              <dd>{{ summary.positions ? numberToGerman(summary.positions, true) : $t('tour.no_positions') }}</dd>
+            </div>
+            <div v-if="summary.positions" class="receipt-row">
+              <dt>{{ $t('tour.stat_invested') }}</dt>
+              <dd>{{ numberToGerman(summary.invested, false, 2) }} €</dd>
+            </div>
+            <div class="receipt-row">
+              <dt>{{ $t('tour.stat_cash') }}</dt>
+              <dd>{{ summary.cash === null ? '–' : `${numberToGerman(summary.cash, false, 2)} €` }}</dd>
+            </div>
+            <!-- Only flatex syncs purchase dates; elsewhere "0 of 0" would read as something missing. -->
+            <div v-if="view === 'flatex' && summary.positions" class="receipt-row">
+              <dt>{{ $t('tour.stat_dates') }}</dt>
+              <dd>{{ $t('tour.dates_of', { found: summary.withDates, total: summary.positions }) }}</dd>
+            </div>
+          </dl>
+        </div>
 
-        <p class="mt-4 text-sm leading-relaxed text-muted-foreground">{{ $t('tour.keeps_updated', { broker: broker.name }) }}</p>
-
-        <div class="mt-6">
+        <div class="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
           <Button @click="finish()">{{ $t('tour.show_portfolio') }}</Button>
+          <button type="button" class="link" @click="connectAnother()">{{ $t('tour.connect_another') }}</button>
         </div>
       </template>
 
@@ -153,7 +167,7 @@
             </span>
             <div class="pb-5">
               <div class="font-medium leading-6 text-foreground">
-                {{ $t(`tour.steps.${step}_title`, { broker: broker.name }) }}
+                {{ $t(`tour.${tourStepTitleKey(view, String(step))}`, { broker: broker.name }) }}
                 <span v-if="index < currentIndex" class="sr-only">({{ $t('tour.step_done') }})</span>
               </div>
               <div class="text-sm leading-relaxed text-muted-foreground">{{ $t(`tour.${tourStepTextKey(view, String(step))}`, { broker: broker.name }) }}</div>
@@ -179,10 +193,10 @@ import { ArrowLeft, ArrowRight, Check, Download, Landmark, Sparkles } from 'luci
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { importAll, resetAll } from '@/lib/storage-utils';
-import { TOUR_BROKERS, TOUR_DATA_KEYS, tourHasBrokerData, tourStepTextKey, tourSummary } from '~/utils/tour-utils';
+import { TOUR_BROKERS, TOUR_DATA_KEYS, tourHasBrokerData, tourStepTextKey, tourStepTitleKey, tourSummary } from '~/utils/tour-utils';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
-import { ACCOUNT_BROKERS, accountClearCurrentIds } from '~/utils/account-utils';
+import { ACCOUNT_BROKERS } from '~/utils/account-utils';
 import { numberToGerman } from '~/utils/helper';
 import { SYNC_COLOR_DONE, SYNC_COLOR_IDLE } from '~/utils/constants';
 import sampleUrl from '@/examples/sample_backup.json?url';
@@ -205,6 +219,7 @@ const tour = ref<any>(null);
 const hasData = ref(false);
 const loadingSample = ref(false);
 const sampleError = ref(false);
+const doneBadge = ref<HTMLElement | null>(null);
 // Closing by hand means "not now": live updates must not pop it open again in this session.
 let closedByUser = false;
 
@@ -256,34 +271,55 @@ function burstConfetti() {
 
   const primary = `hsl(${getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()})`;
   const colors = [SYNC_COLOR_IDLE, SYNC_COLOR_DONE, primary, '#5b8def'];
-  const pieces = Array.from({ length: 140 }, () => ({
-    x: innerWidth / 2, y: innerHeight * 0.4,
-    vx: (Math.random() - 0.5) * 16, vy: -Math.random() * 14 - 4,
-    size: 5 + Math.random() * 5, spin: Math.random() * Math.PI, turn: (Math.random() - 0.5) * 0.3,
-    color: colors[Math.floor(Math.random() * colors.length)]!,
+  // Two side cannons frame the dialog instead of covering its numbers; a small pop from the check ties it to the success.
+  const badge = doneBadge.value?.getBoundingClientRect();
+  const origins = [
+    { x: 0, y: innerHeight, angle: -62, spread: 28, min: 900, max: 1500, count: 80 },
+    { x: innerWidth, y: innerHeight, angle: -118, spread: 28, min: 900, max: 1500, count: 80 },
+    ...(badge ? [{ x: badge.left + badge.width / 2, y: badge.top + badge.height / 2, angle: -90, spread: 180, min: 200, max: 520, count: 36 }] : []),
+  ];
+  const pieces = origins.flatMap(o => Array.from({ length: o.count }, () => {
+    const angle = (o.angle + (Math.random() - 0.5) * o.spread * 2) * Math.PI / 180;
+    const speed = o.min + Math.random() * (o.max - o.min);
+    return {
+      x: o.x, y: o.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
+      size: 6 + Math.random() * 6, spin: Math.random() * Math.PI, turn: (Math.random() - 0.5) * 12,
+      flip: Math.random() * Math.PI, flipSpeed: 4 + Math.random() * 6,
+      color: colors[Math.floor(Math.random() * colors.length)]!,
+    };
   }));
+  const DURATION = 3200;
+  const FADE = 900;
   // Clock starts on the first painted frame, not at the call, so a throttled tab cannot eat the animation.
   let startedAt = 0;
+  let last = 0;
 
+  // Seconds-based, so a 144 Hz screen does not play it twice as fast as a 60 Hz one.
   function frame(now:number) {
-    if (!startedAt) startedAt = now;
+    if (!startedAt) startedAt = last = now;
     const elapsed = now - startedAt;
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
     context.clearRect(0, 0, innerWidth, innerHeight);
-    context.globalAlpha = Math.max(0, 1 - elapsed / 2400);
+    context.globalAlpha = Math.min(1, Math.max(0, (DURATION - elapsed) / FADE));
+    const drag = Math.pow(0.35, dt);
     for (const p of pieces) {
-      p.vy += 0.35;
-      p.vx *= 0.99;
-      p.x += p.vx;
-      p.y += p.vy;
-      p.spin += p.turn;
+      p.vx *= drag;
+      p.vy = p.vy * drag + 1400 * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.spin += p.turn * dt;
+      p.flip += p.flipSpeed * dt;
       context.save();
       context.translate(p.x, p.y);
       context.rotate(p.spin);
+      // Squashing one axis reads as a paper strip turning over in the air.
+      context.scale(1, Math.cos(p.flip));
       context.fillStyle = p.color;
       context.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
       context.restore();
     }
-    if (elapsed < 2400) requestAnimationFrame(frame);
+    if (elapsed < DURATION) requestAnimationFrame(frame);
     else canvas.remove();
   }
   requestAnimationFrame(frame);
@@ -328,15 +364,10 @@ async function loadSample() {
   console.log('WelcomeDialog loadSample');
   loadingSample.value = true;
   sampleError.value = false;
-  // The sample carries its own language and theme; the user's choice must survive it.
-  const keepLocal = ['theme', 'lang'].map(key => [key, localStorage.getItem(key)]);
   try {
     const blob = await (await fetch(sampleUrl)).blob();
+    // The file carries SAMPLE_DATA itself, so importing it from Settings marks it as sample too.
     await importAll(new File([blob], 'sample_backup.json', { type: 'application/json' }));
-    // Otherwise a real flatex login would save its rows under the sample's fake account id.
-    await accountClearCurrentIds();
-    for (const [key, value] of keepLocal) if (value) localStorage.setItem(key as string, value);
-    await chrome.storage.local.set({ SAMPLE_DATA: true });
     location.reload();
   } catch (err) {
     /* importAll restores the previous storage on failure, so only the message is needed */
@@ -361,6 +392,13 @@ async function startBroker() {
 async function finish() {
   open.value = false;
   await chrome.storage.local.set({ TOUR: { ...tour.value, step: 'done' } });
+}
+
+// Same restart Help uses: a fresh 'choose' keeps the dialog open, here straight on the broker list.
+async function connectAnother() {
+  console.log('WelcomeDialog connectAnother');
+  view.value = 'pick';
+  await chrome.storage.local.set({ TOUR: { broker: null, step: 'choose' } });
 }
 
 watch(() => route.path, () => { void refresh(); });
@@ -442,39 +480,62 @@ onUnmounted(() => chrome.storage.onChanged.removeListener(onStorageChange));
 }
 .link:hover { color: hsl(var(--foreground)); }
 
+/* Background is SYNC_COLOR_DONE inline: the bank page's "Synced" green, so both ends of the guide agree. */
 .done-badge {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: 48px;
   height: 48px;
   border-radius: 999px;
-  background: hsl(var(--primary));
-  color: hsl(var(--primary-foreground));
+  color: #fff;
 }
 
-/* The numbers are the payoff of the whole guide, so they get the biggest type in the dialog. */
-.stats {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.receipt {
   border: 1px solid hsl(var(--border));
   border-radius: var(--radius);
   overflow: hidden;
 }
-.stat { padding: 14px 16px; }
-.stat:nth-child(odd) { border-right: 1px solid hsl(var(--border)); }
-.stat:nth-child(-n + 2) { border-bottom: 1px solid hsl(var(--border)); }
-.stat dt { font-size: 13px; color: hsl(var(--muted-foreground)); }
-.stat dd {
-  margin-top: 2px;
-  font-size: 22px;
+/* The sum is the payoff of the whole guide, so it is the one big number in the dialog. */
+.receipt-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  background: hsl(var(--muted) / 0.6);
+  border-bottom: 1px solid hsl(var(--border));
+}
+.receipt-total span { font-size: 15px; font-weight: 600; color: hsl(var(--foreground)); }
+.receipt-total strong {
+  font-size: 28px;
   font-weight: 600;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums;
   color: hsl(var(--foreground));
   overflow-wrap: anywhere;
 }
+.receipt dl { padding: 2px 16px; }
+.receipt-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 0;
+  font-size: 14px;
+}
+.receipt-row + .receipt-row { border-top: 1px solid hsl(var(--border)); }
+.receipt-row dt { color: hsl(var(--muted-foreground)); }
+.receipt-row dd {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: hsl(var(--foreground));
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.receipt-hint { display: block; margin-top: 1px; font-size: 13px; color: hsl(var(--muted-foreground) / 0.85); }
 
 .path-step {
   position: relative;

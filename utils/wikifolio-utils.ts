@@ -5,6 +5,7 @@
 
 import { i18n } from '~/entrypoints/home/i18n';
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR } from './constants';
+import { tourSyncDone } from './tour-utils';
 
 const broker = "Wikifolio";
 
@@ -87,6 +88,8 @@ async function wikifolioRunSync(button:any) {
     syncInFlight = false;
   }
   wikifolioSetSyncState(button, state);
+  // Not awaited: the guide is optional and must not delay the button.
+  if (state === 'done') void tourSyncDone();
   setTimeout(() => wikifolioSetSyncState(button, 'idle'), state === 'done' ? 2000 : 4000);
 }
 

@@ -56,7 +56,8 @@
         </header>
 
         <main class="grid flex-1 items-start gap-4 sm:py-0 md:gap-8">
-          <div class="p-3 sm:p-5">
+          <!-- min-w-0: a grid item grows to its widest child, which pushed banner buttons past the window edge -->
+          <div class="min-w-0 p-3 sm:p-5">
             <ApiKeyNotice />
             <slot />
           </div>

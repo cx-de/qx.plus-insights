@@ -56,7 +56,9 @@
     "total_amount": "Total Amount",
     "number_of_positions": "Number of Positions",
     "number_of_brokers": "Number of Brokers",
-    "api_key_is_missing_you_must_add_it_in": "API Key is missing. You must add it in ",
+    "no_key_live_prices_need_subscription": "Live prices need a QX+ subscription.",
+    "start_subscription": "Start subscription",
+    "i_already_have_a_key": "I already have a key",
     "api_key_was_rejected_prices_are_no_longer_updating": "API Key was rejected. Prices are no longer updating. Check your key in ",
     "stale": "stale",
     "view": "View",
@@ -609,19 +611,23 @@
         "got_it": "Got it",
         "guide_name": "QX+ setup guide",
         "card_done_title": "You're connected",
-        "card_done_text": "QX+ brought in {positions} positions and {cash} € cash. Open QX+ Insights to see your portfolio.",
-        "card_done_text_no_cash": "QX+ brought in {positions} positions. Open QX+ Insights to see your portfolio.",
+        "positions_count": "no positions | one position | {count} positions",
+        "card_done_text": "QX+ brought in {positions} and {cash} € cash. Open QX+ Insights to see your portfolio.",
+        "card_done_text_no_cash": "QX+ brought in {positions}. Open QX+ Insights to see your portfolio.",
         "open_app": "Open QX+ Insights",
         "close": "Close",
         "connected_title": "You're connected",
-        "connected_text": "Your {broker} account {account} is now in QX+. Here is what we brought in:",
-        "connected_text_no_id": "Your {broker} account is now in QX+. Here is what we brought in:",
+        "connected_account": "{broker} account",
+        "connected_text": "Check the figures against {broker}. They stay up to date while {broker} is open in this browser.",
         "stat_positions": "Positions",
         "stat_cash": "Cash",
         "stat_invested": "Invested",
         "stat_dates": "Purchase dates",
+        "stat_total": "Total in QX+",
+        "no_positions": "None",
+        "no_positions_hint": "New purchases appear automatically",
+        "connect_another": "Connect another account",
         "dates_of": "{found} of {total}",
-        "keeps_updated": "Check these against {broker}. QX+ keeps them up to date whenever {broker} is open in this browser.",
         "sample": {
             "choice_title": "Try it with sample data",
             "choice_text": "Look around with a made-up portfolio. Nothing is connected.",
@@ -634,7 +640,8 @@
             "failed": "The sample could not be loaded. Please try again.",
             "banner": "You are looking at sample data. These numbers are made up.",
             "connect": "Connect my real account",
-            "remove": "Remove sample data"
+            "remove": "Remove sample data",
+            "badge": "Demo data"
         },
         "steps": {
             "login_title": "Log in to {broker}",
@@ -647,13 +654,17 @@
             "sync_text": "The orange button above your depot. One click reads your positions, cash balance and purchase dates. It takes up to a minute; keep the flatex tab open."
         },
         "consorsbank": {
-            "sync_text": "Open your account overview. The orange button sits next to “Ihre Konten im Überblick” or beside the depot selector. One click reads your positions and cash balance."
+            "sync_text": "Open your depot. The orange button beside the depot selector reads your positions and cash balance. On the account overview it reads only the cash balance."
         },
         "smartbroker": {
-            "sync_text": "Open your depot. QX+ reads your positions on its own; the “Sync QX+” button in the page header saves them right away."
+            "login_title": "Log in and open your depot",
+            "login_text": "Log in as usual and open your depot. QX+ never sees your password.",
+            "sync_text": "QX+ reads your positions on its own. The “Sync QX+” button in the page header saves them right away."
         },
         "wikifolio": {
-            "sync_text": "Open the trade page of your wikifolio. The orange button sits in its header. One click reads your positions."
+            "login_title": "Log in and open the trade page",
+            "login_text": "Log in and open the trade page of your own wikifolio. Only wikifolio traders have this page.",
+            "sync_text": "The orange button sits in the header of the trade page. One click reads your positions."
         },
         "justtrade": {
             "sync_text": "Open the DEPOT tab. The orange button sits next to it. One click reads your positions."

@@ -1,6 +1,10 @@
 {
   "extension": [
     {
+      "key": "local:SAMPLE_DATA",
+      "value": true
+    },
+    {
       "key": "local:DAILY_TOTAL",
       "value": [
         {

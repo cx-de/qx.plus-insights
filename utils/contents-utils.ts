@@ -1,5 +1,6 @@
 import { i18n } from '~/entrypoints/home/i18n';
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR } from './constants';
+import { tourSyncDone } from './tour-utils';
 
 // Values shown in the extra row under each position. "" leaves a cell empty so the row lines up with the broker's own columns.
 export const EXTRA_ROW_COLUMNS = ["type", "", "cap", "future_total_value", "profit_loss_target", "profit_loss_target_pa", "underlying_price"];
@@ -11,15 +12,20 @@ export const EXTRA_ROW_HEADERS = ["Derivatetyp (Basiswert / Lieferung / Quanto /
 export const FLATEX_EXTRA_ROW_COLUMNS = ["type", "valuation_date", "cap", "future_total_value", "na", "profit_loss_target", "profit_loss_target_pa", "underlying_price"];
 
 // Brand-coloured "Sync QX+" button behaviour: run the save, flash the result for a second, then reset.
-export function attachSyncFeedback(button: HTMLElement, save: () => Promise<any>) {
+// save resolves true when the depot is stored, 'partial' when only part is (green, but the guide waits), false when nothing is.
+export function attachSyncFeedback(button: HTMLElement, save: () => Promise<boolean | 'partial'>) {
   const idleText = 'Sync QX+';
   button.textContent = idleText;
   button.style.backgroundColor = SYNC_COLOR_IDLE;
   button.addEventListener('click', async () => {
     try {
-      await save();
+      const result = await save();
+      // A skipped save used to flash "Synced" too, which told users a failed sync had worked.
+      if (result === false) throw new Error('nothing saved');
       button.style.backgroundColor = SYNC_COLOR_DONE;
       button.textContent = 'Synced';
+      // Not awaited: the guide is optional and must not delay the button.
+      if (result === true) void tourSyncDone();
     } catch (err) {
       console.error('attachSyncFeedback error:', err);
       button.style.backgroundColor = SYNC_COLOR_ERROR;

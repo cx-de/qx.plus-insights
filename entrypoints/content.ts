@@ -7,7 +7,7 @@ import {
   flatexOpenDashboard,
   flatexOpenDepotList,
 } from '~/utils/kontoFlatex-utils';
-import { tourTick, flatexTourSyncDone } from '~/utils/tour-utils';
+import { tourTick, tourSyncDone } from '~/utils/tour-utils';
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from '~/utils/constants';
 
 export default defineContentScript({
@@ -151,7 +151,7 @@ export default defineContentScript({
       }
 
       // Not awaited into the button state: the guide is optional and must not delay the result.
-      void flatexTourSyncDone(ctx);
+      void tourSyncDone();
       syncTitle = `synced ${result.synced} · failed ${result.failed} · remaining ${result.remaining} · mode ${result.mode}${result.reason ? ' · ' + result.reason : ''}`;
 
       if (result.skipped === 'in_flight' || result.skipped === 'locked') return finishSync('busy');

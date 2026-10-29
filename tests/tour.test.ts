@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TOUR_BROKERS, tourNextStep, tourHasBrokerData, tourSummary } from '@/utils/tour-utils';
+import { TOUR_BROKERS, tourNextStep, tourHasBrokerData, tourSummary, tourStepTextKey, tourStepTitleKey } from '@/utils/tour-utils';
 
 const position = { broker: 'Flatex', stock_name: 'Product X', isin: 'DE000X' };
 const cash = { broker: 'Flatex', stock_name: 'Cash' };
@@ -36,6 +36,20 @@ describe('tourNextStep', () => {
   it('never moves past finish or done on its own', () => {
     expect(tourNextStep('finish', [position, cash], flatex, true)).toBe('finish');
     expect(tourNextStep('done', null, flatex, true)).toBe('done');
+  });
+});
+
+describe('tour step keys', () => {
+  it('gives brokers whose button sits past the start page their own login step', () => {
+    expect(tourStepTitleKey('smartbroker', 'login')).toBe('smartbroker.login_title');
+    expect(tourStepTextKey('wikifolio', 'login')).toBe('wikifolio.login_text');
+  });
+
+  it('keeps the shared login step for the others and per-broker sync text for all', () => {
+    expect(tourStepTitleKey('flatex', 'login')).toBe('steps.login_title');
+    expect(tourStepTextKey('justtrade', 'login')).toBe('steps.login_text');
+    expect(tourStepTextKey('consorsbank', 'sync')).toBe('consorsbank.sync_text');
+    expect(tourStepTitleKey('smartbroker', 'sync')).toBe('steps.sync_title');
   });
 });
 
@@ -76,5 +90,13 @@ describe('tourSummary', () => {
   it('never shows more than the last four digits of the account', () => {
     expect(tourSummary([], 'Flatex', 90000001).account).toBe('•••• 0001');
     expect(tourSummary([], 'Flatex', null).account).toBe('');
+  });
+});
+
+describe('positions wording on the bank-page done card', () => {
+  it('says none or one instead of a bare 0 or "1 Positionen"', async () => {
+    const { i18n } = await import('@/entrypoints/home/i18n');
+    const words = (n:number) => i18n.global.t('tour.positions_count', { count: n }, { locale: 'de', plural: n });
+    expect([words(0), words(1), words(5)]).toEqual(['keine Positionen', 'eine Position', '5 Positionen']);
   });
 });

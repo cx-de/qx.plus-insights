@@ -1,4 +1,5 @@
 import { browser, storage } from '#imports';
+import { accountClearCurrentIds } from '@/utils/account-utils';
 
 // Values whose localStorage form is JSON text; everything else is restored as the plain string.
 const jsonLocalKeys = ['tableSortState', 'columnOrder', 'stickyColumns', 'tableExpanded', 'accountViewSelected'];
@@ -197,7 +198,10 @@ export async function importAll(file: File) {
     throw err;
   }
 
+  const isSample = entries.some((item: any) => item.key === 'local:SAMPLE_DATA');
   if (parsed.local) {
+    // The sample carries its own language and theme; the user's choice must survive it.
+    const keepLocal = isSample ? ['theme', 'lang'].map(key => [key, localStorage.getItem(key)]) : [];
     localStorage.clear();
     for (const [key, value] of Object.entries(parsed.local)) {
       try {
@@ -207,6 +211,7 @@ export async function importAll(file: File) {
         console.error(`importAll key "${key}" error:`, err);
       }
     }
+    for (const [key, value] of keepLocal) if (value) localStorage.setItem(key as string, value);
   }
 
   // Restored rows may predate account_id; clearing the flag lets accountMigrate
@@ -214,6 +219,9 @@ export async function importAll(file: File) {
   if (!entries.some((item: any) => item.key === 'local:ACCOUNTS_SCHEMA')) {
     await storage.removeItem('local:ACCOUNTS_SCHEMA');
   }
+
+  // Sample file from Settings or the welcome dialog alike: a real login must not save rows under its fake account ids.
+  if (isSample) await accountClearCurrentIds();
 
   return { valid: true, summary: backupSummary(entries) };
 }

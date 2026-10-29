@@ -6,6 +6,7 @@
 
 import { germanToNumer, sleep } from "./helper";
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from "./constants";
+import { tourSyncDone } from "./tour-utils";
 
 const broker = "justTRADE";
 const ISIN_CACHE_KEY = 'JUSTTRADE_ISINS';
@@ -660,6 +661,8 @@ async function justtradeRunSync() {
     // Id is already resolved above; interactive again would reopen the profile popover.
     const saved = await justtradeSaveDataToLocalStorage(false);
     if (!saved) state = 'error';
+    // A cash-only depot stores no position, which is all the guide's own check waits for.
+    else void tourSyncDone();
   } catch (err) {
     // Surfaced on the button; the 10s loop keeps working off the last good cache.
     console.error('justtradeRunSync error:', err);

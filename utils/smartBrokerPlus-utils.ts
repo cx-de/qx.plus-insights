@@ -244,10 +244,10 @@ export async function smartBrokerSaveDataToLocalStorage(){
         [`SMART_BROKER_PLUS`]: accountReplaceRows(storedSmartBroker.SMART_BROKER_PLUS, freshSmartBroker, broker, currentAccountId)
       });
       console.log("smartbroker: Saved Data To Local Storage!");
-      return false;
+      return true;
     }else if(checkSmartBrokerDashboardPage()){
       const card = document.querySelector('[data-testid="portfolio-Verrechnungskonto"]')?.closest("a");
-      if (!card) return null;
+      if (!card) return false;
       const balanceText = card.querySelector('h4 span[aria-hidden="true"]')?.textContent?.trim() || '';
       const accountBalance = germanToNumer(balanceText.split(' ')[0]);
       // A masked or not-yet-rendered balance must not overwrite the stored cash with 0 or NaN.
@@ -288,12 +288,14 @@ export async function smartBrokerSaveDataToLocalStorage(){
       }
 
       await chrome.storage.local.set({ SMART_BROKER_PLUS: currentData });
+      return true;
     }else{
       console.log("Can't update data, not on stocks page...");
-      return;
+      return false;
     }
   }catch (err) {
     // Nothing was written yet or the write failed whole; the next tick retries.
     console.error('smartBrokerSaveDataToLocalStorage error:', err);
+    return false;
   }
 }

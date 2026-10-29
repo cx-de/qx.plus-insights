@@ -583,7 +583,7 @@
                             <!-- group expanded lines -->
                             <TableRow v-if="row.original?.isGroup && row.getIsExpanded?.() && row.original?.items" 
                                 v-for="(item, index) in visibleSubRows(row)"
-                                :key="`${row.id}-sub-${accountPositionKey(item.original)}`"
+                                :key="`${row.id}-sub-${accountPositionKey(item.original)}-${index}`"
                                 class="group-child"
                                 :class="{ 'group-child-last': index === visibleSubRows(row).length - 1 }"
                               >
@@ -1335,13 +1335,13 @@ const hideZeroStocksFilter = (row:any, _columnId:any, filterValues:any) => {
   return isStocksOwnedVisible(original)
 }
 
+// A group passes a column filter when any child does, so the children need the same filters or non-matches show.
 function visibleSubRows(row:any) {
   const subRows = row?.subRows ?? []
-  const isHidingZero = columnFilters.value.some(
-    f => f.id === 'stocks_owned' && Array.isArray(f.value) && f.value.includes('hideZero')
-  )
-  if (!isHidingZero) return subRows
-  return subRows.filter((sub:any) => isStocksOwnedVisible(sub?.original))
+  return subRows.filter((sub:any) => columnFilters.value.every((f:any) => {
+    const fn = allColumns[f.id]?.filterFn
+    return typeof fn !== 'function' || fn(sub, f.id, f.value)
+  }))
 }
 
 
@@ -1603,7 +1603,8 @@ watch(globalFilterInput, (val) => {
 const searchableColumns = [
   'stock_name',
   'isin','wkn',
-  'type','underlying_name'
+  'type','underlying_name',
+  'issuer','broker'
 ];
 
 // Scope by account here rather than through the table's account column: that column
@@ -1642,6 +1643,8 @@ const newFilteredData = computed(() => {
       }
 
       //Handle groups
+      if (String(entry.group_name || '').toLowerCase().includes(term)) return entry
+
       const matchedItems = entry.items.filter((item:any) =>
         searchableColumns.some(col =>
           String(item[col] || '').toLowerCase().includes(term)
@@ -1775,7 +1778,10 @@ const combineRows = async () => {
       if (!existingGroup.items) existingGroup.items = [];
 
       // Push only base items (no nested groups)
+      // Select-all also ticks the group's own children; without this they are pushed in a second time.
+      const seen = new Set(existingGroup.items.map((item:any) => accountRowKey(item)));
       const newItems = selectedProducts.value.filter(item => !item.isGroup)
+        .filter(item => !seen.has(accountRowKey(item)) && seen.add(accountRowKey(item)))
         .map(({ items, ...rest }) => rest);
       existingGroup.items.push(...newItems);
 
@@ -2090,7 +2096,8 @@ const orderedRows = (rows:any) => {
   return cash.length ? [...holdings, ...cash] : rows;
 };
 
-const displayRows = computed(() => orderedRows(table.getRowModel().rows));
+// Children are drawn by visibleSubRows; keeping them out of this keyed loop avoids duplicate keys when a group holds a position twice.
+const displayRows = computed(() => orderedRows(table.getRowModel().rows.filter((r:any) => r.depth === 0)));
 
 // The stored percentage is against the whole portfolio, so recompute it while filtered.
 const scopedPositionPercentage = (row:any) => {
@@ -2668,6 +2675,9 @@ const getLatestListData = async() =>{
     const topIndex = new Map();
     currentData.forEach((entry, i) => {
       if (entry.isGroup && Array.isArray(entry.items)) {
+        // Heals lists saved with a position twice in one group; the copy was never updated anyway.
+        const seen = new Set();
+        entry.items = entry.items.filter((item:any) => !seen.has(getKey(item)) && seen.add(getKey(item)));
         entry.items.forEach((item:any, j:any) => {
           const key = getKey(item);
           if (!groupIndex.has(key)) groupIndex.set(key, { group: entry, itemIndex: j });

@@ -88,7 +88,7 @@
             <div class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               {{ $t('number_of_brokers') }}
             </div>
-            <div class="mt-1 text-lg font-bold tabular-nums text-foreground" id="numberOfBrokers">
+            <div class="mt-1 text-lg font-medium tabular-nums text-muted-foreground" id="numberOfBrokers">
               {{ numberOfBrokers }}
             </div>
           </div>
@@ -96,7 +96,7 @@
       </div>
     </div>
 
-    <div class="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 mt-3">
+    <div class="w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6 gap-4 mt-3">
       <ChartCard ref="chartRef" :title="$t('asset_allocation')" :icon="Wallet" accent="16 185 129"
         :data="chartData" :options="chartOptions" :loading="isLoadingAssetChart" :has-data="hasChartData(chartData)" />
       <ChartCard ref="typeChartRef" :title="$t('by_type')" :icon="Layers" accent="59 130 246"

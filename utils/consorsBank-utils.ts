@@ -278,7 +278,7 @@ async function consorsBankSaveDataToLocalStorage() {
 
     if (consorsBankIsAccountOverview()) {
       await consorsBankSaveCash();
-      return false;
+      return true;
     }
 
     if (consorsBankDepositPortfolio()) {
@@ -301,7 +301,7 @@ async function consorsBankSaveDataToLocalStorage() {
       });
 
       console.log("Saved Data To Local Storage!");
-      return false;
+      return true;
     }
   } catch (err) {
     // Nothing was written yet or the write failed whole; the next tick retries.
@@ -313,16 +313,19 @@ async function consorsBankSaveDataToLocalStorage() {
 async function consorsBankSyncWithCash() {
   console.log("consorsBankSyncWithCash");
   await consorsBankSaveDataToLocalStorage();
-  if (!currentAccountId) return;
+  if (!currentAccountId) return false;
   // The save above already read the page; only an unrendered table is left to report.
   if (consorsBankIsAccountOverview()) {
     if (consorsBankReadCash() === null) throw new Error('consorsbank: cash not read');
-    return;
+    // The overview holds only the balance; positions need the depot page, so the guide keeps waiting.
+    return 'partial';
   }
   const balance = await consorsBankReadCashViaFrame();
   // Thrown so attachSyncFeedback shows "Sync failed" instead of a silent stale cash value.
   if (balance === null) throw new Error('consorsbank: cash not read');
   await consorsBankSaveCash(balance);
+  // On the depot tab an empty table means a cash-only depot, which must still finish the guide.
+  return consorsBankDepositPortfolio() ? true : 'partial';
 }
 
 // Get All Stock Rows

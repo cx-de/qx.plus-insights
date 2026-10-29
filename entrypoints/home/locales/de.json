@@ -57,7 +57,9 @@
   "total_amount": "Gesamtbetrag",
   "number_of_positions": "Anzahl der Positionen",
   "number_of_brokers": "Anzahl der Broker",
-  "api_key_is_missing_you_must_add_it_in": "API-Schlüssel fehlt. Bitte hinzufügen unter ",
+  "no_key_live_prices_need_subscription": "Live-Kurse benötigen ein QX+ Abo.",
+  "start_subscription": "Abo starten",
+  "i_already_have_a_key": "Ich habe bereits einen Schlüssel",
   "api_key_was_rejected_prices_are_no_longer_updating": "API-Schlüssel wurde abgelehnt. Kurse werden nicht mehr aktualisiert. Schlüssel prüfen unter ",
   "stale": "veraltet",
   "view": "Anzeigen",
@@ -608,19 +610,23 @@
         "got_it": "Verstanden",
         "guide_name": "QX+ Einrichtungshilfe",
         "card_done_title": "Verbunden",
-        "card_done_text": "QX+ hat {positions} Positionen und {cash} € Kontostand übernommen. Öffnen Sie QX+ Insights, um Ihr Portfolio zu sehen.",
-        "card_done_text_no_cash": "QX+ hat {positions} Positionen übernommen. Öffnen Sie QX+ Insights, um Ihr Portfolio zu sehen.",
+        "positions_count": "keine Positionen | eine Position | {count} Positionen",
+        "card_done_text": "QX+ hat {positions} und {cash} € Kontostand übernommen. Öffnen Sie QX+ Insights, um Ihr Portfolio zu sehen.",
+        "card_done_text_no_cash": "QX+ hat {positions} übernommen. Öffnen Sie QX+ Insights, um Ihr Portfolio zu sehen.",
         "open_app": "QX+ Insights öffnen",
         "close": "Schließen",
         "connected_title": "Verbunden",
-        "connected_text": "Ihr {broker}-Konto {account} ist jetzt in QX+. Das haben wir übernommen:",
-        "connected_text_no_id": "Ihr {broker}-Konto ist jetzt in QX+. Das haben wir übernommen:",
+        "connected_account": "{broker}-Konto",
+        "connected_text": "Vergleichen Sie die Werte mit {broker}. Sie bleiben aktuell, solange {broker} in diesem Browser geöffnet ist.",
         "stat_positions": "Positionen",
         "stat_cash": "Kontostand",
         "stat_invested": "Investiert",
         "stat_dates": "Kaufdaten",
+        "stat_total": "Gesamt in QX+",
+        "no_positions": "Keine",
+        "no_positions_hint": "Neue Käufe erscheinen automatisch",
+        "connect_another": "Weiteres Konto verbinden",
         "dates_of": "{found} von {total}",
-        "keeps_updated": "Vergleichen Sie die Werte mit {broker}. QX+ hält sie aktuell, sobald {broker} in diesem Browser geöffnet ist.",
         "sample": {
             "choice_title": "Mit Beispieldaten ausprobieren",
             "choice_text": "Schauen Sie sich mit einem erfundenen Portfolio um. Es wird nichts verbunden.",
@@ -633,7 +639,8 @@
             "failed": "Das Beispiel konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
             "banner": "Sie sehen Beispieldaten. Diese Zahlen sind erfunden.",
             "connect": "Mein echtes Konto verbinden",
-            "remove": "Beispieldaten entfernen"
+            "remove": "Beispieldaten entfernen",
+            "badge": "Demodaten"
         },
         "steps": {
             "login_title": "Bei {broker} anmelden",
@@ -646,13 +653,17 @@
             "sync_text": "Der orange Knopf über Ihrem Depot. Ein Klick liest Positionen, Kontostand und Kaufdaten. Das dauert bis zu einer Minute; lassen Sie den flatex-Tab offen."
         },
         "consorsbank": {
-            "sync_text": "Öffnen Sie Ihre Kontoübersicht. Der orange Knopf steht neben „Ihre Konten im Überblick“ oder neben der Depotauswahl. Ein Klick liest Positionen und Kontostand."
+            "sync_text": "Öffnen Sie Ihr Depot. Der orange Knopf neben der Depotauswahl liest Positionen und Kontostand. In der Kontoübersicht liest er nur den Kontostand."
         },
         "smartbroker": {
-            "sync_text": "Öffnen Sie Ihr Depot. QX+ liest Ihre Positionen von selbst; der Knopf „Sync QX+“ im Seitenkopf speichert sie sofort."
+            "login_title": "Anmelden und Depot öffnen",
+            "login_text": "Melden Sie sich wie gewohnt an und öffnen Sie Ihr Depot. QX+ sieht Ihr Passwort nie.",
+            "sync_text": "QX+ liest Ihre Positionen von selbst. Der Knopf „Sync QX+“ im Seitenkopf speichert sie sofort."
         },
         "wikifolio": {
-            "sync_text": "Öffnen Sie die Handelsseite Ihres wikifolios. Der orange Knopf steht in ihrem Kopfbereich. Ein Klick liest Ihre Positionen."
+            "login_title": "Anmelden und Handelsseite öffnen",
+            "login_text": "Melden Sie sich an und öffnen Sie die Handelsseite Ihres eigenen wikifolios. Diese Seite haben nur wikifolio-Trader.",
+            "sync_text": "Der orange Knopf steht im Kopfbereich der Handelsseite. Ein Klick liest Ihre Positionen."
         },
         "justtrade": {
             "sync_text": "Öffnen Sie den Tab DEPOT. Der orange Knopf steht direkt daneben. Ein Klick liest Ihre Positionen."
