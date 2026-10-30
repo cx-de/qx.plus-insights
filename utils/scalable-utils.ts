@@ -30,7 +30,10 @@ let syncResetTimer:any;
 let syncState = 'idle';
 let positionsNeedingSync = 0;
 // A shorter list than stored is only trusted when two ticks in a row agree; a half-rendered list must not "sell" positions.
-let shrinkSeenCount = -1;
+const shrinkSeen:any = {};
+// Set by a click on the overlay; the loop stops before opening the next position.
+let syncCancelled = false;
+const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
 
 const t = (key:any, values:any = {}) => i18n.global.t(key, values);
 
@@ -94,7 +97,7 @@ export function scalableReadList(doc:any) {
   for (const link of scalablePositionLinks(doc)) {
     const url = new URL(link.getAttribute('href'), 'https://de.scalable.capital');
     const isin = url.searchParams.get('isin');
-    if (!isin) continue;
+    if (!ISIN_RE.test(isin || '')) continue;
     // The visually hidden "5.194 EUR" (English format) carries the full precision the visible "5,19" drops.
     const hiddenPrice = [...link.querySelectorAll('span')].find((s:any) => /^[\d.,]+ EUR$/.test(s.textContent.trim()));
     rows.push({
@@ -167,6 +170,8 @@ export function scalableReadPosition(doc:any) {
 
 // A client-side route change updates the URL before the DOM, so only a page whose own ISIN matches is read.
 function scalableReadPositionFor(doc:any, isin:any) {
+  // The ISIN comes from the URL and goes into a selector; anything else would throw there.
+  if (!ISIN_RE.test(String(isin || ''))) return null;
   const position = scalableReadPosition(doc);
   if (!position) return null;
   // Without an ISIN row the header logo, whose URL ends in the ISIN, identifies the page.
@@ -240,7 +245,11 @@ async function scalableStorePosition(portfolioId:any, isin:any, position:any, fr
   // Read-merge: another tab may have written positions this one never touched.
   const latest = await scalableLoadCache();
   const key = scalablePositionKey(portfolioId, isin);
-  const { fetched_at: oldAt, ...oldData } = latest[key] || {};
+  const old = latest[key];
+  // A read before the transactions render must not drop the Kaufdaten a full read already stored.
+  if (!fresh && scalableEntryUsable(old) && old.stocks_owned === position.stocks_owned
+    && old.total_entry_value === position.total_entry_value) return;
+  const { fetched_at: oldAt, ...oldData } = old || {};
   // Same figures read again within the hour: skip the write, or every 10s tick on a security page rewrites storage.
   const recent = Date.now() - new Date(oldAt).getTime() < 60 * 60 * 1000;
   if (JSON.stringify(oldData) === JSON.stringify(position) && (recent || !fresh)) return;
@@ -300,13 +309,13 @@ async function scalableSaveRows(list:any[], portfolioId:any, trusted = false) {
   const storedPositions = own.filter((r:any) => r.stock_name !== 'Cash').length;
 
   if (!trusted && list.length < storedPositions) {
-    if (shrinkSeenCount !== list.length) {
-      shrinkSeenCount = list.length;
+    if (shrinkSeen[portfolioId] !== list.length) {
+      shrinkSeen[portfolioId] = list.length;
       console.log('scalable: shorter list, waiting for the next tick to confirm', list.length, storedPositions);
       return null;
     }
   }
-  shrinkSeenCount = -1;
+  delete shrinkSeen[portfolioId];
 
   const cashRow = own.find((r:any) => r.stock_name === 'Cash');
   const cache = await scalableLoadCache();
@@ -351,6 +360,10 @@ async function scalableSaveRows(list:any[], portfolioId:any, trusted = false) {
 
   // The depot-scoped replace drops the Cash row too, so the one step 2 just wrote goes back in.
   const fresh = cashRow ? [...rows, cashRow] : rows;
+  // ids and timestamps change every tick; only a change in figures is worth a storage write.
+  const figures = (list:any[]) => JSON.stringify(list.map((r:any) =>
+    [r.isin, r.stock_name, r.stocks_owned, r.total_entry_value, r.bid, r.purchase_date]).sort());
+  if (figures(fresh) === figures(own)) return rows.length;
   await chrome.storage.local.set({ SCALABLE: accountReplaceRows(stored, fresh, broker, currentAccountId, portfolioId) });
   console.log('scalable: Saved Data To Local Storage!', rows.length, missing);
   return rows.length;
@@ -424,6 +437,11 @@ async function scalableSync(onProgress:any = () => {}) {
 
   let missing = 0;
   for (const [index, row] of needed.entries()) {
+    if (syncCancelled) {
+      console.log('scalableSync cancelled');
+      missing += needed.length - index;
+      break;
+    }
     onProgress(`${index + 1}/${needed.length}`);
     const { position, back } = await scalableReadPositionByClick(row.isin, list.length);
     if (position) await scalableStorePosition(portfolioId, row.isin, position);
@@ -455,7 +473,7 @@ function scalableSetSync(state:any, detail = '') {
   syncButton.style.opacity = state === 'busy' ? '0.7' : '1';
   syncButton.setAttribute('aria-busy', String(state === 'busy'));
   if (state === 'idle') syncButton.title = positionsNeedingSync ? t('scalable_sync_needed', { count: positionsNeedingSync }) : '';
-  if (syncOverlay) syncOverlay.textContent = `${t('scalable_overlay')} ${detail}`.trim();
+  if (syncOverlay && !syncCancelled) syncOverlay.textContent = `${t('scalable_overlay')} ${detail}`.trim();
 }
 
 // Clicks while Sync walks the pages would strand it off the list; this transparent layer catches them.
@@ -466,8 +484,13 @@ function scalableShowOverlay(show:boolean) {
     return;
   }
   const layer = document.createElement('div');
-  Object.assign(layer.style, { position: 'fixed', inset: '0', zIndex: '2147483646', cursor: 'progress', background: 'rgba(0,0,0,0.15)' });
+  Object.assign(layer.style, { position: 'fixed', inset: '0', zIndex: '2147483646', cursor: 'pointer', background: 'rgba(0,0,0,0.15)' });
   const badge = document.createElement('div');
+  // A click anywhere cancels: the position being read finishes and returns to the list first.
+  layer.addEventListener('click', () => {
+    syncCancelled = true;
+    badge.textContent = t('scalable_cancelling');
+  });
   Object.assign(badge.style, {
     position: 'fixed', top: '16px', left: '50%', transform: 'translateX(-50%)', padding: '8px 14px',
     borderRadius: '6px', background: SYNC_COLOR_IDLE, color: 'white', fontWeight: '600',
@@ -483,6 +506,7 @@ function scalableShowOverlay(show:boolean) {
 async function scalableRunSync() {
   if (syncInFlight) return;
   syncInFlight = true;
+  syncCancelled = false;
   clearTimeout(syncResetTimer);
   scalableShowOverlay(true);
   scalableSetSync('busy');
@@ -490,7 +514,8 @@ async function scalableRunSync() {
   let title = '';
   try {
     const { missing } = await scalableSync((detail:any) => scalableSetSync('busy', detail));
-    if (missing) title = t('scalable_not_read', { count: missing });
+    if (syncCancelled) title = t('scalable_cancelled');
+    else if (missing) title = t('scalable_not_read', { count: missing });
     // Not awaited: the guide is optional and must not delay the button.
     void tourSyncDone();
   } catch (err:any) {

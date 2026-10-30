@@ -127,8 +127,9 @@ describe('account keys', () => {
     expect(accountKeyOf(null)).toBe('::');
   });
 
-  it('adds the depot suffix for Consors only', () => {
+  it('adds the depot suffix for Consors and Scalable only', () => {
     expect(accountPositionKey({ broker: 'Consorsbank', account_id: '1', deposite_number: 'D1', wkn: 'X' })).toBe('X|Consorsbank::1|D1');
+    expect(accountPositionKey({ broker: 'Scalable Capital', account_id: '1', deposite_number: 'P1', wkn: 'X' })).toBe('X|Scalable Capital::1|P1');
     expect(accountPositionKey({ broker: 'flatex', account_id: '1', deposite_number: 'D1', wkn: 'X' })).toBe('X|flatex::1');
   });
 

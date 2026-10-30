@@ -149,11 +149,12 @@ export function accountKeyOf(item:any) {
   return `${item?.broker || ''}::${item?.account_id || ''}`;
 }
 
-// Consors is the one broker whose account id spans several depots (see accountRekey), and
-// its depot number comes from the row, not the URL, so it is stable enough to key on.
+// Consors and Scalable account ids span several depots, keyed by a stable depot or portfolio id.
 // SmartBroker+ and Wikifolio derive theirs from the path, which changes per sub-route.
+const DEPOT_KEYED_BROKERS = ['Consorsbank', 'Scalable Capital'];
+
 function accountDepotPart(item:any) {
-  return item?.broker === 'Consorsbank' && item?.deposite_number
+  return DEPOT_KEYED_BROKERS.includes(item?.broker) && item?.deposite_number
     ? `|${item.deposite_number}` : '';
 }
 

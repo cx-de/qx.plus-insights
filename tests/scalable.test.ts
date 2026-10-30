@@ -156,6 +156,22 @@ describe('mainScalable save', () => {
     expect((await stored()).filter((r: any) => r.isin).length).toBe(1);
   });
 
+  it('skips the storage write when no figure changed', async () => {
+    await fakeBrowser.storage.local.set({ SCALABLE_POSITIONS: { 'sc90000001|sc90000002|DE0009000001': entry() } });
+    document.body.innerHTML = page(['DE0009000001']);
+    await mainScalable();
+    const set = vi.spyOn(fakeBrowser.storage.local, 'set');
+    await mainScalable();
+    expect(set.mock.calls.some(([items]: any) => 'SCALABLE' in items)).toBe(false);
+  });
+
+  it('ignores links whose isin is not a real ISIN', async () => {
+    await fakeBrowser.storage.local.set({ SCALABLE_POSITIONS: { 'sc90000001|sc90000002|DE0009000001': entry() } });
+    document.body.innerHTML = page(['DE0009000001', 'X"]bad']);
+    await mainScalable();
+    expect((await stored()).filter((r: any) => r.isin).map((r: any) => r.isin)).toEqual(['DE0009000001']);
+  });
+
   it('saves nothing on a Chrome-translated page', async () => {
     await fakeBrowser.storage.local.set({ SCALABLE_POSITIONS: { 'sc90000001|sc90000002|DE0009000001': entry() } });
     document.body.innerHTML = page(['DE0009000001']);
