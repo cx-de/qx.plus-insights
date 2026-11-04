@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import { defineConfig } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
 import pkg from './package.json'
@@ -10,6 +11,12 @@ export default defineConfig({
     plugins: [tailwindcss()],
   }),
   manifestVersion: 3,
+  hooks: {
+    // Ship the demo backup inside every browser zip; examples/ stays its single source
+    'build:publicAssets': (wxt, files) => {
+      files.push({ absoluteSrc: resolve(wxt.config.root, 'examples/sample_backup.json'), relativeDest: 'sample_backup.json' });
+    },
+  },
   // packageVersion, not version: WXT 0.21 changed what {{version}} resolves to
   zip: {
     artifactTemplate: 'qx-plus-insights-{{packageVersion}}-{{browser}}.zip',
