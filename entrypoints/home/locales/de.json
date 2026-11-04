@@ -602,6 +602,7 @@
     "support_sent": "Vielen Dank! Ihre Nachricht ist bei QX+ angekommen. Ihre Referenz:",
     "support_close": "Schließen",
     "support_copy_reference": "Referenz kopieren",
+    "support_contact_needed": "Ihr API-Schlüssel ist mit keinem Konto verknüpft. Bitte geben Sie Name und E-Mail an, damit wir antworten können.",
     "support_copied": "Kopiert",
     "support_reference_hint": "Nennen Sie diese Referenz, wenn Sie uns dazu erneut schreiben.",
     "support_error": "Die Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",

@@ -106,7 +106,7 @@
                 <p v-if="errors.screenshot" class="text-xs text-destructive">{{ errors.screenshot }}</p>
               </div>
 
-              <template v-if="!hasValidKey">
+              <template v-if="askContact">
                 <div class="grid gap-1.5">
                   <label class="text-sm font-medium" for="support-name">{{ $t('support_name') }}</label>
                   <Input id="support-name" v-model="name" maxlength="100" autocomplete="name" :placeholder="$t('support_name_placeholder')" />
@@ -236,6 +236,10 @@ let returnToForm = false;
 let drawing: any = null;
 // Must match sendSupportMessage: a dead key is not sent, so the user needs name/email to be reachable.
 const hasValidKey = computed(() => !!apiKey.value && !apiAuthFailed.value);
+// A batch promo key works for prices but belongs to no account, so the server still needs name and email.
+const contactRequired = ref(false);
+const askContact = computed(() => !hasValidKey.value || contactRequired.value);
+watch(apiKey, () => { contactRequired.value = false; });
 const showShot = computed(() => !!screenshot.value && includeScreenshot.value);
 // Matches the backend's 10-character minimum, so a disabled Send says why.
 const charsNeeded = computed(() => Math.max(0, 10 - message.value.trim().length));
@@ -644,7 +648,7 @@ const submit = async () => {
     form.append('page_url', window.location.hash || '#/');
     form.append('client_version', browser.runtime.getManifest().version);
     form.append('locale', locale.value === 'en' ? 'en' : 'de');
-    if (!hasValidKey.value) {
+    if (askContact.value) {
       form.append('name', name.value.trim());
       form.append('email', email.value.trim());
     }
@@ -672,6 +676,12 @@ const submit = async () => {
   }
   // Laravel returns arrays per field; the first message is enough for an inline hint.
   errors.value = Object.fromEntries(Object.entries(result.errors).map(([k, v]: any) => [k, Array.isArray(v) ? v[0] : v]));
+  // The inputs for these errors were hidden, so without this the send failed with nothing on screen.
+  if (!askContact.value && (errors.value.name || errors.value.email)) {
+    contactRequired.value = true;
+    formError.value = t('support_contact_needed');
+    return;
+  }
   // Errors on hidden fields (page_url, client_version, locale) have no inline slot, so fall back to the form error.
   const shown = ['name', 'email', 'message', 'screenshot'].some((k) => errors.value[k]);
   if (result.status === 429) formError.value = t('support_too_many');

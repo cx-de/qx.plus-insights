@@ -603,6 +603,7 @@
     "support_sent": "Thank you! Your message has reached QX+. Your reference:",
     "support_close": "Close",
     "support_copy_reference": "Copy reference",
+    "support_contact_needed": "Your API key is not linked to an account. Add your name and email so we can reply.",
     "support_copied": "Copied",
     "support_reference_hint": "Mention this reference if you write to us about it again.",
     "support_error": "The message could not be sent. Please try again.",
