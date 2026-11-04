@@ -6,6 +6,7 @@
 
 import { germanToNumer, sleep } from "./helper";
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from "./constants";
+import { tourSyncDone } from "./tour-utils";
 
 const broker = "justTRADE";
 const ISIN_CACHE_KEY = 'JUSTTRADE_ISINS';
@@ -73,7 +74,7 @@ function justtradeNumber(text:any) {
 
 function justtradeDepotTab() {
   const icon = document.querySelector('button[role="tab"] svg[data-testid="EqualizerIcon"]');
-  return icon ? icon.closest('button[role="tab"]') : null;
+  return icon ? icon.closest<HTMLElement>('button[role="tab"]') : null;
 }
 
 function justtradeIsOnDepotPage() {
@@ -174,8 +175,8 @@ function justtradeClosePopover(trigger:any) {
 async function justtradeOpenPopoverForAccount() {
   console.log("justtradeOpenPopoverForAccount");
   const triggers = justtradeHeaderTriggers().slice(0, 6);
-  console.log("justtradeOpenPopoverForAccount candidates", triggers.map((b:any) =>
-    b.getAttribute('aria-label') || b.textContent.trim().slice(0, 20)));
+  // Count only: a header button's text can be the user's name or Kundennummer.
+  console.log("justtradeOpenPopoverForAccount candidates", triggers.length);
   for (const trigger of triggers) {
     // Plain click first: the full pointer sequence can open and immediately re-close a toggle.
     for (const press of [(el:any) => el.click(), justtradePress]) {
@@ -437,6 +438,23 @@ async function justtradeSaveCash() {
   await chrome.storage.local.set({ JUSTTRADE: currentData });
 }
 
+async function justtradeWriteRows(rows:any) {
+  const stored = await chrome.storage.local.get(['JUSTTRADE']);
+  const kept = (stored.JUSTTRADE || []).filter((item:any) =>
+    item.stock_name === 'Cash' && item.broker === broker && item.account_id === currentAccountId);
+  // accountReplaceRows drops this account's Cash row too, so re-add it after the replace.
+  const replaced = accountReplaceRows(stored.JUSTTRADE, rows, broker, currentAccountId);
+  await chrome.storage.local.set({ JUSTTRADE: [...replaced, ...kept] });
+}
+
+const API_POSITIONS_FRESH_MS = 5 * 60 * 1000;
+
+// Only a fresh payload may empty the depot: a stale one predates trades made since.
+export function justtradeIsEmptyDepot(api:any, accordionCount:number, now:number) {
+  return !!api && !api.positions?.length && !Number(api.total) && !accordionCount
+    && now - (api.at || 0) < API_POSITIONS_FRESH_MS;
+}
+
 async function justtradeSaveDataToLocalStorage(interactive = false) {
   console.log("justtradeSaveDataToLocalStorage", interactive);
   try {
@@ -453,9 +471,20 @@ async function justtradeSaveDataToLocalStorage(interactive = false) {
       return false;
     }
 
+    // Depot check first: off DEPOT, another "Verfügbar" was saved as cash and an empty payload wiped positions.
+    if (!justtradeIsOnDepotPage()) {
+      console.log("justtrade: depot not visible, skipping save");
+      return false;
+    }
+
     await justtradeSaveCash();
 
-    if (!justtradeIsOnDepotPage()) return false;
+    // Cash-only depot: zero DOM rows is ambiguous, but an empty /securities response proves no positions.
+    if (justtradeIsEmptyDepot(apiPositions, justtradeDepotAccordions().length, Date.now())) {
+      await justtradeWriteRows([]);
+      console.log("justtrade: empty depot, cash only");
+      return true;
+    }
 
     await justtradeApplyApiPositions();
     const accordions = justtradeDepotAccordions();
@@ -474,12 +503,7 @@ async function justtradeSaveDataToLocalStorage(interactive = false) {
       return false;
     }
 
-    const stored = await chrome.storage.local.get(['JUSTTRADE']);
-    const kept = (stored.JUSTTRADE || []).filter((item:any) =>
-      item.stock_name === 'Cash' && item.broker === broker && item.account_id === currentAccountId);
-    // accountReplaceRows drops this account's Cash row too, so re-add it after the replace.
-    const replaced = accountReplaceRows(stored.JUSTTRADE, rows, broker, currentAccountId);
-    await chrome.storage.local.set({ JUSTTRADE: [...replaced, ...kept] });
+    await justtradeWriteRows(rows);
     console.log("justtrade: Saved Data To Local Storage!", rows.length);
     return true;
   } catch (err) {
@@ -626,11 +650,19 @@ async function justtradeRunSync() {
       state = 'error';
       return;
     }
+    // Sync pressed on Überblick/Orderbuch: no depot rows and no /securities payload until DEPOT opens.
+    if (!justtradeIsOnDepotPage()) {
+      justtradeDepotTab()?.click();
+      await justtradeWaitFor(() => justtradeIsOnDepotPage(), 3000);
+      await sleep(800);
+    }
     await justtradeMaxPageSize();
     await justtradeRefreshApi();
     // Id is already resolved above; interactive again would reopen the profile popover.
     const saved = await justtradeSaveDataToLocalStorage(false);
     if (!saved) state = 'error';
+    // A cash-only depot stores no position, which is all the guide's own check waits for.
+    else void tourSyncDone();
   } catch (err) {
     // Surfaced on the button; the 10s loop keeps working off the last good cache.
     console.error('justtradeRunSync error:', err);
@@ -685,14 +717,16 @@ async function justtradeDebug() {
     depotAccordions: accs.length,
     overlineCounts: Array.from(document.querySelectorAll('.MuiAccordion-root')).map((a:any) =>
       a.querySelectorAll('.MuiAccordionSummary-content .MuiTypography-overline').length),
-    names: accs.map((a:any) => justtradeRowName(a)),
+    // Presence and counts only: this prints into the bank page console.
+    namedRows: accs.filter((a:any) => justtradeRowName(a)).length,
     totalEntries: justtradeTotalEntries(),
-    cash: justtradeReadCash(),
-    popoverId: justtradeReadAccountFromPopover(),
-    headerTriggers: justtradeHeaderTriggers().map((b:any) => b.getAttribute('aria-label') || b.textContent.trim().slice(0, 20)),
-    accountId: currentAccountId,
-    stored: await chrome.storage.local.get(['CUR_JUSTTRADEID', ISIN_CACHE_KEY, 'JUSTTRADE']),
-    scraped: justtradeGetAllStockData(await justtradeLoadIsinCache()),
+    cashFound: justtradeReadCash() !== null,
+    popoverIdFound: !!justtradeReadAccountFromPopover(),
+    headerTriggers: justtradeHeaderTriggers().length,
+    accountIdKnown: !!currentAccountId,
+    api: apiPositions && { count: apiPositions.positions.length, total: apiPositions.total },
+    storedRows: ((await chrome.storage.local.get(['JUSTTRADE'])).JUSTTRADE || []).length,
+    scrapedRows: justtradeGetAllStockData(await justtradeLoadIsinCache()).length,
   };
   console.log("qxJusttradeDebug", JSON.stringify(report, null, 2));
   return report;
@@ -721,16 +755,24 @@ function justtradeListenForTabClicks() {
 }
 
 export async function mainJusttrade() {
+  // Extension reloaded: this orphaned loop must stop instead of throwing every tick.
+  if (!chrome.runtime?.id) return;
   console.log("mainJusttrade");
-  justtradeListenForApi();
-  justtradeListenForTabClicks();
-  (window as any).qxJusttradeDebug = justtradeDebug;
-  justtradeRenderSyncButton();
-  // A Sync run is clicking accordions open/shut; scraping mid-run would see half-expanded rows.
-  await justtradePaintExtraRows();
-  if (!syncInFlight) {
-    await justtradeSaveDataToLocalStorage();
-    justtradeSyncTitle();
+  try {
+    justtradeListenForApi();
+    justtradeListenForTabClicks();
+    (window as any).qxJusttradeDebug = justtradeDebug;
+    justtradeRenderSyncButton();
+    // A Sync run is clicking accordions open/shut; scraping mid-run would see half-expanded rows.
+    await justtradePaintExtraRows();
+    if (!syncInFlight) {
+      await justtradeSaveDataToLocalStorage();
+      justtradeSyncTitle();
+    }
+  } catch (err) {
+    /* one bad tick must not end the loop: the finally reschedules */
+    console.error('mainJusttrade error:', err);
+  } finally {
+    setTimeout(() => mainJusttrade(), BROKER_REFRESH_MS);
   }
-  setTimeout(() => mainJusttrade(), BROKER_REFRESH_MS);
 }

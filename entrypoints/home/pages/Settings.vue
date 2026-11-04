@@ -273,7 +273,7 @@
                 <div>
                   <h3 id="theme_heading" class="block text-sm font-medium mb-1">{{ $t('theme') }}</h3>
                   <p class="text-xs text-muted-foreground mb-3">{{ $t('theme_description') }}</p>
-                  <div class="grid grid-cols-2 gap-3 max-w-md" role="radiogroup" aria-labelledby="theme_heading">
+                  <div class="grid grid-cols-3 gap-3 max-w-xl" role="radiogroup" aria-labelledby="theme_heading">
                     <button
                       type="button"
                       @click="theme = 'light'; saveTheme()"
@@ -310,13 +310,31 @@
                         <Check v-if="theme === 'dark'" class="h-4 w-4 text-primary" />
                       </div>
                     </button>
+                    <button
+                      type="button"
+                      @click="theme = 'system'; saveTheme()"
+                      role="radio"
+                      :aria-checked="theme === 'system'"
+                      :class="[
+                        'group cursor-pointer border-2 rounded-lg p-3 text-left transition-all focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+                        theme === 'system' ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:border-muted-foreground/40'
+                      ]"
+                    >
+                      <div class="aspect-video rounded-md bg-linear-to-br from-gray-100 to-gray-900 mb-2 flex items-center justify-center border">
+                        <Monitor class="h-6 w-6 text-slate-500" />
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium">{{ $t('system') }}</span>
+                        <Check v-if="theme === 'system'" class="h-4 w-4 text-primary" />
+                      </div>
+                    </button>
                   </div>
                 </div>
 
                 <div>
                   <Label for="language_select" class="block text-sm font-medium mb-1">{{ $t('settings_page.language') }}</Label>
                   <p class="text-xs text-muted-foreground mb-3">{{ $t('settings_page.language_description') }}</p>
-                  <Select v-model="$i18n.locale" @update:modelValue="onLanguageChange($event)">
+                  <Select v-model="$i18n.locale" @update:modelValue="onLanguageChange($event as any)">
                     <SelectTrigger id="language_select" class="w-full max-w-[280px]">
                       <Languages class="h-4 w-4 mr-2 shrink-0" />
                       <SelectValue :placeholder="$t('select_a_language')" />
@@ -532,7 +550,7 @@
 import { ref, reactive, computed, onMounted, h, defineComponent } from 'vue';
 
 
-import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman, todayIso } from '~/utils/helper'
+import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman, todayIso, applyTheme } from '~/utils/helper'
 import { storage } from '#imports';
 import { useI18n } from "vue-i18n";
 
@@ -552,7 +570,7 @@ import { exportAll, importAll, previewBackup } from '@/lib/storage-utils';
 import ApiUsagePanel from '@/components/ApiUsagePanel.vue';
 
 import {
-  Sun, Moon, Bot, Send, EyeOff, Eye, Loader2, Upload, Download,
+  Sun, Moon, Monitor, Bot, Send, EyeOff, Eye, Loader2, Upload, Download,
   KeyRound, Link2, Archive, Palette, Bell, AlertTriangle, Trash2,
   Languages, Check, HelpCircle, FileSpreadsheet,
 } from "lucide-vue-next";
@@ -619,10 +637,6 @@ const SaveButton = defineComponent({
 // --- Theme ---
 const theme = ref(localStorage.getItem('theme') || 'light');
 
-const applyTheme = (themeName: string) => {
-  document.documentElement.classList.toggle('dark', themeName === 'dark');
-};
-
 applyTheme(theme.value);
 
 const saveTheme = () => {
@@ -643,7 +657,8 @@ const onLanguageChange = async (lang: string) => {
 // --- API key ---
 const apiKey = ref('');
 // The usage panel follows the stored key, not the input, so typing doesn't fire a request per keystroke.
-const savedApiKey = ref('');
+// null until storage answers, so the panel shows its skeleton instead of flashing "no key".
+const savedApiKey = ref<string | null>(null);
 const usage = ref<any>(null);
 const pricedPositions = ref(0);
 
@@ -761,7 +776,15 @@ const validateForm = () => {
 
 // --- Save / actions ---
 const isSaving = ref(false);
+// Call before any other await: the browser only shows the prompt inside the click's user gesture.
+const requestTelegramPermission = async () => {
+  if (!formFields.telegram_bot_token || !formFields.telegram_channel_id) return false;
+  return browser.permissions.request({ origins: ['https://api.telegram.org/*'] })
+    .catch(() => /* denied or unsupported: saving settings must not fail over it */ false);
+};
+
 const saveSettings = async () => {
+  void requestTelegramPermission();
   isSaving.value = true;
   validateForm();
   if (isFormInvalid.value) {
@@ -783,6 +806,8 @@ const clearData = async () => {
   await clearAllStockData();
   await storage.setItem('local:scenarios', []);
   await storage.setItem('local:SCENARIO_VIRTUAL_PUTS', []);
+  // A half-done guide or the sample flag would otherwise reopen against data that no longer exists.
+  await storage.removeItems(['local:TOUR', 'local:TOUR_CELEBRATED', 'local:SAMPLE_DATA']);
   const keepTheme = localStorage.getItem('theme');
   const keepLang = localStorage.getItem('lang');
   localStorage.clear();
@@ -795,6 +820,8 @@ const clearData = async () => {
 
 const isSending = ref(false);
 const sendTestMessage = async () => {
+  // Awaited here so the test message is not sent while the prompt is still open.
+  await requestTelegramPermission();
   isSending.value = true;
   const testMessage = `<b>TEST</b>\n${t('settings_page.telegram_test_message')}`;
   const sendData = await sendTelegramMessage(
@@ -856,7 +883,7 @@ async function handleImportFileChange(e: Event) {
 async function handleImport() {
   isImporting.value = true;
   try {
-    const { summary } = await importAll(selectedFile.value);
+    const { summary } = await importAll(selectedFile.value as File);
     toast({ title: t('backup_data.import_success'), description: `${t('backup_data.summary', summary)} ${t('settings_page.reloading')}` });
     selectedFile.value = null;
     importPreview.value = null;

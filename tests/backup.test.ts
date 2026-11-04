@@ -94,6 +94,52 @@ describe('importAll', () => {
     expect(await storage.getItem('local:flatexProbedAccount')).toBe('A');
   });
 
+  it('rejects a backup whose list keys are not lists', async () => {
+    await storage.setItem('local:MAIN_LIST', [{ wkn: 'KEEP' }]);
+
+    await expect(importAll(backupFile({ extension: [{ key: 'local:MAIN_LIST', value: { wkn: 'X' } }] }))).rejects.toBeTruthy();
+
+    expect(await storage.getItem('local:MAIN_LIST')).toEqual([{ wkn: 'KEEP' }]);
+  });
+
+  it('puts the old data back when the write fails', async () => {
+    await storage.setItem('local:MAIN_LIST', [{ wkn: 'KEEP' }]);
+    vi.spyOn(storage, 'setItems').mockRejectedValueOnce(new Error('quota'));
+
+    await expect(importAll(backupFile({ extension: [{ key: 'local:MAIN_LIST', value: [{ wkn: 'NEW' }] }] }))).rejects.toThrow('quota');
+
+    expect(await storage.getItem('local:MAIN_LIST')).toEqual([{ wkn: 'KEEP' }]);
+  });
+
+  it('never takes the rate limit from the file', async () => {
+    await importAll(backupFile({
+      extension: [{ key: 'local:MAIN_LIST', value: [] }, { key: 'local:api_rate_limit', value: { until: 9e15 } }],
+    }));
+
+    expect(await storage.getItem('local:api_rate_limit')).toBeNull();
+  });
+
+  it('keeps the sample flag and drops the sample account as current', async () => {
+    await importAll(backupFile({
+      extension: [{ key: 'local:SAMPLE_DATA', value: true }, { key: 'local:MAIN_LIST', value: [] }, { key: 'local:CUR_FLATEXID', value: '90000001' }],
+    }));
+
+    expect(await storage.getItem('local:SAMPLE_DATA')).toBe(true);
+    expect(await storage.getItem('local:CUR_FLATEXID')).toBeNull();
+  });
+
+  it('keeps the user language and theme when the sample is imported', async () => {
+    localStorage.setItem('lang', 'en');
+    localStorage.setItem('theme', 'dark');
+    await importAll(backupFile({
+      extension: [{ key: 'local:SAMPLE_DATA', value: true }, { key: 'local:MAIN_LIST', value: [] }],
+      local: { lang: 'de', theme: 'light', columnOrder: ['stock_name'] },
+    }));
+
+    expect([localStorage.getItem('lang'), localStorage.getItem('theme')]).toEqual(['en', 'dark']);
+    expect(localStorage.getItem('columnOrder')).toBe('["stock_name"]');
+  });
+
   it('drops link templates that are not web URLs', async () => {
     await importAll(backupFile({
       extension: [{ key: 'local:settings', value: { isin_link: 'javascript:alert(1)//$ISIN', wkn_link: 'https://ariva.de/$WKN' } }],

@@ -30,7 +30,17 @@ const CUR_ID_KEYS:any = {
   'Consorsbank': 'local:CUR_CONSORSBANKID',
   'Smartbroker+': 'local:CUR_SMARTBROKERID',
   'justTRADE': 'local:CUR_JUSTTRADEID',
+  'Scalable Capital': 'local:CUR_SCALABLEID',
 };
+
+// Every supported broker's display name, so UI lists grow with CUR_ID_KEYS instead of a copy.
+export const ACCOUNT_BROKERS = Object.keys(CUR_ID_KEYS);
+
+// Sample data must not hand its fake ids to the scrapers: with one account per broker they fall back to it.
+export async function accountClearCurrentIds() {
+  console.log('accountClearCurrentIds');
+  await storage.removeItems(Object.values(CUR_ID_KEYS));
+}
 
 // Every store that holds position rows, so migration and pruning never miss one.
 const ROW_STORES = [
@@ -41,6 +51,7 @@ const ROW_STORES = [
   'local:SMART_BROKER_PLUS',
   'local:WIKIFOLIO',
   'local:JUSTTRADE',
+  'local:SCALABLE',
 ] as const;
 
 
@@ -138,11 +149,12 @@ export function accountKeyOf(item:any) {
   return `${item?.broker || ''}::${item?.account_id || ''}`;
 }
 
-// Consors is the one broker whose account id spans several depots (see accountRekey), and
-// its depot number comes from the row, not the URL, so it is stable enough to key on.
+// Consors and Scalable account ids span several depots, keyed by a stable depot or portfolio id.
 // SmartBroker+ and Wikifolio derive theirs from the path, which changes per sub-route.
+const DEPOT_KEYED_BROKERS = ['Consorsbank', 'Scalable Capital'];
+
 function accountDepotPart(item:any) {
-  return item?.broker === 'Consorsbank' && item?.deposite_number
+  return DEPOT_KEYED_BROKERS.includes(item?.broker) && item?.deposite_number
     ? `|${item.deposite_number}` : '';
 }
 
@@ -637,7 +649,7 @@ export async function accountReconcile() {
 // pushes base items only), and a group emptied by the removal goes with them.
 function accountPruneRows(entries:any, broker:any, accountId:any) {
   if (!Array.isArray(entries)) return null;
-  const kept = [];
+  const kept:any[] = [];
   for (const entry of entries) {
     if (!entry) continue;
     if (entry.isGroup && Array.isArray(entry.items)) {
@@ -708,6 +720,12 @@ export async function accountClearData(broker:any, accountId:any) {
       const isins:any = (await storage.getItem('local:JUSTTRADE_ISINS')) || {};
       for (const key of Object.keys(isins)) if (key.startsWith(`${accountId}|`)) delete isins[key];
       await storage.setItem('local:JUSTTRADE_ISINS', isins);
+    }
+    if (broker === 'Scalable Capital') {
+      // Buy-in cache is keyed "account|portfolio|isin"; a re-added account must re-read its positions.
+      const positions:any = (await storage.getItem('local:SCALABLE_POSITIONS')) || {};
+      for (const key of Object.keys(positions)) if (key.startsWith(`${accountId}|`)) delete positions[key];
+      await storage.setItem('local:SCALABLE_POSITIONS', positions);
     }
     accountsVersion.value++;
     return true;

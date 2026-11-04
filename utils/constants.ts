@@ -1,5 +1,6 @@
 export const API_BASE_URL = 'https://api.qx.plus/v1/feed/';
 export const PORTAL_URL = 'https://my.qx.plus';
+export const PRICING_URL = 'https://qx.plus/insights#preise';
 
 // QX+ brand colours for the "Sync QX+" button on broker pages.
 export const SYNC_COLOR_IDLE = '#fcaf2c';

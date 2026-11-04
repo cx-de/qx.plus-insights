@@ -13,7 +13,7 @@ export const isApiRateLimited = () => !!apiRateLimit.value && Date.now() < apiRa
 
 export const getApiKey = async (force = false) => {
   if (apiKey.value === '' || force) {
-    const key = await storage.getItem('local:api_key')
+    const key = await storage.getItem<string>('local:api_key')
     apiKey.value = key ?? ''
   }
   // Re-read every call: another context may have latched the key dead since we last looked.
@@ -45,7 +45,7 @@ const authCooldownPassed = async () => {
   // Latches from before the timestamp existed read as 0, so they get re-checked straight away.
   const failedAt:any = await storage.getItem('local:api_auth_failed_at') || 0;
   const count:any = await storage.getItem('local:api_auth_fail_count') || 1;
-  const minutes = AUTH_COOLDOWN_MINUTES[Math.min(count, AUTH_COOLDOWN_MINUTES.length) - 1];
+  const minutes = AUTH_COOLDOWN_MINUTES[Math.min(count, AUTH_COOLDOWN_MINUTES.length) - 1]!;
   return Date.now() - failedAt >= minutes * 60_000;
 }
 
@@ -104,6 +104,8 @@ export const fetchFeed = async (url:any, signal?:any) => {
     // The body tells a JSON "invalid key" apart from a WAF/CDN block page.
     const body = await res.text().catch(() => /* body is diagnostics only */ '');
     console.error('fetchFeed auth error:', res.status, redactApiKey(url), redactApiKey(body.slice(0, 200)));
+    // Outside service hours says nothing about the key; probing it here latched good keys dead overnight.
+    if (res.status === 403 && body.includes('"service_window_closed"')) return null;
     // One 401/403 can be a server blip; a second request decides before prices stop.
     const rejected = await confirmApiAuthFailed();
     if (!rejected) console.error('fetchFeed transient auth error:', res.status);
@@ -147,7 +149,7 @@ export const apiRateLimitSecondsLeft = () =>
 
 // Scrapers have emitted "Cash", "cash" and "Cash " over time, so a strict === would
 // misclassify rows. Takes the row, not the name, to keep call sites honest.
-export const isCashRow = (item)=> {
+export const isCashRow = (item:any)=> {
   const name = item?.stock_name;
   return typeof name === 'string' && name.trim().toLowerCase() === 'cash';
 }
@@ -166,7 +168,13 @@ export const sleep = (ms:number) => new Promise((resolve) => setTimeout(resolve,
 // UTC date as YYYY-MM-DD, the key format of every daily snapshot in storage.
 export const todayIso = () => new Date().toISOString().slice(0, 10);
 
-export const germanToNumer = (germanAmount)=> {
+// 'system' resolves at apply time, so an OS switch needs no stored change.
+export const applyTheme = (themeName = localStorage.getItem('theme') || 'light') => {
+  const dark = themeName === 'dark' || (themeName === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark', dark);
+};
+
+export const germanToNumer = (germanAmount:any)=> {
   // Remove the thousands separator (.)
   const cleanedAmount = germanAmount.replace(/\./g, '');
   // Replace the decimal separator (,) with a period (.)
@@ -196,7 +204,7 @@ export const parseGermanDateOnly = (input: any): string | null => {
   const month = Number(match[2]);
   const rawYear = Number(match[3]);
   // Same two-digit-year convention as parseStockTimestamp()
-  const year = match[3].length === 2 ? (rawYear < 50 ? 2000 + rawYear : 1900 + rawYear) : rawYear;
+  const year = match[3]!.length === 2 ? (rawYear < 50 ? 2000 + rawYear : 1900 + rawYear) : rawYear;
 
   const date = new Date(year, month - 1, day);
   // Round-trip check rejects impossible dates like 30.02.2021
@@ -204,13 +212,14 @@ export const parseGermanDateOnly = (input: any): string | null => {
     return null;
   }
 
-  const pad = n => String(n).padStart(2, '0');
+  const pad = (n:any) => String(n).padStart(2, '0');
   // No trailing "Z": local midnight, so formatDate() can't shift it to the previous day.
   return `${year}-${pad(month)}-${pad(day)}T00:00:00`;
 }
 
-export const numberToGerman = (floatValue, isInt = false, decimalPoints?) => {
-  if (floatValue === null || floatValue === undefined || isNaN(floatValue)) {
+export const numberToGerman = (floatValue:any, isInt = false, decimalPoints?:any) => {
+  // isFinite, not isNaN: Infinity rendered as 'Infinity,undefined'.
+  if (floatValue === null || floatValue === undefined || !Number.isFinite(Number(floatValue))) {
     return '';
   }
 
@@ -235,8 +244,11 @@ export const numberToGerman = (floatValue, isInt = false, decimalPoints?) => {
   return isInt ? formattedIntegerPart : `${formattedIntegerPart},${decimalPart}`;
 }
 
+// EUR lines carry rate 1; only a real FX rate is worth a cell.
+export const currencyRateText = (rate:any) => numberToGerman(rate, false, 4) === numberToGerman(1, false, 4) ? '' : numberToGerman(rate, false, 4);
 
-export const sendTelegramMessage = async (token, channelId, message) => {
+
+export const sendTelegramMessage = async (token:any, channelId:any, message:any) => {
   if(!token || !channelId){
     return false;
   }
@@ -265,11 +277,13 @@ export const sendTelegramMessage = async (token, channelId, message) => {
     }
     return result;
   } catch (error) {
+    // Description only, never the URL: it carries the bot token.
+    console.error('sendTelegramMessage error:', (error as Error)?.message);
     return null;
   }
 };
 
-export const sendTestApi = async (token) => {
+export const sendTestApi = async (token:any) => {
   try {
     // /validate checks the key in the DB only: no quota spent, no service-window 403 at night.
     const response = await fetch(`${apiBaseUrl}validate`, {
@@ -310,7 +324,7 @@ export const fetchApiUsage = async (token:any) => {
   }
 };
 
-// Relative to the feed base so local/staging builds hit their own backend; the key is optional and only links the account.
+// Relative to the feed base so the support endpoint always shares the API origin; the key is optional and only links the account.
 export const sendSupportMessage = async (form:any) => {
   try {
     const headers:any = { Accept: 'application/json' };
@@ -335,7 +349,7 @@ export const sendSupportMessage = async (form:any) => {
   }
 };
 
-export const deepCloneReactiveData = (data) => {
+export const deepCloneReactiveData = (data:any) => {
   return JSON.parse(JSON.stringify(toRaw(data)));
 }
 
@@ -346,19 +360,20 @@ export const getLatestData = async () => {
 
   const currentData = (await storage.getItem('local:MAIN_LIST') as any[]) || [];
   
-  const flatexData = await storage.getItem('local:KONTO_FLATEX') || [];
-  const consorsBank = await storage.getItem('local:consorsBank') || [];
-  const smartBrokerData = await storage.getItem('local:SMART_BROKER_PLUS') || [];
-  const wikifolioData = await storage.getItem('local:WIKIFOLIO') || [];
-  const justtradeData = await storage.getItem('local:JUSTTRADE') || [];
+  const flatexData:any = await storage.getItem('local:KONTO_FLATEX') || [];
+  const consorsBank:any = await storage.getItem('local:consorsBank') || [];
+  const smartBrokerData:any = await storage.getItem('local:SMART_BROKER_PLUS') || [];
+  const wikifolioData:any = await storage.getItem('local:WIKIFOLIO') || [];
+  const justtradeData:any = await storage.getItem('local:JUSTTRADE') || [];
+  const scalableData:any = await storage.getItem('local:SCALABLE') || [];
   
-  const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData]
+  const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData, ...scalableData]
     .filter(item => !frozenBrokers.includes(item.broker));
   if (!newStockData) {
     return false;
   }
 
-  let mergedData = [];
+  let mergedData:any[] = [];
 
   // Case 1: First sync or current data empty
   if (currentData.length === 0) {
@@ -443,6 +458,8 @@ export const getLatestData = async () => {
         const filteredFields = Object.fromEntries(
           Object.entries(newItem).filter(([key]) => allowedFields.includes(key))
         );
+        // A broker scrape from yesterday must not replace the feed's newer price time.
+        if (timeOf(currentItem.timestamp) > timeOf(newItem.timestamp)) delete filteredFields.timestamp;
         mergedData.push({ ...currentItem, ...filteredFields });
         newDataMap.delete(key); // processed
       }
@@ -462,7 +479,7 @@ export const getLatestData = async () => {
 };
 
 
-export const formatTimestamp = (timestamp) => {
+export const formatTimestamp = (timestamp:any) => {
   if (!timestamp) return '';
   
   const { t } = useI18n();
@@ -517,7 +534,7 @@ export const formatMonthYear = (date: Date | string | number | null | undefined)
   return `${month}/${year}`; // e.g. "06/2026"
 };
 
-export function formatDateToYMD(date){
+export function formatDateToYMD(date:any){
   if (!date) return '';
   const year = date.year;
   const month = String(date.month).padStart(2, '0');
@@ -525,7 +542,7 @@ export function formatDateToYMD(date){
   return `${year}-${month}-${day}`;
 };
 
-export const chunkArray = (arr, size) => {
+export const chunkArray = (arr:any, size:any) => {
   return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) =>
       arr.slice(i * size, i * size + size)
   );
@@ -545,7 +562,7 @@ export const getComparableUnderlyingPrice = (item: any, price?: number): number 
   return p;
 };
 
-export const calculateFutureTotalValue = (item, expectationMultiplier = 0) => {
+export const calculateFutureTotalValue = (item:any, expectationMultiplier = 0) => {
   let strike = parseFloat(item.strike) || 0;
   let itemCap = parseFloat(item.cap) || 0;
   let bid = parseFloat(item.bid) || 0;
@@ -573,12 +590,12 @@ export const calculateFutureTotalValue = (item, expectationMultiplier = 0) => {
   } else {
   }
  
-  const convertBackToPortfolioCurrency = (value) => {
+  const convertBackToPortfolioCurrency = (value:any) => {
     if (!Number.isFinite(value)) return 0;
     return isProductEUR || isQuanto ? value : value / FX_rate;
   };
  
-  const clamp0 = (value) => (value > 0 ? value : 0);
+  const clamp0 = (value:any) => (value > 0 ? value : 0);
  
   let total_value = isCashPosition
     ? parseFloat(item.total_entry_value) || 0
@@ -735,6 +752,11 @@ export const clearAllStockData = async () => {
   await storage.removeItem('local:CUR_JUSTTRADEID');
   await storage.removeItem('local:JUSTTRADE_ISINS');
 
+  //Scalable Capital
+  await storage.setItem('local:SCALABLE', []);
+  await storage.removeItem('local:CUR_SCALABLEID');
+  await storage.removeItem('local:SCALABLE_POSITIONS');
+
   //accounts
   await storage.removeItem('local:ACCOUNTS');
   await storage.removeItem('local:ACCOUNTS_SCHEMA');
@@ -747,10 +769,13 @@ export const clearAllStockData = async () => {
   
 }
 
-function isWeekend(date = new Date()) {
-  const day = date.getDay(); // 0 = Sunday, 6 = Saturday
-  return day === 0 || day === 6;
-}
+// Same parse as formatTimestamp: scrapers store ms numbers, ISO strings and parsed broker times.
+const timeOf = (value:any) => new Date(value).getTime() || 0;
+
+// The feed only serves 08:00-22:00 Berlin, whatever the user's clock zone.
+const berlinClock = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', hour: 'numeric', hourCycle: 'h23' });
+const FEED_OPEN_HOUR = 8;
+const FEED_CLOSE_HOUR = 22;
 
 export function isMarketClosed() {
   if(!apiKey.value){
@@ -762,21 +787,23 @@ export function isMarketClosed() {
     return true;
   }
 
-  const today = new Date();
-  if (isWeekend(today)){
+  const parts = berlinClock.formatToParts(new Date());
+  const weekday = parts.find(p => p.type === 'weekday')?.value;
+  const hour = Number(parts.find(p => p.type === 'hour')?.value);
+  if (weekday === 'Sat' || weekday === 'Sun'){
     return true;
   }
 
- 
-  return false;
+  // Night-time calls are refused anyway, and their fallback used to swap feed prices for old broker ones.
+  return hour < FEED_OPEN_HOUR || hour >= FEED_CLOSE_HOUR;
 }
 
 
 export async function saveDailyTotal() {
-  const mainListData = await storage.getItem('local:MAIN_LIST') || [];
+  const mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
   // Per-account split so the Forecast history can follow the account filter; total stays for old readers.
   const accounts:any = {};
-  let totalValue = mainListData.reduce((sum, row) => {
+  let totalValue = mainListData.reduce((sum:any, row:any) => {
     let value = parseFloat(row['total_value']);
     if (isNaN(value)) return sum;
     const key = accountKeyOf(row);
@@ -784,7 +811,7 @@ export async function saveDailyTotal() {
     return sum + value;
   }, 0);
   const today = todayIso();
-  const dailyTotals = await storage.getItem('local:DAILY_TOTAL') || [];
+  const dailyTotals:any = await storage.getItem('local:DAILY_TOTAL') || [];
   const index = dailyTotals.findIndex((entry: { date: string }) => entry.date === today);
 
   if(totalValue>0){

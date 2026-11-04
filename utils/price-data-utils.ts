@@ -19,39 +19,106 @@ export const globalPriceState = {
   controllers: [] as AbortController[],
 };
 
+// Bumped on page leave so an orphaned pass stops between stages instead of spending quota and writing MAIN_LIST.
+let priceRunId = 0;
+
+export const abortPriceRequests = () => {
+  priceRunId++;
+  globalPriceState.controllers.forEach(c => c.abort());
+  globalPriceState.controllers.length = 0;
+};
+
+// Positions are charged even if the answer is dropped, so an abort keeps the chunks already fetched.
+const ABORTED = Symbol('aborted');
+const fetchChunk = async (url:string, signal:AbortSignal) => {
+  if (signal.aborted) return ABORTED;
+  return fetchFeed(url, signal).catch((err:any) => {
+    if (err?.name === 'AbortError') return ABORTED;
+    throw err;
+  });
+};
+
+// Applies only the fields a pass changed onto a fresh read, so a note or target saved during the network wait survives.
+export const mainListMergeChanges = (before:any[], after:any[], fresh:any[]) => {
+  const beforeByKey = new Map(before.map(item => [accountPositionKey(item), item]));
+  const afterByKey = new Map(after.map(item => [accountPositionKey(item), item]));
+  return fresh.map(item => {
+    const key = accountPositionKey(item);
+    const old = beforeByKey.get(key);
+    const updated = afterByKey.get(key);
+    if (!old || !updated) return item;
+    const changes = Object.fromEntries(Object.keys(updated).filter(field => updated[field] !== old[field]).map(field => [field, updated[field]]));
+    return Object.keys(changes).length ? { ...item, ...changes } : item;
+  });
+};
+
+export const mainListWriteChanges = async (before:any[], after:any[]) => {
+  const fresh:any = await storage.getItem('local:MAIN_LIST') || [];
+  await storage.setItem('local:MAIN_LIST', deepCloneReactiveData(mainListMergeChanges(before, after, fresh)));
+};
+
+// One field on a fresh read: writing the page's copy of the whole list dropped prices a pass had just stored.
+export const mainListSetField = async (key:string, field:string, value:any) => {
+  const fresh:any = await storage.getItem('local:MAIN_LIST') || [];
+  const index = fresh.findIndex((item:any) => accountPositionKey(item) === key);
+  if (index === -1) return;
+  fresh[index] = { ...fresh[index], [field]: value };
+  await storage.setItem('local:MAIN_LIST', deepCloneReactiveData(fresh));
+};
+
 const PAYOUT_LAG_DAYS = 7;
 // Annualizing a few days of gain gives absurd rates (+5% in 2 days is +743.000% p.a.).
 const MIN_HOLD_DAYS_FOR_PA = 30;
 
-let cachedPriceUpdateDuration = null;
+// Read each call: a cached copy kept a changed interval out until the dashboard was reopened.
 const getPriceUpdateDuration = async () => {
-  if (cachedPriceUpdateDuration !== null) {
-    return cachedPriceUpdateDuration;
-  }
-  
   let priceUpdateDuration = 30;
   try {
-    const settings = await storage.getItem('local:settings');
-    if (settings && settings.price_duration) {
-      priceUpdateDuration = settings.price_duration;
+    const settings:any = await storage.getItem('local:settings');
+    if (settings && Number(settings.price_duration) > 0) {
+      priceUpdateDuration = Number(settings.price_duration);
     }
   } catch (e) {
     console.error("Error fetching settings:", e);
   }
-  cachedPriceUpdateDuration = priceUpdateDuration;
   return priceUpdateDuration;
 };
+
+// Shared by every peers cell for one interval: each hover was a fresh metered /price bundle.
+const peerPriceCache = new Map<string, { at: number, data: any[] }>();
+
+export const getPeerPrices = async (peerMembers: string[]) => {
+  const wkns = peerMembers.join(',');
+  const cached = peerPriceCache.get(wkns);
+  if (cached && Date.now() - cached.at < await getPriceUpdateDuration() * 60_000) return cached.data;
+  const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wkns)}`;
+  const apiData = await fetchFeed(url);
+  if (!apiData || apiData.status != 1) return null;
+  const data = apiData.data || [];
+  peerPriceCache.set(wkns, { at: Date.now(), data });
+  return data;
+};
+
+// 10% slack: a timer tick lands seconds before the stamp expires, which would double the real interval.
+const isStale = (stampedAt:any, updateMinutes:number, now:number) =>
+  !stampedAt || now >= new Date(stampedAt).getTime() + updateMinutes * 60_000 * 0.9;
 
 
 export const reloadPriceData = async () => {
   if (isMarketClosed()) return;
-  let mainListData = await storage.getItem('local:MAIN_LIST') || [];
-  const currentData = mainListData;
+  const run = priceRunId;
+  const currentData:any = await storage.getItem('local:MAIN_LIST') || [];
   try {
     await getPriceData();
+    if (run !== priceRunId) return;
     await getUnderlyingPriceData();
+    if (run !== priceRunId) return;
     await getCurrencyRate();
-    
+    if (run !== priceRunId) return;
+    await calculateLatestMainListData(true);
+    // Re-read after the passes: comparing the pre-fetch array with itself never flashed anything.
+    const mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
+
     const priceFields = [
       'bid', 'ask',
       'sideways_return', 'sideways_return_pa',
@@ -85,47 +152,43 @@ export const reloadPriceData = async () => {
       });
     });
 
-    await calculateLatestMainListData(true);
     saveDailyTotal();
   } catch (e) {
     console.error('reloadPriceData failed:', e);
   }
 };
 
-export const getPriceData = async (forceUpdate = true) => {
+export const getPriceData = async (forceUpdate = false) => {
   if (isMarketClosed()) return;
   
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
 
-  let mainListData = await storage.getItem('local:MAIN_LIST') || [];
+  let mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
+  const before = mainListData;
 
   let priceUpdateDuration = await getPriceUpdateDuration();
   const currentDatetime = new Date().toISOString();
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
   
-  const needsUpdate = (item: any) => {
-    if (forceUpdate || !item.priceUpdatedAt) return true;
-    const lastUpdatedTime = new Date(item.priceUpdatedAt).getTime();
-    const nextUpdateTime = lastUpdatedTime + updateMinutes * 60_000;
-    return now >= nextUpdateTime;
-  };
+  const needsUpdate = (item: any) => forceUpdate || isStale(item.priceUpdatedAt, updateMinutes, now);
 
   let allApiData: any[] = [];
   let failed = false;
-  const stockItems = mainListData.filter(item => item.type === 'stock' && item.isin && needsUpdate(item));
-  const otherItems = mainListData.filter(item => item.type !== 'stock' && item.wkn && needsUpdate(item));
+  const stockItems = mainListData.filter((item:any) => item.type === 'stock' && item.isin && needsUpdate(item));
+  const otherItems = mainListData.filter((item:any) => item.type !== 'stock' && item.wkn && needsUpdate(item));
 
   // Deduped: the same holding in two accounts is two rows but one product to price.
-  const isinChunks = chunkArray([...new Set(stockItems.map(item => item.isin))], globalPriceState.chunkSize);
-  const wknChunks = chunkArray([...new Set(otherItems.map(item => item.wkn))], globalPriceState.chunkSize);
+  const isinChunks = chunkArray([...new Set(stockItems.map((item:any) => item.isin))], globalPriceState.chunkSize);
+  const wknChunks = chunkArray([...new Set(otherItems.map((item:any) => item.wkn))], globalPriceState.chunkSize);
 
   try {
     for (const chunk of isinChunks) {
       const isinParam = chunk.join(',');
       const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&uisin=${encodeURIComponent(isinParam)}`;
-      const apiData = await fetchFeed(url, controller.signal);
+      const apiData = await fetchChunk(url, controller.signal);
+      if (apiData === ABORTED) { failed = true; break; }
       // A dead key kills every remaining chunk, so stop rather than firing the whole queue.
       if (!apiData) { failed = true; if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
 
@@ -142,7 +205,8 @@ export const getPriceData = async (forceUpdate = true) => {
       if (apiAuthFailed.value || isApiRateLimited()) break;
       const wknParam = chunk.join(',');
       const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wknParam)}`;
-      const apiData = await fetchFeed(url, controller.signal);
+      const apiData = await fetchChunk(url, controller.signal);
+      if (apiData === ABORTED) { failed = true; break; }
       if (!apiData) { failed = true; if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
       
       if (apiData.status === 1 && apiData?.data?.length > 0) {
@@ -156,7 +220,7 @@ export const getPriceData = async (forceUpdate = true) => {
     const freshStamp = failed ? {} : { priceUpdatedAt: currentDatetime };
 
     // Merge price data into main list
-    mainListData = mainListData.map(item => {
+    mainListData = mainListData.map((item:any) => {
       const extraData = item.type === 'stock' ? stockApiMap[item.isin] : wknApiMap[item.wkn];
       
       if (extraData && typeof extraData === "object") {
@@ -169,10 +233,14 @@ export const getPriceData = async (forceUpdate = true) => {
           timestamp: timestamp ?? item.timestamp ?? Date.now(),
           priceUpdatedAt: currentDatetime,
         };
+      }else if(!needsUpdate(item)){
+        // Skipped as still fresh: stamping it now would push its next refresh a whole interval out.
+        return item;
       }else{
-        if(item.page_bid){
+        // Only when the feed answered without this product: a 403/429 must keep the last feed price, not the old broker one.
+        if(item.page_bid && !failed){
           return { ...item,
-            bid: item.page_bid != null ? parseFloat(item.page_bid) : (item.bid != null ? item.bid : 0),
+            bid: parseFloat(item.page_bid),
             ...freshStamp
           };
         }else{
@@ -182,36 +250,33 @@ export const getPriceData = async (forceUpdate = true) => {
     });
 
 
-    await storage.setItem('local:MAIN_LIST',mainListData);
+    await mainListWriteChanges(before, mainListData);
 
   } catch (err) {
-    console.error('getPriceData Failed to fetch price data:', err);
+    // An abort on page leave is expected, not a failure.
+    if ((err as any)?.name !== 'AbortError') console.error('getPriceData Failed to fetch price data:', err);
   } finally {
     const idx = globalPriceState.controllers.indexOf(controller);
     if (idx !== -1) globalPriceState.controllers.splice(idx, 1);
   }
 };
 
-export const getUnderlyingPriceData = async (forceUpdate = true) => {
+export const getUnderlyingPriceData = async (forceUpdate = false) => {
   if (isMarketClosed()) return;
   
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
-  let mainListData = await storage.getItem('local:MAIN_LIST') || [];
+  let mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
+  const before = mainListData;
 
   let priceUpdateDuration = await getPriceUpdateDuration();
   const currentDatetime = new Date().toISOString();
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
-  const needsUpdate = (item: any) => {
-    if (forceUpdate || !item.underlyingPriceUpdatedAt) return true;
-    const lastUpdatedTime = new Date(item.underlyingPriceUpdatedAt).getTime();
-    const nextUpdateTime = lastUpdatedTime + updateMinutes * 60_000;
-    return now >= nextUpdateTime;
-  };
+  const needsUpdate = (item: any) => forceUpdate || isStale(item.underlyingPriceUpdatedAt, updateMinutes, now);
 
-  const uisinList = [...new Set(mainListData.filter((item) => item.underlying_isin && needsUpdate(item))
-    .map(item => item.underlying_isin)
+  const uisinList = [...new Set(mainListData.filter((item:any) => item.underlying_isin && needsUpdate(item))
+    .map((item:any) => item.underlying_isin)
     .filter(Boolean))];
   
   const uisinChunks = chunkArray(uisinList, globalPriceState.chunkSize);
@@ -222,7 +287,8 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
     for (const chunk of uisinChunks) {
       const uisinParam = chunk.join(',');
       const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&uisin=${encodeURIComponent(uisinParam)}`;
-      const apiData = await fetchFeed(url, controller.signal);
+      const apiData = await fetchChunk(url, controller.signal);
+      if (apiData === ABORTED) { failed = true; break; }
       if (!apiData) { failed = true; if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
       
       if (apiData.status === 1 && apiData?.data?.length > 0) {
@@ -233,7 +299,7 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
     const apiMap = Object.fromEntries(allApiData.map(product => [product.isin, product]));
     const freshStamp = failed ? {} : { underlyingPriceUpdatedAt: currentDatetime };
 
-    mainListData = mainListData.map(item => {
+    mainListData = mainListData.map((item:any) => {
       const extraData = apiMap[item.underlying_isin];
       if (extraData && Object.keys(extraData).length > 0) {
         let { bid, ask, timestamp, currency } = extraData;
@@ -254,37 +320,32 @@ export const getUnderlyingPriceData = async (forceUpdate = true) => {
       }
       return item;
     });
-    const clonedData = deepCloneReactiveData(mainListData);
-    await storage.setItem('local:MAIN_LIST',clonedData);
+    await mainListWriteChanges(before, mainListData);
   } catch (err) {
-    console.error('getUnderlyingPriceData Failed to fetch underlying price data:', err);
+    if ((err as any)?.name !== 'AbortError') console.error('getUnderlyingPriceData Failed to fetch underlying price data:', err);
   } finally {
     const idx = globalPriceState.controllers.indexOf(controller);
     if (idx !== -1) globalPriceState.controllers.splice(idx, 1);
   }
 };
 
-export const getCurrencyRate = async (forceUpdate = true) => {
+export const getCurrencyRate = async (forceUpdate = false) => {
   if (isMarketClosed()) return;
   
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
-  let mainListData = await storage.getItem('local:MAIN_LIST') || [];
+  let mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
+  const before = mainListData;
 
   let priceUpdateDuration = await getPriceUpdateDuration();
   const currentDatetime = new Date().toISOString();
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
-  const needsUpdate = (item: any) => {
-    if (forceUpdate || !item.currencyRateUpdatedAt) return true;
-    const lastUpdatedTime = new Date(item.currencyRateUpdatedAt).getTime();
-    const nextUpdateTime = lastUpdatedTime + updateMinutes * 60_000;
-    return now >= nextUpdateTime;
-  };
+  const needsUpdate = (item: any) => forceUpdate || isStale(item.currencyRateUpdatedAt, updateMinutes, now);
 
   const currencyList = [...new Set(mainListData
-    .filter(item => item.currency && needsUpdate(item))
-    .map(item => item.currency)
+    .filter((item:any) => item.currency && needsUpdate(item))
+    .map((item:any) => item.currency)
     .filter(Boolean))];
 
   const currencyChunks = chunkArray(currencyList, globalPriceState.chunkSize);
@@ -295,7 +356,8 @@ export const getCurrencyRate = async (forceUpdate = true) => {
     for (const chunk of currencyChunks) {
       const currencyParam = chunk.join(',');
       const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&currencies=${encodeURIComponent(currencyParam)}`;
-      const apiData = await fetchFeed(url, controller.signal);
+      const apiData = await fetchChunk(url, controller.signal);
+      if (apiData === ABORTED) { failed = true; break; }
       if (!apiData) { failed = true; if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
 
       if (apiData.status === 1 && apiData?.data?.length > 0) {
@@ -305,7 +367,7 @@ export const getCurrencyRate = async (forceUpdate = true) => {
     
     const currencyMap = Object.fromEntries(allApiData.map(currency => [currency.currencyID, currency]));
     const freshStamp = failed ? {} : { currencyRateUpdatedAt: currentDatetime };
-    mainListData = mainListData.map(item => {
+    mainListData = mainListData.map((item:any) => {
       const currencyData = currencyMap[item.currency];
       
       if (currencyData && Object.keys(currencyData).length > 0) {
@@ -316,6 +378,8 @@ export const getCurrencyRate = async (forceUpdate = true) => {
           currency_rate: bid,
           currencyRateUpdatedAt: currentDatetime
         };
+      }else if(!needsUpdate(item)){
+        return item;
       }else {
         let currencyRate = item.currency_rate || 1;
         return {
@@ -326,10 +390,9 @@ export const getCurrencyRate = async (forceUpdate = true) => {
       }
     });
 
-    const clonedData = deepCloneReactiveData(mainListData);
-    await storage.setItem('local:MAIN_LIST',clonedData);
+    await mainListWriteChanges(before, mainListData);
   } catch (err) {
-    console.error('getCurrencyRate Failed to fetch currency rates:', err);
+    if ((err as any)?.name !== 'AbortError') console.error('getCurrencyRate Failed to fetch currency rates:', err);
   } finally {
     const idx = globalPriceState.controllers.indexOf(controller);
     if (idx !== -1) globalPriceState.controllers.splice(idx, 1);
@@ -337,7 +400,7 @@ export const getCurrencyRate = async (forceUpdate = true) => {
 };
 
 
-function getQuantoLabel(currency, quanto) {
+function getQuantoLabel(currency:any, quanto:any) {
   if (currency === 'EUR') {
     return 'yes';
   } else if (currency !== 'EUR' && quanto === true) {
@@ -355,7 +418,8 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
   const smartBrokerData = (await storage.getItem('local:SMART_BROKER_PLUS') as any[]) || [];
   const wikifolioData = (await storage.getItem('local:WIKIFOLIO') as any[]) || [];
   const justtradeData = (await storage.getItem('local:JUSTTRADE') as any[]) || [];
-  const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData];
+  const scalableData = (await storage.getItem('local:SCALABLE') as any[]) || [];
+  const newStockData = [...flatexData, ...consorsBank, ...smartBrokerData, ...wikifolioData, ...justtradeData, ...scalableData];
   if (!newStockData || newStockData.length === 0) {
     return false;
   }
@@ -410,8 +474,9 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
           const filteredNewItem = Object.fromEntries(
             Object.entries(newItem).filter(([key]) => allowedFields.includes(key))
           );
+          // Once the feed delivered a rate, the broker's scraped one is older.
+          if (existingItem.currencyRateUpdatedAt) delete filteredNewItem.currency_rate;
 
-          
           const merged = {...existingItem, ...filteredNewItem};
           mergedData.push(merged);
         } else {
@@ -477,10 +542,11 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
     
     
     let profit_loss_price = total_value - item.total_entry_value;
-    let profit_loss_percentage = ((total_value / item.total_entry_value) - 1) * 100;
+    // Zero entry or value (bid not loaded, free position) gave Infinity, rendered as 'Infinity,undefined'.
+    let profit_loss_percentage = item.total_entry_value ? ((total_value / item.total_entry_value) - 1) * 100 : 0;
 
     let profit_loss_target = future_total_value - total_value;
-    let profit_loss_target_pa = (profit_loss_target / total_value) * 100;
+    let profit_loss_target_pa = total_value ? (profit_loss_target / total_value) * 100 : 0;
 
 
     switch (item.type) {
@@ -503,13 +569,16 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
     }
     
     let distance_to_the_cap =  cap_strike && comparableUnderlying>0  ?  ((cap_strike - comparableUnderlying) / comparableUnderlying) * 100 : 0;
-    switch (item.type) {
-      case 'cappedBonusCertificate':
-        distance_to_the_cap = ((strike - comparableUnderlying) / comparableUnderlying) * 100;
-        break;
-      case 'reverseCappedBonusCertificate':
-        distance_to_the_cap = ((barrier_knockout - comparableUnderlying) / comparableUnderlying) * 100;
-        break;
+    // Same guard as above: before the underlying quote arrives these divided by zero.
+    if (comparableUnderlying > 0) {
+      switch (item.type) {
+        case 'cappedBonusCertificate':
+          distance_to_the_cap = ((strike - comparableUnderlying) / comparableUnderlying) * 100;
+          break;
+        case 'reverseCappedBonusCertificate':
+          distance_to_the_cap = ((barrier_knockout - comparableUnderlying) / comparableUnderlying) * 100;
+          break;
+      }
     }
 
     // Kept apart from distance_to_the_cap (merges cap/barrier, defaults to 0) so alarms skip products without the level.
@@ -642,9 +711,10 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
   });
 
   //new field based on total
+  // Summed once, not per row; a zero total stored the string 'NaN'.
+  const total = mainListData.reduce((acc, val) => acc + Number(val.total_value), 0);
   mainListData = mainListData.map(item => {
-    const total = mainListData.reduce((acc, val) => acc + Number(val.total_value), 0);
-    let position_percentage = ((item.total_value / total) * 100).toFixed(2);
+    let position_percentage = total ? ((item.total_value / total) * 100).toFixed(2) : '0.00';
     const newFields = {
       position_percentage: position_percentage,
     };

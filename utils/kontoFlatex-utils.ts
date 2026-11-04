@@ -42,7 +42,7 @@ async function flatexResolveAccountId() {
 // Getting the ISIN of a specific stock.
 // "0" on failure is a sentinel createEmptyRowsToFill turns into a `.row0` class — an
 // empty string there would build a bare `.row` that matches every injected row.
-export function getIdFromRow(row) {
+function getIdFromRow(row:any) {
   const idText = row.querySelector(".C0");
   if (!idText) {
     console.log("Couldn't scrape the Stock Id from row");
@@ -54,8 +54,6 @@ export function getIdFromRow(row) {
   return text.split(" ")[0] || "0";
 }
 
-// Getting all stock Id numbers visible in the table
-
 // Creating empty rows to fill
 export function createEmptyRowsToFill() {
   console.log("createEmptyRowsToFill");
@@ -64,10 +62,9 @@ export function createEmptyRowsToFill() {
     ".I2.Last.DetailsAvailable:not(.hasExtraData):not(.extraData)"
   );
   for (let x = 0; x < rowsThatNeedExtraData.length; x++) {
-    rowsThatNeedExtraData[x].classList.add("hasExtraData");
+    rowsThatNeedExtraData[x]!.classList.add("hasExtraData");
     const rowElement = document.createElement("tr");
     setAttributesForRowWrapper(rowElement);
-    rowElement.setAttribute("id", rowsThatNeedExtraData[x].id);
     rowElement.classList.add("row" + getIdFromRow(rowsThatNeedExtraData[x]));
     createRowHTMLStructure(rowElement);
     insertAfter(rowsThatNeedExtraData[x], rowElement);
@@ -76,7 +73,7 @@ export function createEmptyRowsToFill() {
 }
 
 // Adding a third row to the Header with Column Names
-export function addThirdRowHeader(...inputs) {
+export function addThirdRowHeader(...inputs:any[]) {
   console.log("addThirdRowHeader 1");
   if (document.querySelector(".extensionRow")) return false;
   console.log("addThirdRowHeader 2");
@@ -87,7 +84,8 @@ export function addThirdRowHeader(...inputs) {
 
   if (!tableHead) return false;
 
-  tableHead.querySelector(".I2").className = "I2";
+  const headI2 = tableHead.querySelector(".I2");
+  if (headI2) headI2.className = "I2";
 
   const row = document.createElement("tr");
   row.className = "I2 Last I3 extensionRow";
@@ -101,17 +99,13 @@ export function addThirdRowHeader(...inputs) {
   return true;
 }
 
-// Attributes for the wrapper to follow the same behavior as other rows
-function setAttributesForRowWrapper(rowElement) {
-  const events = ["MouseUp", "MouseDown", "MouseOut", "MouseOver", "MouseLeave", "MouseEnter"];
-  events.forEach(event =>
-    rowElement.setAttribute(`on${event.toLowerCase()}`, `handle${event}(this, '__1711942656');`)
-  );
+// No copied id or inline flatex handlers: they duplicated the real row's id and fired webcore with a stale widget id.
+function setAttributesForRowWrapper(rowElement:any) {
   rowElement.setAttribute("class", "I2 Last Even extraData DetailsAvailable detailsNotAvailable ariba");
 }
 
 // The columns that are inside the container
-function createRowHTMLStructure(rowElement) {
+function createRowHTMLStructure(rowElement:any) {
   rowElement.innerHTML = `${FLATEX_EXTRA_ROW_COLUMNS.map(cls => `<td class="${cls} ${cls=='type' ? 'C0' : 'C1'}"></td>`).join('')}`;
 }
 
@@ -129,6 +123,8 @@ export async function flatexUpdateCustomRowData() {
     const data = await accountOwnRows(result.MAIN_LIST || [], broker, currentAccountId);
     data.forEach((currentStock) => {
       const { isin } = currentStock;
+      // Cash has isin '', and ".row" alone matches every injected row.
+      if (!isin || currentStock.stock_name === 'Cash') return;
       const currentStockRowElement = document.querySelector(".row" + isin);
   
       if (!currentStockRowElement) {
@@ -146,7 +142,8 @@ export async function flatexUpdateCustomRowData() {
   
     return true;
     } catch (error) {
-      console.log("Failed to get MAIN_LIST from storage:", error);
+      /* display-only refresh: the next tick retries */
+      console.error('flatexUpdateCustomRowData error:', error);
     }
 }
 
@@ -202,6 +199,14 @@ async function flatexTokenHash(tokenId: string) {
   return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
 }
 
+const FLATEX_PROBE_RETRY_MS = 10 * 60 * 1000;
+
+// A failed probe was re-POSTed to flatex every 10 s tick; wait before retrying the same session.
+export function flatexProbeBackedOff(session:any, tokenHash:any, now:number) {
+  return !!tokenHash && session.flatexProbedTokenHash === tokenHash && !session.flatexProbedAccount
+    && now - (session.flatexProbeFailedAt || 0) < FLATEX_PROBE_RETRY_MS;
+}
+
 async function syncFlatexUser() {
   console.log("syncFlatexUser");
   const today = todayIso();
@@ -209,11 +214,11 @@ async function syncFlatexUser() {
   try{
 
     const flatexUserSession = await chrome.storage.local.get({
-      flatexUserSync: null, flatexProbedTokenHash: null, flatexProbedAccount: null });
+      flatexUserSync: null, flatexProbedTokenHash: null, flatexProbedAccount: null, flatexProbeFailedAt: 0 });
     const lastSync = flatexUserSession.flatexUserSync;
     const lastSyncDay = lastSync ? lastSync.slice(0, 10) : null;
 
-    let currentSessionId = null;
+    let currentSessionId:any = null;
     const scripts = Array.from(document.querySelectorAll("script"));
     const matchScript = scripts.find(s => (s.textContent || "").includes("setCurrentWindowId"));
     if (matchScript) {
@@ -231,12 +236,15 @@ async function syncFlatexUser() {
 
       if (sameSession) {
         currentSessionId = flatexUserSession.flatexProbedAccount;
+      } else if (flatexProbeBackedOff(flatexUserSession, tokenHash, Date.now())) {
+        console.log('syncFlatexUser probe backed off');
       } else if(windowId && tokenId){
         currentSessionId = await fetchOverview(tokenId, windowId);
         // Cache the result with its token so an accepted account is picked up on the
         // very next tick instead of waiting for tomorrow's probe.
         await chrome.storage.local.set({
-          flatexUserSync: today, flatexProbedTokenHash: tokenHash, flatexProbedAccount: currentSessionId });
+          flatexUserSync: today, flatexProbedTokenHash: tokenHash, flatexProbedAccount: currentSessionId,
+          flatexProbeFailedAt: currentSessionId ? 0 : Date.now() });
         await chrome.storage.local.remove('flatexProbedToken');
       }
       
@@ -254,6 +262,7 @@ async function syncFlatexUser() {
       console.log('syncFlatexUser not found in cookies');
     }
   }catch (err) {
+    /* the next 10 s tick re-probes; the save guard skips while the id is unknown */
     console.error('syncFlatexUser error:', err);
   }
 }
@@ -293,56 +302,49 @@ export async function flatexSaveDataToLocalStorage() {
     // below mean this tick would otherwise scrape under whatever that left behind.
     const saveAccountId = currentAccountId;
 
-    // Superseded: accountDetect returns null while a prompt is pending, and the
-    // currentAccountId guard above is what now freezes this broker's writes.
-    
-    
     if (isOnDashboardPage()) {
       console.log("flatexSaveDataToLocalStorage isOnDashboardPage");
-      chrome.storage.local.get(['KONTO_FLATEX'], (result) => {
-        const currentData = result.KONTO_FLATEX || [];
-        
-        // Kontosaldo/ Account balance
-        let accountBalance = 0;
-        const values = document.querySelectorAll(".DepositAndBalanceOverviewWidget .ValueRows .Value");
-        if (values.length >= 2) {
-          accountBalance = values[1]?.textContent?.trim().split(' ')[0];
-          accountBalance = germanToNumer(accountBalance);
-        }
+      const values = document.querySelectorAll(".DepositAndBalanceOverviewWidget .ValueRows .Value");
+      const accountBalance = values.length >= 2
+        ? germanToNumer(values[1]?.textContent?.trim().split(' ')[0] || '') : NaN;
+      // A half-rendered widget used to overwrite the stored cash with 0 or null.
+      if (!Number.isFinite(accountBalance)) {
+        console.log("flatex: cash not readable, skipping save");
+        return false;
+      }
 
-        const now = new Date();
-        let currentTimestamp = now.toISOString();
+      const result = await chrome.storage.local.get(['KONTO_FLATEX']);
+      const currentData = result.KONTO_FLATEX || [];
 
-        const cashIndex = currentData.findIndex(item => item.stock_name === 'Cash'
-          && item.account_id === saveAccountId);
-        if (cashIndex !== -1) {
-          currentData[cashIndex].total_entry_value = accountBalance;
-          currentData[cashIndex].timestamp = currentTimestamp;
-        } else {
-          currentData.push({
-            id: crypto.randomUUID(),
-            broker: broker,
-            account_id: saveAccountId,
-            stock_name: 'Cash',
-            total_entry_value: accountBalance,
-            isGroup: false,
-            isin : '', 
-            stocks_owned:0, 
-            buy_price:0, 
-            product_type: '', 
-            wkn: '', 
-            profit_loss_percentage:0, 
-            profit_loss_price:0,
-            bid:0,
-            timestamp:currentTimestamp
-          });
-        }
-        
-        chrome.storage.local.set({ KONTO_FLATEX: currentData }, () => {
+      const now = new Date();
+      let currentTimestamp = now.toISOString();
+
+      const cashIndex = currentData.findIndex((item:any) => item.stock_name === 'Cash'
+        && item.account_id === saveAccountId);
+      if (cashIndex !== -1) {
+        currentData[cashIndex].total_entry_value = accountBalance;
+        currentData[cashIndex].timestamp = currentTimestamp;
+      } else {
+        currentData.push({
+          id: crypto.randomUUID(),
+          broker: broker,
+          account_id: saveAccountId,
+          stock_name: 'Cash',
+          total_entry_value: accountBalance,
+          isGroup: false,
+          isin : '', 
+          stocks_owned:0, 
+          buy_price:0, 
+          product_type: '', 
+          wkn: '', 
+          profit_loss_percentage:0, 
+          profit_loss_price:0,
+          bid:0,
+          timestamp:currentTimestamp
         });
-        
-      });
-
+      }
+      
+      await chrome.storage.local.set({ KONTO_FLATEX: currentData });
       return false;
     }
 
@@ -359,19 +361,20 @@ export async function flatexSaveDataToLocalStorage() {
       }
 
       const storedFlatex = await chrome.storage.local.get(['KONTO_FLATEX']);
-      chrome.storage.local.set({
+      await chrome.storage.local.set({
         [`KONTO_FLATEX`]: accountReplaceRows(storedFlatex.KONTO_FLATEX, stockData, broker, saveAccountId)
       });
-      console.log("fltex: Saved Data To Local Storage!");
-      flatexUpdateCustomRowData();
+      console.log("flatex: Saved Data To Local Storage!");
+      await flatexUpdateCustomRowData();
       return false;
     }
   }catch (err) {
+    /* a failed tick keeps the stored rows; the next tick retries */
     console.error('flatexSaveDataToLocalStorage error:', err);
   }
 }
 
-function parseStockTimestamp(input) {
+function parseStockTimestamp(input:any) {
   
   if(input=="-"){ return; }
   
@@ -440,8 +443,9 @@ function parseStockTimestamp(input) {
       console.log('parseStockTimestamp Invalid format: unrecognized timestamp format');
     }
 
+    if (!resultDate) return;
     // Format as ISO-8601 string
-    const pad = n => String(n).padStart(2, '0');
+    const pad = (n:any) => String(n).padStart(2, '0');
     return `${resultDate.getFullYear()}-${pad(resultDate.getMonth() + 1)}-${pad(resultDate.getDate())}T${pad(resultDate.getHours())}:${pad(resultDate.getMinutes())}:${pad(resultDate.getSeconds())}`;
 
   } catch (err) {
@@ -469,41 +473,41 @@ function getAllStockData(accountId:any) {
     const id  = crypto.randomUUID();
     const isGroup  = false;
 
-    const stock_name = row.querySelector(".C0").textContent;
+    const stock_name = row.querySelector(".C0")!.textContent;
     const isin = getIdFromRow(secondRowOfAllStocks[x]);
-    const wkn = secondRowOfAllStocks[x].textContent.split('(')[1]?.split(')')[0]?.trim();
+    const wkn = secondRowOfAllStocks[x]!.textContent.split('(')[1]?.split(')')[0]?.trim();
     
     //Type
-    let type = typetRowOfAllStocks[x].querySelector(".C0 .PaperKindName").textContent.trim();
+    let type = typetRowOfAllStocks[x]!.querySelector(".C0 .PaperKindName")!.textContent.trim();
     if(type=='Aktie'){
       type = 'stock';
     }else if(type=='Zertifikat'){
       type = 'certificate';
     }
 
-    let stocks_owned = row.querySelector(".C2").textContent.trim().split(' ')[0];
+    let stocks_owned:any = row.querySelector(".C2")!.textContent.trim().split(' ')[0];
     stocks_owned = germanToNumer(stocks_owned);
 
-    let bid = secondRowOfAllStocks[x].querySelector(".C2").textContent.trim();
+    let bid:any = secondRowOfAllStocks[x]!.querySelector(".C2")!.textContent.trim();
     bid = bid.substring(0, bid.length - 1).trim();
     bid = germanToNumer(bid);
 
-    let buy_price = secondRowOfAllStocks[x].querySelector(".C4").textContent.trim();
+    let buy_price:any = secondRowOfAllStocks[x]!.querySelector(".C4")!.textContent.trim();
     buy_price = buy_price.substring(0, buy_price.length - 1).trim();
     buy_price = germanToNumer(buy_price);
 
     
-    let total_entry_value = row.querySelector(".C4").textContent.trim().split(' ')[0];
+    let total_entry_value:any = row.querySelector(".C4")!.textContent.trim().split(' ')[0];
     total_entry_value = germanToNumer(total_entry_value);
 
-    let profit_loss_price = secondRowOfAllStocks[x].querySelector(".C5").textContent.trim().split(' ')[0];
+    let profit_loss_price:any = secondRowOfAllStocks[x]!.querySelector(".C5")!.textContent.trim().split(' ')[0];
     profit_loss_price = germanToNumer(profit_loss_price);
     
-    let profit_loss_percentage = row.querySelector(".C5").textContent.trim();
+    let profit_loss_percentage:any = row.querySelector(".C5")!.textContent.trim();
     profit_loss_percentage = profit_loss_percentage.replace('%', '');
     profit_loss_percentage = germanToNumer(profit_loss_percentage);
     
-    let timestamp = secondRowOfAllStocks[x].querySelector(".C1").textContent?.trim();
+    let timestamp = secondRowOfAllStocks[x]!.querySelector(".C1")!.textContent?.trim();
     let page_timestamp = parseStockTimestamp(timestamp);
 
     // Kaufdatum comes from the cache the sync run fills, not from this table.
@@ -573,8 +577,10 @@ const KNOWN_WRONG_TAB_RE =
 
 const TOP_NAV_SELECTOR = '.BlockSelectionItemContainer .BlockSelectionItem';
 const DEPOT_TAB_RE = /(depotbestand|depot|bestand|portfolio|holding)/i;
-// Corroborated by fetchOverview(): overviewEntryBlockSelectionWidget.selecteditemindex = "3".
-const DEPOT_TAB_WIDGET_HINT = 'overviewEntryBlockSelectionWidget.items[3]';
+// Live markup: items[0] Dashboard, items[1] Alle, items[3] Derivate; the old items[3] hint picked Derivate.
+const DEPOT_TAB_WIDGET_HINT = 'overviewEntryBlockSelectionWidget.items[1]';
+const DEPOT_TAB_LABEL = 'alle';
+const DASHBOARD_VALUES_SELECTOR = '.DepositAndBalanceOverviewWidget .ValueRows .Value';
 // Historical hardcode, kept only as a tiebreaker — webcore ids are not contractual.
 const LEGACY_DEPOT_TAB_ID = '__1551384479';
 
@@ -587,7 +593,7 @@ const CLOSE_SELECTORS = [
 const DEPOT_ROW_SELECTOR = '.I2.DetailsAvailable:not(.ariba)';
 
 // no_table (bond/fund) is settled; wrong_tab means flatex changed shape, so retry it sooner.
-const RETRY_MS_BY_STATUS = {
+const RETRY_MS_BY_STATUS:any = {
   no_table: 24 * HOUR,
   no_detail: 1 * HOUR,
   wrong_tab: 1 * HOUR,
@@ -595,9 +601,11 @@ const RETRY_MS_BY_STATUS = {
 };
 
 // A dead position must not be re-clicked forever.
-const MAX_FAILED_ATTEMPTS = 3;
+const MAX_FAILED_ATTEMPTS = 2;
+// ...but giving up must not be forever either: a buy pressed twice before flatex booked it gets a weekly retry.
+const GAVE_UP_RETRY_MS = 7 * 24 * HOUR;
 
-const flatexDebugLog = (...args) => {
+const flatexDebugLog = (...args:any[]) => {
   try {
     if (localStorage.getItem('qxSyncDebug')) console.log('[qx:kaufdaten]', ...args);
   } catch {
@@ -609,6 +617,7 @@ function debugEnabled() {
   try {
     return !!localStorage.getItem('qxSyncDebug');
   } catch {
+    /* storage blocked: debug stays off */
     return false;
   }
 }
@@ -682,7 +691,7 @@ const dirtyKeys:any = new Set();
 let flushTimer:any;
 let flushInFlight:any = null;
 
-function flatexSavePurchaseDateEntry(isin, entry, accountId) {
+function flatexSavePurchaseDateEntry(isin:any, entry:any, accountId:any) {
   if (!isin || !accountId) return;
   const key = flatexPurchaseKey(isin, accountId);
   purchaseDateCache[key] = entry;
@@ -718,7 +727,7 @@ async function flatexFlushPurchaseCache() {
   })()
     .catch(err => {
       console.error('flatexFlushPurchaseCache error:', err);
-      keys.forEach(k => dirtyKeys.add(k)); // retry on the next flush
+      keys.forEach((k:any) => dirtyKeys.add(k)); // retry on the next flush
     })
     .finally(() => {
       flushInFlight = null;
@@ -738,14 +747,14 @@ async function flatexClearPurchaseDateCache() {
 
 // Newest-first, so purchase_date is the newest; all dates kept so the rule can change later.
 function flatexBuildPurchaseEntry(
-  tranches,
+  tranches:any,
   stocks_owned: number
 ) {
   const sorted = (tranches || [])
-    .filter(t => t && t.date)
-    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    .filter((t:any) => t && t.date)
+    .sort((a:any, b:any) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
-  const dates = sorted.map(t => t.date);
+  const dates = sorted.map((t:any) => t.date);
 
   return {
     purchase_date: dates[0] || null,
@@ -759,7 +768,9 @@ function flatexBuildPurchaseEntry(
 }
 
 // Records a failed attempt without discarding a previously good value.
-function flatexBuildFailedEntry(previousEntry, status, stocks_owned) {
+function flatexBuildFailedEntry(previousEntry:any, status:any, stocks_owned:any, countsAttempt = false) {
+  // A new quantity is a new position for the retry budget.
+  const previousAttempts = previousEntry?.stocks_owned === stocks_owned ? previousEntry.attempts || 0 : 0;
   return {
     purchase_date: null,
     dates: [],
@@ -768,26 +779,40 @@ function flatexBuildFailedEntry(previousEntry, status, stocks_owned) {
     stocks_owned,
     fetched_at: new Date().toISOString(),
     status,
-    attempts: (previousEntry?.attempts || 0) + 1,
+    // Only button presses spend the budget: background runs before flatex books a buy (e.g. over a weekend) must not use it up.
+    attempts: previousAttempts + (countsAttempt ? 1 : 0),
   };
+}
+
+function flatexGaveUpExpired(cacheEntry:any) {
+  const fetchedAt = cacheEntry.fetched_at ? new Date(cacheEntry.fetched_at).getTime() : 0;
+  return !fetchedAt || Date.now() - fetchedAt > GAVE_UP_RETRY_MS;
+}
+
+function flatexPurchaseDateGaveUp(cacheEntry:any, stocks_owned:number) {
+  return !!cacheEntry && cacheEntry.status !== 'ok' && cacheEntry.stocks_owned === stocks_owned
+    && (cacheEntry.attempts || 0) >= MAX_FAILED_ATTEMPTS && !flatexGaveUpExpired(cacheEntry);
 }
 
 // Decides whether a position still needs syncing.
 function flatexNeedsPurchaseDate(
-  cacheEntry,
+  cacheEntry:any,
   stocks_owned: number,
-  force = false
+  force = false,
+  retryFailed = false
 ) {
   if (!cacheEntry) return true;
 
-  if (cacheEntry.status === 'ok' && cacheEntry.purchase_date) {
-    // A Zukauf changes the newest date; quantity is the cheapest signal (a sell trips it too).
-    return cacheEntry.stocks_owned !== stocks_owned;
-  }
+  // A Zukauf changes the newest date; quantity is the cheapest signal (a sell trips it too).
+  if (cacheEntry.stocks_owned !== stocks_owned) return true;
+  if (cacheEntry.status === 'ok' && cacheEntry.purchase_date) return false;
 
   // Negative cache: bounded retries, with a per-status window.
   if (force) return true;
-  if ((cacheEntry.attempts || 0) >= MAX_FAILED_ATTEMPTS) return false;
+  // A failed retry rewrites fetched_at, so this allows one attempt per week, not one per run.
+  if ((cacheEntry.attempts || 0) >= MAX_FAILED_ATTEMPTS) return flatexGaveUpExpired(cacheEntry);
+  // A user press must not wait out the window: a fresh buy fails until flatex books it.
+  if (retryFailed) return true;
 
   const fetchedAt = cacheEntry.fetched_at ? new Date(cacheEntry.fetched_at).getTime() : 0;
   const retryAfter = RETRY_MS_BY_STATUS[cacheEntry.status] ?? 24 * HOUR;
@@ -800,6 +825,7 @@ function flatexNeedsPurchaseDate(
 
 export const flatexSyncState:any = {
   inFlight: false,
+  starting: false,
   // Only while the VISIBLE page is driven — iframe runs let the periodic scrape keep running.
   inlineInFlight: false,
   abortRequested: false,
@@ -807,17 +833,17 @@ export const flatexSyncState:any = {
   abortReason: null,
 };
 
-function cellText(row, selector) {
+function cellText(row:any, selector:any) {
   return (row.querySelector(selector)?.textContent || '').replace(/ /g, ' ').trim();
 }
 
 // Auto-translate wraps labels in <font>, and the label may be German or the viewer's language.
-function normLabel(el) {
+function normLabel(el:any) {
   return (el.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 // Strip the currency marker first: germanToNumer() calls .replace() unguarded.
-function cellNumber(text) {
+function cellNumber(text:any) {
   const cleaned = text.replace(/€/g, '').replace(/[A-Za-z]/g, '').trim();
   if (!cleaned) return NaN;
   return germanToNumer(cleaned);
@@ -825,20 +851,20 @@ function cellNumber(text) {
 
 // Null on timeout, not a reject — a missing table is expected. Observer-driven, polling as net.
 function flatexWaitFor(
-  predicate,
+  predicate:any,
   {
     timeoutMs = DETAIL_OPEN_TIMEOUT_MS,
     pollMs = 500,
     ctx,
-  } = {}
+  }:any = {}
 ) {
-  return new Promise(resolve => {
+  return new Promise<any>(resolve => {
     let done = false;
     let observer:any = null;
     let observedDoc:any = null;
     let scheduled = false;
 
-    const finish = (value) => {
+    const finish = (value:any) => {
       if (done) return;
       done = true;
       clearTimeout(timer);
@@ -857,6 +883,7 @@ function flatexWaitFor(
       try {
         value = predicate();
       } catch {
+        /* DOM mid-swap: treat as not ready yet and poll again */
         value = null;
       }
       if (value) finish(value);
@@ -891,6 +918,7 @@ function flatexWaitFor(
         });
         observedDoc = doc;
       } catch {
+        /* doc navigated away: polling still covers the wait */
         observer = null;
         observedDoc = null; // poll-only fallback
       }
@@ -908,7 +936,7 @@ function flatexWaitFor(
 }
 
 // Mirrors getAllStockData()'s row correlation so the two can't drift apart.
-function flatexGetPositionRows(ctx) {
+function flatexGetPositionRows(ctx:any) {
   const firstRows = ctx.doc.querySelectorAll('.I1.DetailsAvailable');
   // :not(.ariba) excludes the extra rows createEmptyRowsToFill() injects.
   const secondRows = ctx.doc.querySelectorAll(DEPOT_ROW_SELECTOR);
@@ -931,7 +959,7 @@ function flatexGetPositionRows(ctx) {
 }
 
 // Rows bind onmousedown/onmouseup, so .click() alone may never reach the framework.
-function flatexClickRow(ctx, rowEl) {
+function flatexClickRow(ctx:any, rowEl:any) {
   const win = ctx.win;
   const init = { bubbles: true, cancelable: true, view: win };
 
@@ -946,7 +974,7 @@ function flatexClickRow(ctx, rowEl) {
   rowEl.dispatchEvent(new MouseEventCtor('click', init));
 }
 
-function pressEscape(ctx) {
+function pressEscape(ctx:any) {
   const win = ctx.win;
   const KeyboardEventCtor = win.KeyboardEvent || KeyboardEvent;
   const init = { bubbles: true, cancelable: true, key: 'Escape', code: 'Escape', keyCode: 27 };
@@ -963,7 +991,7 @@ function pressEscape(ctx) {
  * ------------------------------------------------------------------------- */
 
 function flatexReadAcquisitionTable(
-  ctx,
+  ctx:any,
   tableEl?: Element | null
 ) {
   // Anchor on the class: the id (__1090058778) is regenerated on every render.
@@ -971,7 +999,7 @@ function flatexReadAcquisitionTable(
   if (!table) return null;
 
   const tranches:any = [];
-  table.querySelectorAll('tbody tr').forEach(tr => {
+  table.querySelectorAll('tbody tr').forEach((tr:any) => {
     const date = parseGermanDateOnly(cellText(tr, '.C0'));
     // Rows without a parseable date are header repeats or total rows — skip them.
     if (!date) return;
@@ -990,8 +1018,8 @@ const STALE_MARKER = 'qx-stale-kaufdaten';
 const STALE_DETAIL_MARKER = 'qx-stale-detail';
 
 // Overlay slot + tabs + selection: tells "position 2 rendered" from "position 1 still up".
-function detailSignature(ctx) {
-  const tabs = Array.from(ctx.doc.querySelectorAll(DETAIL_TAB_SELECTOR));
+function detailSignature(ctx:any) {
+  const tabs = Array.from<any>(ctx.doc.querySelectorAll(DETAIL_TAB_SELECTOR));
   if (!tabs.length) return '';
   const selected = tabs.find(isSelectedTab);
   return (
@@ -1002,12 +1030,12 @@ function detailSignature(ctx) {
 }
 
 // Tags what is on screen BEFORE the click; must outlive the whole open-plus-probe run.
-function markStaleDetail(ctx) {
+function markStaleDetail(ctx:any) {
   const el = ctx.doc.querySelector('table.PaperDetailsAcquisitionTable');
   const signature = el ? (el.textContent || '').trim() : '';
   if (el) el.classList.add(STALE_MARKER);
 
-  ctx.doc.querySelectorAll(DETAIL_TAB_SELECTOR).forEach(t => t.classList.add(STALE_DETAIL_MARKER));
+  ctx.doc.querySelectorAll(DETAIL_TAB_SELECTOR).forEach((t:any) => t.classList.add(STALE_DETAIL_MARKER));
 
   return {
     signature,
@@ -1016,7 +1044,7 @@ function markStaleDetail(ctx) {
       try {
         ctx.doc
           .querySelectorAll(`.${STALE_MARKER}, .${STALE_DETAIL_MARKER}`)
-          .forEach(n => n.classList.remove(STALE_MARKER, STALE_DETAIL_MARKER));
+          .forEach((n:any) => n.classList.remove(STALE_MARKER, STALE_DETAIL_MARKER));
       } catch {
         /* document may have been swapped out */
       }
@@ -1025,8 +1053,8 @@ function markStaleDetail(ctx) {
 }
 
 // Has a NEW detail rendered? Else the open-wait reads the previous position's verdict.
-function freshDetail(ctx, stale) {
-  const tabs = Array.from(ctx.doc.querySelectorAll(DETAIL_TAB_SELECTOR));
+function freshDetail(ctx:any, stale:any) {
+  const tabs = Array.from<any>(ctx.doc.querySelectorAll(DETAIL_TAB_SELECTOR));
   if (!tabs.length) return false;
   // webcore regenerates the anchors each render, so an untagged tab means a new render.
   if (tabs.some(t => !t.classList.contains(STALE_DETAIL_MARKER))) return true;
@@ -1035,7 +1063,7 @@ function freshDetail(ctx, stale) {
 }
 
 // Detail mounts as an overlay or inline; the marker plus text signature covers both.
-function freshTable(ctx, stale) {
+function freshTable(ctx:any, stale:any) {
   const candidate = ctx.doc.querySelector('table.PaperDetailsAcquisitionTable');
   if (!candidate) return null;
   // A re-render produces a new element, which never carries our marker.
@@ -1059,12 +1087,13 @@ async function loadTabHint() {
     const result = await chrome.storage.local.get([TAB_HINT_KEY]);
     tabHint = result[TAB_HINT_KEY] || null;
   } catch {
+    /* no hint is the cold-start default */
     tabHint = null;
   }
   return tabHint;
 }
 
-async function saveTabHint(hint) {
+async function saveTabHint(hint:any) {
   tabHint = hint;
   tabHintLoaded = true;
   try {
@@ -1074,23 +1103,23 @@ async function saveTabHint(hint) {
   }
 }
 
-function parseWidgetIndex(key) {
+function parseWidgetIndex(key:any) {
   const match = key.match(/items\[(\d+)\]\s*$/);
   return match ? Number(match[1]) : -1;
 }
 
-function isSelectedTab(el) {
+function isSelectedTab(el:any) {
   return el.classList.contains('Selected') || el.getAttribute('aria-selected') === 'true';
 }
 
 // Highest-scoring ("Portfolio") first. Not index-first: children[N] is paper-type dependent.
-function queryDetailTabs(ctx) {
-  const byWidget = Array.from(ctx.doc.querySelectorAll(DETAIL_TAB_SELECTOR));
+function queryDetailTabs(ctx:any) {
+  const byWidget = Array.from<any>(ctx.doc.querySelectorAll(DETAIL_TAB_SELECTOR));
   if (byWidget.length) return byWidget;
-  return Array.from(ctx.doc.querySelectorAll(DETAIL_TAB_FALLBACK_SELECTOR));
+  return Array.from<any>(ctx.doc.querySelectorAll(DETAIL_TAB_FALLBACK_SELECTOR));
 }
 
-function flatexReadDetailTabs(ctx) {
+function flatexReadDetailTabs(ctx:any) {
   const tabs = queryDetailTabs(ctx);
 
   return tabs
@@ -1115,7 +1144,7 @@ function flatexReadDetailTabs(ctx) {
 }
 
 // Re-query by widgetname: every ajax round trip replaces the DOM, so held refs are dead.
-function findTabByKey(ctx, candidate) {
+function findTabByKey(ctx:any, candidate:any) {
   const tabs = queryDetailTabs(ctx);
   if (candidate.key) {
     const byKey = tabs.find(el => el.getAttribute('data-widgetname') === candidate.key);
@@ -1141,29 +1170,30 @@ function flatexDumpDetailTabs(ctx = { doc: document, win: window }) {
  * ------------------------------------------------------------------------- */
 
 // If layout can't be measured, take the element rather than reporting the overlay closed.
-function isRendered(el) {
+function isRendered(el:any) {
   try {
     return typeof el.getClientRects !== 'function' || el.getClientRects().length > 0;
   } catch {
+    /* measuring failed: assume rendered rather than report the overlay closed */
     return true;
   }
 }
 
 // N from secondLevelWidgetList[N].btnClose — overlays stack, and the highest N is topmost.
-function overlayIndex(el) {
+function overlayIndex(el:any) {
   const match = (el.getAttribute('data-widgetname') || '').match(/secondLevelWidgetList\[(\d+)\]/);
   return match ? Number(match[1]) : -1;
 }
 
 // Topmost overlay first: querySelector returns the OUTER one, and dispatch ignores z-order.
-function flatexFindDetailCloses(ctx) {
+function flatexFindDetailCloses(ctx:any) {
   const found:any = new Set();
   for (const selector of CLOSE_SELECTORS) {
-    for (const el of Array.from(ctx.doc.querySelectorAll(selector))) {
+    for (const el of Array.from<any>(ctx.doc.querySelectorAll(selector))) {
       if (isRendered(el)) found.add(el);
     }
   }
-  return Array.from(found).sort(
+  return Array.from<any>(found).sort(
     (a, b) =>
       overlayIndex(b) - overlayIndex(a) ||
       // 4 = DOCUMENT_POSITION_FOLLOWING; the literal avoids a realm-specific global Node.
@@ -1171,21 +1201,21 @@ function flatexFindDetailCloses(ctx) {
   );
 }
 
-function flatexFindDetailClose(ctx) {
+function flatexFindDetailClose(ctx:any) {
   return flatexFindDetailCloses(ctx)[0] || null;
 }
 
 // Ignores detail tabs (webcore leaves them) and depot rows (they survive UNDER the overlay).
-function flatexDetailOverlayOpen(ctx) {
+function flatexDetailOverlayOpen(ctx:any) {
   if (flatexFindDetailClose(ctx)) return true;
-  return Array.from(ctx.doc.querySelectorAll('.DetailsCategorySelection')).some(el =>
+  return Array.from<any>(ctx.doc.querySelectorAll('.DetailsCategorySelection')).some(el =>
     isRendered(el)
   );
 }
 
 // Closes the detail overlay(s), topmost first. webcore stacks secondLevelWidgetList[0..n].
 async function flatexCloseDetail(
-  ctx,
+  ctx:any,
   { timeoutMs = CLOSE_TIMEOUT_MS, maxRounds = 4 } = {}
 ) {
   let lastClickedId:any = null;
@@ -1235,8 +1265,8 @@ async function flatexCloseDetail(
 
 // Zero extra round trips on the happy path: webcore remembers the selected category index.
 async function flatexOpenPositionDetail(
-  ctx,
-  row
+  ctx:any,
+  row:any
 ) {
   const hint = await loadTabHint();
   const stale = markStaleDetail(ctx);
@@ -1318,7 +1348,7 @@ async function flatexOpenPositionDetail(
 
 // Cheap presence check, no round trip — catches a session timeout mid-run.
 async function flatexVerifyListPresent(
-  ctx,
+  ctx:any,
   { timeoutMs = 2000 } = {}
 ) {
   const ok = await flatexWaitFor(
@@ -1329,8 +1359,8 @@ async function flatexVerifyListPresent(
 }
 
 // Finds the top-level Depotbestand tab without relying on a hardcoded webcore id.
-function findDepotTab(ctx) {
-  const candidates = (Array.from(ctx.doc.querySelectorAll(TOP_NAV_SELECTOR)))
+function findDepotTab(ctx:any) {
+  const candidates = (Array.from<any>(ctx.doc.querySelectorAll(TOP_NAV_SELECTOR)))
     // The detail view has its own tab bar with the same classes — never click that one.
     .filter(
       el =>
@@ -1341,6 +1371,7 @@ function findDepotTab(ctx) {
       const key = el.getAttribute('data-widgetname') || '';
       const label = normLabel(el);
       let score = 0;
+      if (label === DEPOT_TAB_LABEL) score += 200;
       if (key.includes(DEPOT_TAB_WIDGET_HINT)) score += 100;
       if (DEPOT_TAB_RE.test(label)) score += 50;
       if (el.id === LEGACY_DEPOT_TAB_ID) score += 20;
@@ -1352,9 +1383,41 @@ function findDepotTab(ctx) {
   return best && best.score > 0 ? best.el : null;
 }
 
+// The cash balance only renders on the Dashboard tab, which carries a "Dashboard" class in the live markup.
+function findDashboardTab(ctx:any) {
+  return Array.from<any>(ctx.doc.querySelectorAll(TOP_NAV_SELECTOR))
+    .filter(el => !el.closest('.DetailsCategorySelection'))
+    .find(el => el.classList.contains('Dashboard') || normLabel(el) === 'dashboard') || null;
+}
+
+// Sync QX+ part one: Dashboard for the cash balance. The tab switch is webcore ajax, so the page never reloads.
+export async function flatexOpenDashboard(ctx:any = { doc: document, win: window }) {
+  console.log('flatexOpenDashboard');
+  const ready = () => (ctx.doc.querySelectorAll(DASHBOARD_VALUES_SELECTOR).length >= 2 ? true : null);
+  if (ready()) return true;
+  const tab = findDashboardTab(ctx);
+  if (!tab) return false;
+  flatexClickRow(ctx, tab);
+  return !!(await flatexWaitFor(ready, { timeoutMs: LIST_TIMEOUT_MS, ctx }));
+}
+
+// Sync QX+ part two: "Alle" for every position. Waits on the selected tab too: rows alone may be a filtered view.
+export async function flatexOpenDepotList(ctx:any = { doc: document, win: window }) {
+  console.log('flatexOpenDepotList');
+  const ready = () => {
+    const tab = findDepotTab(ctx);
+    return tab && isSelectedTab(tab) && ctx.doc.querySelectorAll(DEPOT_ROW_SELECTOR).length ? true : null;
+  };
+  if (ready()) return true;
+  const tab = findDepotTab(ctx);
+  if (!tab) return false;
+  flatexClickRow(ctx, tab);
+  return !!(await flatexWaitFor(ready, { timeoutMs: LIST_TIMEOUT_MS, ctx }));
+}
+
 // Close overlays, then re-navigate — a full nav rebuilds what the close button cannot.
 async function flatexEnsureDepotList(
-  ctx,
+  ctx:any,
   { timeoutMs = LIST_TIMEOUT_MS } = {}
 ) {
   await flatexCloseDetail(ctx);
@@ -1385,7 +1448,7 @@ async function flatexEnsureDepotList(
 
 // Every exit routes through this — normal, error, budget, cancel — so nobody is stranded.
 async function flatexRestoreDepotView(
-  ctx,
+  ctx:any,
   { allowReload = false, deadlineMs = 10000 } = {}
 ) {
   const deadline = Date.now() + deadlineMs;
@@ -1428,6 +1491,7 @@ function hardResetEnabled() {
   try {
     return !!localStorage.getItem('qxSyncHardReset');
   } catch {
+    /* storage blocked: hard reset stays off */
     return false;
   }
 }
@@ -1437,8 +1501,8 @@ function hardResetEnabled() {
  * ------------------------------------------------------------------------- */
 
 // A real user click on a position or a tab wins over the sync in progress.
-function attachAbortListener(ctx) {
-  const handler = (event) => {
+function attachAbortListener(ctx:any) {
+  const handler = (event:any) => {
     // Only trusted gestures abort — webcore replays our clicks, and that skipped the close.
     if (!event.isTrusted) return;
     const target = event.target;
@@ -1461,7 +1525,9 @@ async function acquireSyncLock() {
 
     const token = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     await chrome.storage.local.set({ [SYNC_LOCK_KEY]: { token, at: Date.now() } });
-    return token;
+    // Read-then-write isn't atomic: two tabs can both write, and only the last writer owns the lock.
+    const confirm = await chrome.storage.local.get([SYNC_LOCK_KEY]);
+    return confirm[SYNC_LOCK_KEY]?.token === token ? token : null;
   } catch (err) {
     console.error('acquireSyncLock error:', err);
     return null;
@@ -1469,7 +1535,7 @@ async function acquireSyncLock() {
 }
 
 // Keeps a long run's lock from being declared stale by another tab.
-async function touchSyncLock(token) {
+async function touchSyncLock(token:any) {
   if (!token) return;
   try {
     const result = await chrome.storage.local.get([SYNC_LOCK_KEY]);
@@ -1481,7 +1547,7 @@ async function touchSyncLock(token) {
   }
 }
 
-async function releaseSyncLock(token) {
+async function releaseSyncLock(token:any) {
   if (!token) return;
   try {
     const result = await chrome.storage.local.get([SYNC_LOCK_KEY]);
@@ -1498,7 +1564,7 @@ async function releaseSyncLock(token) {
  * ------------------------------------------------------------------------- */
 
 // Frame runs are invisible; inline stays bounded. inline.max 0 = never touch the visible page.
-const SYNC_PROFILES = {
+const SYNC_PROFILES:any = {
   background: { frame: { max: 25, budgetMs: 120_000 }, inline: { max: 0, budgetMs: 0 } },
   interactive: { frame: { max: Infinity, budgetMs: 300_000 }, inline: { max: 15, budgetMs: 90_000 } },
 };
@@ -1508,18 +1574,20 @@ function noCloseOverride() {
   try {
     return !!localStorage.getItem('qxSyncNoClose');
   } catch {
+    /* storage blocked: override stays off */
     return false;
   }
 }
 
 async function flatexSyncPurchaseDates(
-  options = {}
+  options:any = {}
 ) {
   // No ctx means we're driving the page the user is looking at.
   const isInline = !options.ctx;
   const {
     ctx = { doc: document, win: window },
     force = false,
+    retryFailed = false,
     watchForUserClicks = isInline,
     profile = 'background',
     onProgress,
@@ -1543,7 +1611,7 @@ async function flatexSyncPurchaseDates(
 
   const cache = await flatexRefreshPurchaseDateCache();
   const rows = flatexGetPositionRows(ctx);
-  const pending = rows.filter(r => flatexNeedsPurchaseDate(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned, force));
+  const pending = rows.filter((r:any) => flatexNeedsPurchaseDate(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned, force, retryFailed));
 
   // Fast path: this is what keeps the 10s interval cheap once everything is known.
   if (!pending.length) return { ...empty, skipped: 'nothing_to_do' };
@@ -1591,7 +1659,7 @@ async function flatexSyncPurchaseDates(
       onProgress?.({ done: i, total: pending.length, isin });
 
       // Every round trip re-renders the table — re-query and match by ISIN, never by index.
-      const current = flatexGetPositionRows(ctx).find(r => r.isin === isin);
+      const current = flatexGetPositionRows(ctx).find((r:any) => r.isin === isin);
       if (!current) {
         flatexDebugLog(`row for ${isin} disappeared, skipping`);
         failed++;
@@ -1616,7 +1684,7 @@ async function flatexSyncPurchaseDates(
           // Table present but nothing parseable — a real failure, and attempts must climb.
           flatexSavePurchaseDateEntry(
             isin,
-            flatexBuildFailedEntry(cache[flatexPurchaseKey(isin, runAccountId)], 'no_table', current.stocks_owned),
+            flatexBuildFailedEntry(cache[flatexPurchaseKey(isin, runAccountId)], 'no_table', current.stocks_owned, retryFailed),
             runAccountId
           );
           perIsin[isin] = 'no_table';
@@ -1631,7 +1699,7 @@ async function flatexSyncPurchaseDates(
         }
         flatexSavePurchaseDateEntry(
           isin,
-          flatexBuildFailedEntry(cache[flatexPurchaseKey(isin, runAccountId)], status, current.stocks_owned),
+          flatexBuildFailedEntry(cache[flatexPurchaseKey(isin, runAccountId)], status, current.stocks_owned, retryFailed),
           runAccountId
         );
         perIsin[isin] = status;
@@ -1698,7 +1766,7 @@ async function flatexSyncPurchaseDates(
  *  Iframe mode
  * ------------------------------------------------------------------------- */
 
-const REPROBE_MS = {
+const REPROBE_MS:any = {
   xfo_denied: 7 * DAY,
   framing_blocked: 7 * DAY,
   load_timeout: 6 * HOUR,
@@ -1706,6 +1774,7 @@ const REPROBE_MS = {
   no_shell: 24 * HOUR,
   no_depot: 24 * HOUR,
   no_detail: 24 * HOUR,
+  error: 6 * HOUR,
 };
 
 async function readIframeSupport() {
@@ -1713,11 +1782,12 @@ async function readIframeSupport() {
     const result = await chrome.storage.local.get([IFRAME_SUPPORT_KEY]);
     return result[IFRAME_SUPPORT_KEY] || null;
   } catch {
+    /* unknown support means probe again */
     return null;
   }
 }
 
-async function recordIframeSupport(supported, reason) {
+async function recordIframeSupport(supported:any, reason?:any) {
   try {
     await chrome.storage.local.set({
       [IFRAME_SUPPORT_KEY]: { supported, reason, at: Date.now() },
@@ -1760,14 +1830,14 @@ async function flatexProbeFramingHeaders() {
 
 
 // Off-screen same-origin frame; webcore gives it its own windowId, so the user's view is safe.
-async function flatexOpenSyncFrame() {
+async function flatexOpenSyncFrame(): Promise<any> {
   // Only probe when framing isn't known to work — it is a full GET of the depot HTML.
   const known = await readIframeSupport();
   if (!known?.supported) {
     const headers = await flatexProbeFramingHeaders();
     if (headers.blocked) {
       await recordIframeSupport(false, 'xfo_denied');
-      console.info(`[qx:kaufdaten] framing blocked by headers (x-frame-options: ${headers.xfo})`);
+      console.log(`[qx:kaufdaten] framing blocked by headers (x-frame-options: ${headers.xfo})`);
       return { ok: false, reason: 'xfo_denied' };
     }
   }
@@ -1791,9 +1861,9 @@ async function flatexOpenSyncFrame() {
   };
 
   // Single exit funnel so no path can forget to persist the reason.
-  const fail = async (reason, extra) => {
+  const fail = async (reason:any, extra?:any) => {
     flatexDebugLog('frame unusable:', reason, extra ?? '');
-    console.info(`[qx:kaufdaten] iframe unavailable (${reason}) — falling back`);
+    console.log(`[qx:kaufdaten] iframe unavailable (${reason}) — falling back`);
     dispose();
     await recordIframeSupport(false, reason);
     return { ok: false, reason };
@@ -1801,47 +1871,53 @@ async function flatexOpenSyncFrame() {
 
   document.body.appendChild(iframe);
 
-  // Phase 1: is it framed at all? An inaccessible contentDocument means blocked.
-  const reachable = await flatexWaitFor(() => {
-    try {
+  // A throw here (e.g. contentDocument gone after a login redirect) leaked the logged-in frame.
+  try {
+    // Phase 1: is it framed at all? An inaccessible contentDocument means blocked.
+    const reachable = await flatexWaitFor(() => {
+      try {
+        const doc = iframe.contentDocument;
+        return doc && doc.body ? doc : null;
+      } catch {
+        return 'blocked';
+      }
+    }, { timeoutMs: 8000, pollMs: 250 });
+
+    if (reachable === 'blocked') return fail('framing_blocked');
+    if (!reachable) return fail('load_timeout');
+
+    // Phase 2: has webcore rendered? The old gate passed on a script tag — hence it never worked.
+    const rendered = await flatexWaitFor(() => {
       const doc = iframe.contentDocument;
-      return doc && doc.body ? doc : null;
-    } catch {
-      return 'blocked';
+      if (!doc || doc.readyState !== 'complete') return null;
+      return doc.querySelector(`${TOP_NAV_SELECTOR}, ${DEPOT_ROW_SELECTOR}`) ? doc : null;
+    }, { timeoutMs: IFRAME_LOAD_TIMEOUT_MS, pollMs: 300 });
+
+    if (!rendered) {
+      const doc = iframe.contentDocument;
+      if (doc?.querySelector('input[type="password"]')) return fail('login');
+      return fail('no_shell', { readyState: doc?.readyState });
     }
-  }, { timeoutMs: 8000, pollMs: 250 });
 
-  if (reachable === 'blocked') return fail('framing_blocked');
-  if (!reachable) return fail('load_timeout');
+    // Lazy getters: a reload inside the frame replaces them and a captured ref goes stale.
+    const ctx = {
+      get doc() {
+        return iframe.contentDocument;
+      },
+      get win() {
+        return iframe.contentWindow;
+      },
+    };
 
-  // Phase 2: has webcore rendered? The old gate passed on a script tag — hence it never worked.
-  const rendered = await flatexWaitFor(() => {
-    const doc = iframe.contentDocument;
-    if (!doc || doc.readyState !== 'complete') return null;
-    return doc.querySelector(`${TOP_NAV_SELECTOR}, ${DEPOT_ROW_SELECTOR}`) ? doc : null;
-  }, { timeoutMs: IFRAME_LOAD_TIMEOUT_MS, pollMs: 300 });
+    const depot = await flatexEnsureDepotList(ctx);
+    if (!depot.ok) return fail('no_depot', depot.diag);
 
-  if (!rendered) {
-    const doc = iframe.contentDocument;
-    if (doc?.querySelector('input[type="password"]')) return fail('login');
-    return fail('no_shell', { readyState: doc?.readyState });
+    await recordIframeSupport(true);
+    return { ok: true, ctx, dispose };
+  } catch (err) {
+    console.error('flatexOpenSyncFrame error:', err);
+    return fail('error');
   }
-
-  // Lazy getters: a reload inside the frame replaces them and a captured ref goes stale.
-  const ctx = {
-    get doc() {
-      return iframe.contentDocument;
-    },
-    get win() {
-      return iframe.contentWindow;
-    },
-  };
-
-  const depot = await flatexEnsureDepotList(ctx);
-  if (!depot.ok) return fail('no_depot', depot.diag);
-
-  await recordIframeSupport(true);
-  return { ok: true, ctx, dispose };
 }
 
 /* ------------------------------------------------------------------------- *
@@ -1850,7 +1926,7 @@ async function flatexOpenSyncFrame() {
 
 let lastAutoSyncAt = 0;
 
-async function saveDiag(result) {
+async function saveDiag(result:any) {
   try {
     await chrome.storage.local.set({
       [DIAG_KEY]: {
@@ -1871,8 +1947,8 @@ async function saveDiag(result) {
   }
 }
 
-function logSummary(result) {
-  console.info(
+function logSummary(result:any) {
+  console.log(
     `[qx:kaufdaten] mode=${result.mode} reason=${result.reason ?? 'none'} ` +
       `skipped=${result.skipped ?? 'none'} synced=${result.synced} failed=${result.failed} ` +
       `remaining=${result.remaining} aborted=${result.aborted} ` +
@@ -1881,12 +1957,29 @@ function logSummary(result) {
 }
 
 // Hidden iframe when possible; the visible page only if the caller allows it.
-export async function flatexRunSync(options = {}) {
-  const { force = false, allowInline = false, profile = 'background', onProgress } = options;
-
-  if (flatexSyncState.inFlight) {
+export async function flatexRunSync(options:any = {}) {
+  // Claimed before the first await: inFlight is only set ~25 s later, so two callers both got through.
+  if (flatexSyncState.inFlight || flatexSyncState.starting) {
     return { mode: 'inline', synced: 0, failed: 0, remaining: 0, aborted: false, skipped: 'in_flight' };
   }
+  flatexSyncState.starting = true;
+  try {
+    const result:any = await flatexRunSyncOnce(options);
+    const runAccountId = currentAccountId;
+    if (runAccountId) {
+      // Positions we gave up on: the button tells the user instead of failing silently.
+      const cache = await flatexRefreshPurchaseDateCache();
+      result.unavailable = flatexGetPositionRows({ doc: document, win: window }).filter((r:any) =>
+        flatexPurchaseDateGaveUp(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned)).length;
+    }
+    return result;
+  } finally {
+    flatexSyncState.starting = false;
+  }
+}
+
+async function flatexRunSyncOnce(options:any) {
+  const { force = false, retryFailed = false, allowInline = false, profile = 'background', onProgress } = options;
 
   // Same account guard as the sync run, here only to skip booting a frame for nothing.
   if (!currentAccountId) {
@@ -1900,8 +1993,8 @@ export async function flatexRunSync(options = {}) {
   const runAccountId = currentAccountId;
   // Check "anything to do?" before any frame work — this used to boot the whole iframe first.
   const cache = await flatexRefreshPurchaseDateCache();
-  const pendingNow = flatexGetPositionRows({ doc: document, win: window }).filter(r =>
-    flatexNeedsPurchaseDate(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned, force)
+  const pendingNow = flatexGetPositionRows({ doc: document, win: window }).filter((r:any) =>
+    flatexNeedsPurchaseDate(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned, force, retryFailed)
   );
   if (!pendingNow.length) {
     return { mode: 'inline', synced: 0, failed: 0, remaining: 0, aborted: false, skipped: 'nothing_to_do' };
@@ -1917,6 +2010,7 @@ export async function flatexRunSync(options = {}) {
         result = await flatexSyncPurchaseDates({
           ctx: frame.ctx,
           force,
+          retryFailed,
           profile,
           // Nobody is clicking inside an off-screen frame.
           watchForUserClicks: false,
@@ -1961,6 +2055,7 @@ export async function flatexRunSync(options = {}) {
   flatexDebugLog('falling back to inline syncing on the visible page');
   const result = await flatexSyncPurchaseDates({
     force,
+    retryFailed,
     profile,
     watchForUserClicks: true,
     onProgress,
@@ -1973,7 +2068,7 @@ export async function flatexRunSync(options = {}) {
 
 // Called from the periodic scrape. Debounced hard, and never touches the visible page.
 export async function flatexMaybeAutoSync() {
-  if (flatexSyncState.inFlight) return;
+  if (flatexSyncState.inFlight || flatexSyncState.starting) return;
   if (Date.now() - lastAutoSyncAt < AUTO_SYNC_INTERVAL_MS) return;
   if (!(await flatexShouldTryIframe())) return;
 
@@ -1999,10 +2094,10 @@ export function flatexAttachDebugHelpers() {
   if (!debugEnabled()) return;
   const ctx = { doc: document, win: window };
 
-  (window).qxSync = {
+  (window as any).qxSync = {
     dumpTabs: () => flatexDumpDetailTabs(ctx),
     dumpRows: () => {
-      const rows = flatexGetPositionRows(ctx).map(r => ({ isin: r.isin, qty: r.stocks_owned }));
+      const rows = flatexGetPositionRows(ctx).map((r:any) => ({ isin: r.isin, qty: r.stocks_owned }));
       console.table(rows);
       return rows;
     },
@@ -2010,7 +2105,7 @@ export function flatexAttachDebugHelpers() {
     probeFrame: async () => {
       const frame = await flatexOpenSyncFrame();
       if (frame.ok) {
-        console.info('[qx:kaufdaten] frame OK');
+        console.log('[qx:kaufdaten] frame OK');
         frame.dispose();
         return { ok: true };
       }
@@ -2034,14 +2129,19 @@ export function flatexAttachDebugHelpers() {
         TAB_HINT_KEY,
         PURCHASE_CACHE_KEY,
       ]);
-      console.log(data);
+      // Counts only: the bank page console must never show the cached quantities and prices.
+      console.log('qxSync.diag', {
+        diag: data[DIAG_KEY]?.skipped ?? null,
+        iframeSupported: data[IFRAME_SUPPORT_KEY]?.supported ?? null,
+        purchaseEntries: Object.keys(data[PURCHASE_CACHE_KEY] || {}).length,
+      });
       return data;
     },
     reset: async () => {
       await chrome.storage.local.remove([IFRAME_SUPPORT_KEY, TAB_HINT_KEY, DIAG_KEY]);
       await flatexClearPurchaseDateCache();
-      console.info('[qx:kaufdaten] caches cleared');
+      console.log('[qx:kaufdaten] caches cleared');
     },
   };
-  console.info('[qx:kaufdaten] debug helpers on window.qxSync');
+  console.log('[qx:kaufdaten] debug helpers on window.qxSync');
 }

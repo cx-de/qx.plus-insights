@@ -4,7 +4,10 @@ import {
   flatexRunSync,
   flatexMaybeAutoSync,
   flatexAttachDebugHelpers,
+  flatexOpenDashboard,
+  flatexOpenDepotList,
 } from '~/utils/kontoFlatex-utils';
+import { tourTick, tourSyncDone } from '~/utils/tour-utils';
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from '~/utils/constants';
 
 export default defineContentScript({
@@ -14,10 +17,9 @@ export default defineContentScript({
     'https://www.consorsbank.de/*',
     'https://www.wikifolio.com/*',
     'https://webtrading.justtrade.com/*',
+    'https://de.scalable.capital/*',
   ],
   async main(ctx) {
-    console.log('Hello content.');
-
     const updateDuration = BROKER_REFRESH_MS;
 
     const kontoFlatexWebsite = 'konto.flatex.de';
@@ -26,6 +28,7 @@ export default defineContentScript({
     const smartBrokerPlusBankWebsite = 'app.smartbrokerplus.de';
     const wikifolioWebsite = 'wikifolio.com';
     const justtradeWebsite = 'webtrading.justtrade.com';
+    const scalableWebsite = 'de.scalable.capital';
     
     /* --- Sync QX+ button ------------------------------------------------------
      * One button does everything: persist the depot, then fill in any missing
@@ -50,7 +53,7 @@ export default defineContentScript({
     };
 
     function syncLabel() {
-      const t = (k) => i18n.global.t(k);
+      const t = (k:any) => i18n.global.t(k);
       switch (syncState) {
         case 'saving':     return t('syncing');
         case 'fetching': return `${t('fetching_purchase_dates')}${syncDetail ? ' ' + syncDetail : ''}`;
@@ -95,16 +98,16 @@ export default defineContentScript({
       if (syncTitle) syncButton.title = syncTitle;
     }
 
-    function setSync(state, detail = '') {
+    function setSync(state:any, detail = '') {
       syncState = state;
       syncDetail = detail;
       renderSyncButton();
     }
 
-    function finishSync(state, detail = '') {
+    function finishSync(state:any, detail = '') {
       clearTimeout(syncResetTimer);
       setSync(state, detail);
-      syncResetTimer = setTimeout(() => setSync('idle'), state === 'done' ? 2000 : 4000);
+      syncResetTimer = ctx.setTimeout(() => setSync('idle'), state === 'done' ? 2000 : 4000);
     }
 
     async function runSync() {
@@ -122,14 +125,18 @@ export default defineContentScript({
 
       try {
         setSync('saving');
+        // One click walks the round users did by hand: Dashboard for cash, then "Alle" for every position.
+        if (await flatexOpenDashboard()) await flatexSaveDataToLocalStorage();
+        await flatexOpenDepotList();
         await flatexSaveDataToLocalStorage();
 
         setSync('fetching');
         result = await flatexRunSync({
-          // Cache-respecting: instant when known, and table-less positions aren't re-probed every press.
+          // Known dates stay instant; failed ones retry now, but only up to MAX_FAILED_ATTEMPTS.
+          retryFailed: true,
           allowInline: true,
           profile: 'interactive',
-          onProgress: ({ done, total }) => setSync('fetching', `${done + 1}/${total}`),
+          onProgress: ({ done, total }:any) => setSync('fetching', `${done + 1}/${total}`),
         });
 
         if (result.synced) {
@@ -143,10 +150,14 @@ export default defineContentScript({
         return finishSync('error');
       } finally {
         // An inline run re-rendered the table; nothing else will put the injected rows back.
-        await mainFlatex();
+        try { await mainFlatex(); } catch (err) { console.error('mainFlatex error:', err); }
       }
 
-      syncTitle = `synced ${result.synced} · failed ${result.failed} · remaining ${result.remaining} · mode ${result.mode}${result.reason ? ' · ' + result.reason : ''}`;
+      // Not awaited into the button state: the guide is optional and must not delay the result.
+      void tourSyncDone();
+      syncTitle = result.unavailable
+        ? i18n.global.t('purchase_date_unavailable', { count: result.unavailable, broker: 'Flatex' }, result.unavailable)
+        : `synced ${result.synced} · failed ${result.failed} · remaining ${result.remaining} · mode ${result.mode}${result.reason ? ' · ' + result.reason : ''}`;
 
       if (result.skipped === 'in_flight' || result.skipped === 'locked') return finishSync('busy');
       if (result.remaining > 0 || result.failed > 0) {
@@ -173,12 +184,20 @@ export default defineContentScript({
       await flatexUpdateCustomRowData();
     }
 
+    // ctx timers stop once the extension reloads; finally keeps one failed tick from ending the loop.
+    async function brokerLoop(name:string, tick:() => Promise<any>) {
+      try {
+        await tick();
+      } catch (err) {
+        console.error(`${name} error:`, err);
+      } finally {
+        ctx.setTimeout(() => { void brokerLoop(name, tick); }, updateDuration);
+      }
+    }
+
     async function mainSmartBrokerPlus() {
       console.log("mainSmartBrokerPlus")
-      
-
       await smartBrokerSaveDataToLocalStorage();
-      setTimeout(() => mainSmartBrokerPlus(), updateDuration);
     }
 
     async function mainWikiFolio() {
@@ -187,7 +206,6 @@ export default defineContentScript({
       addSyncButtonOnWikifolio();
 
       await mainWikiFolioSaveDataToLocalStorage();
-      setTimeout(() => mainWikiFolio(), updateDuration);
     }
 
 
@@ -204,55 +222,66 @@ export default defineContentScript({
     if (window.location.href.includes(flatexWebsite)) {
 
       if (!window.location.href.includes(kontoFlatexWebsite)) {
-        //reset
+        // Scoped to flatex: www.flatex.de only resets the flatex pending prompt, never other brokers'.
         await chrome.storage.local.set({ flatexUserSync: '' });
-        // Cleared a pending prompt for ANY broker just because the user opened www.flatex.de.
         return;
       }
 
       flatexAttachDebugHelpers();
 
-      mainFlatex();
-      setInterval(async () => {
+      // Not awaited: a failed repaint must not skip the save or stop the loop from starting.
+      const paintFlatex = () => { mainFlatex().catch((err) => console.error('mainFlatex error:', err)); };
+      paintFlatex();
+      void tourTick(ctx);
+      ctx.setInterval(async () => {
         // Inline sync swaps the list for detail views; scraping mid-run persists partial data.
         if (flatexSyncState.inlineInFlight) return;
-        mainFlatex();
-        await flatexSaveDataToLocalStorage();
-        // Debounced to ~10 min and iframe-only, so the page is never navigated unasked.
-        await flatexMaybeAutoSync();
+        paintFlatex();
+        try {
+          await flatexSaveDataToLocalStorage();
+          // After the save, so the step it checks reads this tick's data.
+          await tourTick(ctx);
+          // Debounced to ~10 min and iframe-only, so the page is never navigated unasked.
+          await flatexMaybeAutoSync();
+        } catch (err) {
+          console.error('flatex tick error:', err);
+        }
       }, updateDuration);
 
-      document.addEventListener('click', (e) => {
+      ctx.addEventListener(document, 'click', (e) => {
         // Untrusted = our synthetic clicks and webcore replays; mainFlatex() must not run mid-sync.
         if (flatexSyncState.inlineInFlight || !e.isTrusted) return;
         const target = (e.target as HTMLElement).closest('.BlockSelectionItem');
         if (target) {
           console.log('BlockSelectionItem toggled');
-          setTimeout(() => {
-            mainFlatex();
-          }, 1500);
+          ctx.setTimeout(paintFlatex, 1500);
         }
-      }, true);
+      }, { capture: true });
 
     } else if (window.location.href.includes(consorsBankWebsite)) {
-      mainConsorsBank();
-      setTimeout(() => mainConsorsBank(), updateDuration);
+      // A loop, not one retry: the SPA can reach the portfolio long after the first 10 s.
+      void brokerLoop('mainConsorsBank', mainConsorsBank);
       // Delegated: re-attaching to the select on every change stacked one extra mainConsorsBank() run per event.
-      document.addEventListener('change', (event) => {
+      ctx.addEventListener(document, 'change', (event) => {
         if (!(event.target as Element)?.matches?.('select[data-type="accountSelect"]')) return;
         console.log('consorsAccountSelect changed');
-        mainConsorsBank();
+        mainConsorsBank().catch((err) => console.error('mainConsorsBank error:', err));
       });
 
     } else if (window.location.href.includes(smartBrokerPlusBankWebsite)) {
-      mainSmartBrokerPlus();
+      void brokerLoop('mainSmartBrokerPlus', mainSmartBrokerPlus);
     } else if (window.location.href.includes(wikifolioWebsite)) {
-        addCustomRowHeaderWikifolio();
-        updateCustomRowDataWikifolio();
-        mainWikiFolio();
+      addCustomRowHeaderWikifolio();
+      updateCustomRowDataWikifolio().catch((err) => console.error('updateCustomRowDataWikifolio error:', err));
+      void brokerLoop('mainWikiFolio', mainWikiFolio);
     } else if (window.location.href.includes(justtradeWebsite)) {
-      mainJusttrade();
+      mainJusttrade().catch((err) => console.error('mainJusttrade error:', err));
+    } else if (window.location.href.includes(scalableWebsite)) {
+      void brokerLoop('mainScalable', mainScalable);
     }
-    
+
+    // flatex ticks its guide right after each save above; the other brokers save in their own loops.
+    if (!window.location.href.includes(flatexWebsite)) void brokerLoop('tourTick', () => tourTick(ctx));
+
   },
 });

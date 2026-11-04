@@ -51,7 +51,7 @@ describe('versionNextUpdate', () => {
     const info: any = await versionNextUpdate();
 
     expect(info.latest_version).toBe('2.11.0');
-    const url = new URL(String(spy.mock.calls[0][0]));
+    const url = new URL(String(spy.mock.calls[0]![0]));
     expect(url.pathname).toMatch(/\/extension\/version$/);
     expect(url.pathname).not.toContain('/feed/');
     expect(url.searchParams.get('current')).toBe('1.0.0');

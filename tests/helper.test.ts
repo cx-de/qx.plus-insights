@@ -8,7 +8,23 @@ import {
   getComparableUnderlyingPrice,
   formatMonthYear,
   formatDateToYMD,
+  currencyRateText,
 } from '@/utils/helper';
+
+describe('currencyRateText', () => {
+  it('hides a rate that prints as 1,0000', () => {
+    expect(currencyRateText(1)).toBe('');
+    expect(currencyRateText('0.99999')).toBe('');
+  });
+
+  it('shows a real FX rate', () => {
+    expect(currencyRateText('1.085')).toBe('1,0850');
+  });
+
+  it('stays blank without a rate', () => {
+    expect(currencyRateText(null)).toBe('');
+  });
+});
 
 describe('isCashRow', () => {
   it('matches every cash spelling the scrapers have emitted', () => {

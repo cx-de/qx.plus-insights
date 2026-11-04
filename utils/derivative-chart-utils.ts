@@ -441,7 +441,7 @@ export function renderDerivativeChart(svg: any, tip: any, DATA: any, C: any, L: 
       const yy = yC(p);
       if (!Number.isFinite(yy)) return;
       el('line', { x1: W - padR, x2: W - padR + 4, y1: yy, y2: yy, stroke: C.ask, 'stroke-width': 1.25 });
-      el('text', { x: axRX + 6, y: yy + 3, fill: C.ask, 'font-size': 14, 'text-anchor': 'start', 'font-family': FONT }).textContent = fC(p) + (inPct ? ' %' : '');
+      el('text', { x: axRX + 6, y: yy + 3, fill: C.ask, 'font-size': 14, 'text-anchor': 'start', 'font-family': FONT }).textContent = inPct ? `${f2(p)} %` : fC(p);
     });
   }
 

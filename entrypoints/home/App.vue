@@ -1,5 +1,6 @@
 <template>
   <Layout>
+    <SampleDataBanner />
     <RouterView />
 
     <!-- new account -->
@@ -25,7 +26,8 @@
       </AlertDialogContent>
     </AlertDialog>
 
-    <UpdateDialog :blocked="isNewAccount" />
+    <WelcomeDialog :blocked="isNewAccount || isUpdateShown" />
+    <UpdateDialog v-model:shown="isUpdateShown" :blocked="isNewAccount" />
   </Layout>
 
 </template>
@@ -33,6 +35,9 @@
 <script lang="ts" setup>
 import Layout from '@/components/Layout.vue';
 import UpdateDialog from '@/components/UpdateDialog.vue';
+import WelcomeDialog from '@/components/WelcomeDialog.vue';
+import SampleDataBanner from '@/components/SampleDataBanner.vue';
+import { resetAll } from '@/lib/storage-utils';
 import { todayIso } from "~/utils/helper";
 
 import { Button } from "@/components/ui/button"
@@ -40,6 +45,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 
 
 const isNewAccount = ref(false);
+const isUpdateShown = ref(false);
 // A plain `let` here was never reactive; the dialog only appeared to update because
 // the template re-read it when isNewAccount flipped.
 const pendingAccount = ref<any>(null);
@@ -94,6 +100,13 @@ const replaceNewAccount = async () => {
 
 const detectAccountChange = async () =>{
   const next = await accountNextPrompt();
+  // A real account met the sample's fake one: drop the sample so the real one is adopted as the first, unasked.
+  if (next && (await storage.getItem('local:SAMPLE_DATA'))) {
+    console.log('detectAccountChange: removing sample data for', next.broker);
+    await resetAll();
+    location.reload();
+    return;
+  }
   pendingAccount.value = next;
   isNewAccount.value = !!next;
   console.log('detectAccountChange pendingAccount:', next);
@@ -106,26 +119,28 @@ onMounted(async () => {
 
   await detectAccountChange();
 
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local') return;
-    if (changes.NEW_ACCOUNTS) {
-      console.log('appp mounted onChange NEW_ACCOUNTS:', changes.NEW_ACCOUNTS.newValue);
-      detectAccountChange();
-    }
-    // A content script adopting an account cannot bump the popup's module ref.
-    // Compare membership: scrapers rewrite this key on a last_seen touch too, and
-    // reloading every page for that would fight the 10s scrape tick.
-    if (changes.ACCOUNTS) {
-      const keyset = (rows:any) => (Array.isArray(rows) ? rows : [])
-        .map((r:any) => `${r.broker}::${r.account_id}`).sort().join('|');
-      if (keyset(changes.ACCOUNTS.oldValue) !== keyset(changes.ACCOUNTS.newValue)) {
-        console.log('appp mounted onChange ACCOUNTS');
-        accountsVersion.value++;
-      }
-    }
-  });
-
+  chrome.storage.onChanged.addListener(onStorageChanged);
 });
+
+// Named so unmount can remove it; an anonymous listener doubled on every HMR remount.
+function onStorageChanged(changes:any, areaName:string) {
+  if (areaName !== 'local') return;
+  if (changes.NEW_ACCOUNTS) {
+    console.log('appp mounted onChange NEW_ACCOUNTS:', changes.NEW_ACCOUNTS.newValue);
+    detectAccountChange();
+  }
+  // Membership, not equality: scrapers touch last_seen every 10 s, and a reload per touch would fight them.
+  if (changes.ACCOUNTS) {
+    const keyset = (rows:any) => (Array.isArray(rows) ? rows : [])
+      .map((r:any) => `${r.broker}::${r.account_id}`).sort().join('|');
+    if (keyset(changes.ACCOUNTS.oldValue) !== keyset(changes.ACCOUNTS.newValue)) {
+      console.log('appp mounted onChange ACCOUNTS');
+      accountsVersion.value++;
+    }
+  }
+}
+
+onUnmounted(() => chrome.storage.onChanged.removeListener(onStorageChanged));
 </script>
 
 <style scoped>

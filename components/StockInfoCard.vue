@@ -81,7 +81,7 @@
                               </span>
                             </template>
                             <template v-else-if="priceColumns.includes(column)">
-                              {{ info[column] ? numberToGerman(info[column]) : '' }}
+                              {{ info[column] ? numberToGerman(info[column], false, percentColumns.includes(column) ? 2 : undefined) : '' }}
                             </template>
                             <template v-else-if="column === 'type' ">
                               {{ info[column] ? $t(info[column]) : '' }}
@@ -211,6 +211,8 @@ const priceColumns = ref([
     'cap_strike',
     'implied_volatility',
 ]);
+const percentColumns = ['profit_loss_percentage', 'profit_loss_target_pa', 'position_percentage', 'position_target_percentage',
+  'sideways_return_pa', 'yield_pa_since_purchase', 'implied_volatility'];
 
 const VIEW_KEY = 'stock_info_card_view';
 const readStoredView = () => {
@@ -269,7 +271,7 @@ const chartLabels = computed(() => ({
   cap: t('dc_cap'), strike: t('dc_strike'), strikeFin: t('dc_strike_fin'), floor: t('dc_floor'),
   bonus: t('dc_bonus'), bonusEqCap: t('dc_bonus_eq_cap'), barrier: t('dc_barrier'), barrierHit: t('dc_barrier_hit'), knockOut: t('dc_knock_out'),
   koUpper: t('dc_ko_upper'), koLower: t('dc_ko_lower'), underlying: t('dc_underlying'),
-  ask: t('dc_ask'), bid: t('dc_bid'), spread: t('dc_spread'), discount: t('dc_discount'),
+  ask: t('ask'), bid: t('bid'), spread: t('dc_spread'), discount: t('dc_discount'),
   distCap: t('dc_dist_cap'), distBarrier: t('dc_dist_barrier'), distKoUpper: t('dc_dist_ko_upper'), distKoLower: t('dc_dist_ko_lower'),
   innerValue: t('dc_inner_value'), time_value: t('dc_time_value'), add_on: t('dc_add_on'), residualValue: t('dc_residual_value'),
   sideways: t('dc_sideways'), in: t('dc_in'), days: t('dc_days'), toggleSideways: t('dc_toggle_sideways'),
