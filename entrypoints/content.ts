@@ -132,7 +132,8 @@ export default defineContentScript({
 
         setSync('fetching');
         result = await flatexRunSync({
-          // Cache-respecting: instant when known, and table-less positions aren't re-probed every press.
+          // Known dates stay instant; failed ones retry now, but only up to MAX_FAILED_ATTEMPTS.
+          retryFailed: true,
           allowInline: true,
           profile: 'interactive',
           onProgress: ({ done, total }:any) => setSync('fetching', `${done + 1}/${total}`),
@@ -154,7 +155,9 @@ export default defineContentScript({
 
       // Not awaited into the button state: the guide is optional and must not delay the result.
       void tourSyncDone();
-      syncTitle = `synced ${result.synced} · failed ${result.failed} · remaining ${result.remaining} · mode ${result.mode}${result.reason ? ' · ' + result.reason : ''}`;
+      syncTitle = result.unavailable
+        ? i18n.global.t('purchase_date_unavailable', { count: result.unavailable, broker: 'Flatex' }, result.unavailable)
+        : `synced ${result.synced} · failed ${result.failed} · remaining ${result.remaining} · mode ${result.mode}${result.reason ? ' · ' + result.reason : ''}`;
 
       if (result.skipped === 'in_flight' || result.skipped === 'locked') return finishSync('busy');
       if (result.remaining > 0 || result.failed > 0) {

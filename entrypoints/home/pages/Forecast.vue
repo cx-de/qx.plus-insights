@@ -1351,6 +1351,17 @@ function scenarioTotalForDate(rows:any, scenario:any, date:any) {
   return total;
 }
 
+// Excluded rows stay at today's value in scenarios, so their target profit must leave the anchor too.
+function excludedForecastGrowth(rows:any, date:any) {
+  let total = 0;
+  for (const item of rows as any[]) {
+    if (item.total_value && excludedWkns.value.includes(item.wkn)) {
+      total += calculateTotalValueForDate(new Date(date), [item]) - item.total_value;
+    }
+  }
+  return total;
+}
+
 const chartPanels = ref<any[]>([]);
 const isLoading = ref(true);
 const chartKey = ref(0);
@@ -1520,7 +1531,8 @@ const recalculateDatapoints = async() => {
         // Scenario model differs from the forecast even at 0% (puts, cash), so only its delta vs 0% is added.
         const neutralScenario = { ...scenario, market: 0 };
         const anchoredData = adjustedData.map((value:any, i:any) =>
-          anchorBase[i] + value - scenarioTotalForDate(group.rows, neutralScenario, datesForForecast[i]));
+          anchorBase[i] + value - scenarioTotalForDate(group.rows, neutralScenario, datesForForecast[i])
+            - excludedForecastGrowth(group.rows, datesForForecast[i]));
         const formattedEndDate = end.toLocaleString('en-US', { month: 'short', year: 'numeric' });
         chartData.value.datasets.push({
           label: `${t('scenario')} ${index + 1} (${market > 0 ? '+' : ''}${formatChartNumber(market, 2)}%) ${t('until')} ${formattedEndDate}`,
@@ -2384,6 +2396,7 @@ const prepareForecastData = async () => {
         activeScenarios.map((scenario:any,index:any) => [
             scenarioHeaders[index].id, forecastValue + getScenarioItemFutureTotal(item, scenario, exportDate.value)
               - getScenarioItemFutureTotal(item, { ...scenario, market: 0 }, exportDate.value)
+              - excludedForecastGrowth([item], exportDay)
         ])
       );
 

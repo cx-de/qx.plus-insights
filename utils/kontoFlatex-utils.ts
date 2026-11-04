@@ -601,7 +601,9 @@ const RETRY_MS_BY_STATUS:any = {
 };
 
 // A dead position must not be re-clicked forever.
-const MAX_FAILED_ATTEMPTS = 3;
+const MAX_FAILED_ATTEMPTS = 2;
+// ...but giving up must not be forever either: a buy pressed twice before flatex booked it gets a weekly retry.
+const GAVE_UP_RETRY_MS = 7 * 24 * HOUR;
 
 const flatexDebugLog = (...args:any[]) => {
   try {
@@ -766,7 +768,9 @@ function flatexBuildPurchaseEntry(
 }
 
 // Records a failed attempt without discarding a previously good value.
-function flatexBuildFailedEntry(previousEntry:any, status:any, stocks_owned:any) {
+function flatexBuildFailedEntry(previousEntry:any, status:any, stocks_owned:any, countsAttempt = false) {
+  // A new quantity is a new position for the retry budget.
+  const previousAttempts = previousEntry?.stocks_owned === stocks_owned ? previousEntry.attempts || 0 : 0;
   return {
     purchase_date: null,
     dates: [],
@@ -775,26 +779,40 @@ function flatexBuildFailedEntry(previousEntry:any, status:any, stocks_owned:any)
     stocks_owned,
     fetched_at: new Date().toISOString(),
     status,
-    attempts: (previousEntry?.attempts || 0) + 1,
+    // Only button presses spend the budget: background runs before flatex books a buy (e.g. over a weekend) must not use it up.
+    attempts: previousAttempts + (countsAttempt ? 1 : 0),
   };
+}
+
+function flatexGaveUpExpired(cacheEntry:any) {
+  const fetchedAt = cacheEntry.fetched_at ? new Date(cacheEntry.fetched_at).getTime() : 0;
+  return !fetchedAt || Date.now() - fetchedAt > GAVE_UP_RETRY_MS;
+}
+
+function flatexPurchaseDateGaveUp(cacheEntry:any, stocks_owned:number) {
+  return !!cacheEntry && cacheEntry.status !== 'ok' && cacheEntry.stocks_owned === stocks_owned
+    && (cacheEntry.attempts || 0) >= MAX_FAILED_ATTEMPTS && !flatexGaveUpExpired(cacheEntry);
 }
 
 // Decides whether a position still needs syncing.
 function flatexNeedsPurchaseDate(
   cacheEntry:any,
   stocks_owned: number,
-  force = false
+  force = false,
+  retryFailed = false
 ) {
   if (!cacheEntry) return true;
 
-  if (cacheEntry.status === 'ok' && cacheEntry.purchase_date) {
-    // A Zukauf changes the newest date; quantity is the cheapest signal (a sell trips it too).
-    return cacheEntry.stocks_owned !== stocks_owned;
-  }
+  // A Zukauf changes the newest date; quantity is the cheapest signal (a sell trips it too).
+  if (cacheEntry.stocks_owned !== stocks_owned) return true;
+  if (cacheEntry.status === 'ok' && cacheEntry.purchase_date) return false;
 
   // Negative cache: bounded retries, with a per-status window.
   if (force) return true;
-  if ((cacheEntry.attempts || 0) >= MAX_FAILED_ATTEMPTS) return false;
+  // A failed retry rewrites fetched_at, so this allows one attempt per week, not one per run.
+  if ((cacheEntry.attempts || 0) >= MAX_FAILED_ATTEMPTS) return flatexGaveUpExpired(cacheEntry);
+  // A user press must not wait out the window: a fresh buy fails until flatex books it.
+  if (retryFailed) return true;
 
   const fetchedAt = cacheEntry.fetched_at ? new Date(cacheEntry.fetched_at).getTime() : 0;
   const retryAfter = RETRY_MS_BY_STATUS[cacheEntry.status] ?? 24 * HOUR;
@@ -1569,6 +1587,7 @@ async function flatexSyncPurchaseDates(
   const {
     ctx = { doc: document, win: window },
     force = false,
+    retryFailed = false,
     watchForUserClicks = isInline,
     profile = 'background',
     onProgress,
@@ -1592,7 +1611,7 @@ async function flatexSyncPurchaseDates(
 
   const cache = await flatexRefreshPurchaseDateCache();
   const rows = flatexGetPositionRows(ctx);
-  const pending = rows.filter((r:any) => flatexNeedsPurchaseDate(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned, force));
+  const pending = rows.filter((r:any) => flatexNeedsPurchaseDate(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned, force, retryFailed));
 
   // Fast path: this is what keeps the 10s interval cheap once everything is known.
   if (!pending.length) return { ...empty, skipped: 'nothing_to_do' };
@@ -1665,7 +1684,7 @@ async function flatexSyncPurchaseDates(
           // Table present but nothing parseable — a real failure, and attempts must climb.
           flatexSavePurchaseDateEntry(
             isin,
-            flatexBuildFailedEntry(cache[flatexPurchaseKey(isin, runAccountId)], 'no_table', current.stocks_owned),
+            flatexBuildFailedEntry(cache[flatexPurchaseKey(isin, runAccountId)], 'no_table', current.stocks_owned, retryFailed),
             runAccountId
           );
           perIsin[isin] = 'no_table';
@@ -1680,7 +1699,7 @@ async function flatexSyncPurchaseDates(
         }
         flatexSavePurchaseDateEntry(
           isin,
-          flatexBuildFailedEntry(cache[flatexPurchaseKey(isin, runAccountId)], status, current.stocks_owned),
+          flatexBuildFailedEntry(cache[flatexPurchaseKey(isin, runAccountId)], status, current.stocks_owned, retryFailed),
           runAccountId
         );
         perIsin[isin] = status;
@@ -1945,14 +1964,22 @@ export async function flatexRunSync(options:any = {}) {
   }
   flatexSyncState.starting = true;
   try {
-    return await flatexRunSyncOnce(options);
+    const result:any = await flatexRunSyncOnce(options);
+    const runAccountId = currentAccountId;
+    if (runAccountId) {
+      // Positions we gave up on: the button tells the user instead of failing silently.
+      const cache = await flatexRefreshPurchaseDateCache();
+      result.unavailable = flatexGetPositionRows({ doc: document, win: window }).filter((r:any) =>
+        flatexPurchaseDateGaveUp(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned)).length;
+    }
+    return result;
   } finally {
     flatexSyncState.starting = false;
   }
 }
 
 async function flatexRunSyncOnce(options:any) {
-  const { force = false, allowInline = false, profile = 'background', onProgress } = options;
+  const { force = false, retryFailed = false, allowInline = false, profile = 'background', onProgress } = options;
 
   // Same account guard as the sync run, here only to skip booting a frame for nothing.
   if (!currentAccountId) {
@@ -1967,7 +1994,7 @@ async function flatexRunSyncOnce(options:any) {
   // Check "anything to do?" before any frame work — this used to boot the whole iframe first.
   const cache = await flatexRefreshPurchaseDateCache();
   const pendingNow = flatexGetPositionRows({ doc: document, win: window }).filter((r:any) =>
-    flatexNeedsPurchaseDate(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned, force)
+    flatexNeedsPurchaseDate(cache[flatexPurchaseKey(r.isin, runAccountId)], r.stocks_owned, force, retryFailed)
   );
   if (!pendingNow.length) {
     return { mode: 'inline', synced: 0, failed: 0, remaining: 0, aborted: false, skipped: 'nothing_to_do' };
@@ -1983,6 +2010,7 @@ async function flatexRunSyncOnce(options:any) {
         result = await flatexSyncPurchaseDates({
           ctx: frame.ctx,
           force,
+          retryFailed,
           profile,
           // Nobody is clicking inside an off-screen frame.
           watchForUserClicks: false,
@@ -2027,6 +2055,7 @@ async function flatexRunSyncOnce(options:any) {
   flatexDebugLog('falling back to inline syncing on the visible page');
   const result = await flatexSyncPurchaseDates({
     force,
+    retryFailed,
     profile,
     watchForUserClicks: true,
     onProgress,
