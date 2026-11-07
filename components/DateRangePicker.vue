@@ -108,7 +108,7 @@ function pagingFunc(date: DateValue, sign: -1 | 1) {
         <DateRangePickerTrigger asChild>
             <Button variant="outline" class="w-full justify-start text-left font-normal pr-8">
             <div class="flex items-center space-x-2 overflow-hidden">
-                <Calendar class="h-4 w-4 text-gray-500" />
+                <Calendar class="h-4 w-4 text-muted-foreground" />
                 <span v-if="startDate && !endDate">{{ formatDate(startDate) }} - ...</span>
                 <span v-else-if="startDate && endDate">{{ formatDate(startDate) }} - {{ formatDate(endDate) }}</span>
                 <span v-else>{{ props.placeholder }}</span>
@@ -116,11 +116,13 @@ function pagingFunc(date: DateValue, sign: -1 | 1) {
             </Button>
         </DateRangePickerTrigger>
 
-        <!-- Clear Icon OUTSIDE the PopoverTrigger -->
-        <X v-if="startDate || endDate"
-            class="absolute right-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground hover:text-foreground cursor-pointer"
-            @click.stop.prevent="clearDateRange"
-        />
+        <!-- Outside the PopoverTrigger, so clearing does not open the popover; a real button for keyboard users -->
+        <Button v-if="startDate || endDate" type="button" variant="ghost" size="icon"
+            class="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 text-muted-foreground"
+            :aria-label="$t('date_picker.clear')" :title="$t('date_picker.clear')"
+            @click.stop.prevent="clearDateRange">
+            <X aria-hidden="true" />
+        </Button>
     </div>
 
     <DateRangePickerContent class="rounded-lg border bg-popover p-3 text-popover-foreground shadow-md z-100">
@@ -130,23 +132,23 @@ function pagingFunc(date: DateValue, sign: -1 | 1) {
             
             <!-- Go back 1 year -->
             <DateRangePickerPrev :prev-page="(date: DateValue) => pagingFunc(date, -1)"
-                class="h-7 w-7 rounded hover:opacity-100">
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring" :aria-label="$t('date_picker.prev_year')">
                 <ChevronsLeft class="h-4 w-4" />
             </DateRangePickerPrev>
 
-            <DateRangePickerPrev class="h-7 w-7 rounded hover:opacity-100">
+            <DateRangePickerPrev class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring" :aria-label="$t('date_picker.prev_month')">
               <ChevronLeft class="h-4 w-4" />
             </DateRangePickerPrev>
             
             <DateRangePickerHeading class="text-sm font-medium" />
           
-            <DateRangePickerNext class="h-7 w-7 rounded hover:opacity-100">
-                <ChevronRight icon="radix-icons:chevron-right" class="h-4 w-4" />
+            <DateRangePickerNext class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring" :aria-label="$t('date_picker.next_month')">
+                <ChevronRight class="h-4 w-4" />
             </DateRangePickerNext>
             
             <!-- Go next 1 year -->
             <DateRangePickerNext :next-page="(date: DateValue) => pagingFunc(date, 1)"
-                class="h-7 w-7 rounded hover:opacity-100">
+                class="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring" :aria-label="$t('date_picker.next_year')">
                 <ChevronsRight  class="h-4 w-4" />
             </DateRangePickerNext>
 
@@ -184,7 +186,7 @@ function pagingFunc(date: DateValue, sign: -1 | 1) {
                   <DateRangePickerCellTrigger
                     :day="weekDate"
                     :month="month.value"
-                    class="relative flex h-9 w-9 items-center justify-center rounded-md p-0 text-sm ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2 data-selected:bg-primary data-selected:text-primary-foreground data-today:before:bg-primary data-outside-view:text-muted-foreground/50 data-disabled:text-muted-foreground/50 data-unavailable:pointer-events-none data-unavailable:text-destructive/30 data-unavailable:line-through before:absolute before:bottom-1 before:h-1 before:w-1 before:rounded-full"
+                    class="relative flex h-9 w-9 items-center justify-center rounded-md p-0 text-sm ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 data-selected:bg-primary data-selected:text-primary-foreground data-today:before:bg-primary data-outside-view:text-muted-foreground/50 data-disabled:text-muted-foreground/50 data-unavailable:pointer-events-none data-unavailable:text-destructive/30 data-unavailable:line-through before:absolute before:bottom-1 before:h-1 before:w-1 before:rounded-full"
                   />
                 </DateRangePickerCell>
               </DateRangePickerGridRow>

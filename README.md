@@ -22,7 +22,7 @@ npm test
 
 The build output lands in `.output/`. The API and portal URLs are constants in `utils/constants.ts`.
 
-`examples/sample_backup.json` is a backup with made-up demo data. It is the only copy: the welcome dialog bundles it through a `?url` import ("Show me the sample"), and every GitHub release attaches it next to the zips. You can also import it under Settings → Backup to try the dashboard without a broker account.
+`examples/sample_backup.json` is a backup with made-up demo data. It is the only copy: the setup guide dialog bundles it through a `?url` import ("Show me the sample"), and every GitHub release attaches it next to the zips. You can also import it under Settings → Backup to try the dashboard without a broker account.
 
 ## Third-party data and libraries
 

@@ -34,7 +34,7 @@ export default defineBackground(() => {
 
   browser.runtime.onInstalled.addListener(async ({ reason }) => {
     if (reason === 'update') return versionAfterUpdate();
-    // New installs only: the dashboard's welcome dialog takes it from there.
+    // New installs only: the dashboard's setup guide dialog takes it from there.
     if (reason !== 'install') return;
     await browser.tabs.create({ url: browser.runtime.getURL("/home.html") });
   });

@@ -13,49 +13,45 @@
       <h3 class="text-sm font-semibold text-foreground">{{ $t('no_movers_yet') }}</h3>
       <p class="mt-1 max-w-xs text-xs text-muted-foreground">{{ $t('movers_will_appear_after_snapshots') }}</p>
       <Button @click="emit('reload')" :disabled="loading" size="sm" variant="outline" class="mt-3">
-        <RefreshCcw class="h-3.5 w-3.5 mr-2" :class="{ 'animate-spin opacity-50': loading }" />
+        <RefreshCcw class="motion-reduce:animate-none" :class="{ 'animate-spin opacity-50': loading }" />
         {{ loading ? $t('loading') : $t('reload') }}
       </Button>
     </div>
   </div>
 
-  <!-- Fixed column widths overflowed narrow cards; scroll instead of clipping the change column -->
+  <!-- One grid for header and rows: columns line up without fixed pixel widths; ISIN drops out below sm -->
+  <!-- scroll wrapper: on a narrow card the auto number columns cannot shrink further -->
   <div v-else class="overflow-x-auto">
-    <div class="flex items-center gap-6 px-1.5 pb-1 text-xs text-muted-foreground whitespace-nowrap min-w-max">
-      <span class="flex-1 min-w-[120px]">{{ $t('stock_name') }}</span>
-      <span class="w-[100px] text-right">{{ $t('isin') }}</span>
-      <span class="w-[100px] text-right">{{ $t('current_value') }}</span>
-      <span class="w-[100px] text-right">{{ $t('change') }}</span>
-      <span class="w-[90px] text-right">{{ $t('change') }} %</span>
+  <div class="movers-table text-sm">
+    <div class="movers-row px-1.5 pb-1 text-xs text-muted-foreground whitespace-nowrap">
+      <span class="min-w-0">{{ $t('stock_name') }}</span>
+      <span class="max-sm:hidden">{{ $t('isin') }}</span>
+      <span class="text-right">{{ $t('current_value') }}</span>
+      <span class="text-right">{{ $t('change') }}</span>
+      <span class="text-right">{{ $t('change') }} %</span>
     </div>
-    <ul class="min-w-max">
+    <ul class="m-0 p-0 list-none">
       <!-- Index key: separate-accounts mode can list one ISIN twice, and both total rows lack one -->
       <li v-for="(item, index) in items" :key="index"
-        class="flex items-center border-b last:border-none p-1.5 whitespace-nowrap"
-        :class="item.isTotal ? 'bg-muted rounded-lg mt-2 font-semibold' : 'bg-card'">
-        <div class="flex items-center w-full gap-6">
-          <p class="flex-1 min-w-[120px] font-medium truncate" :class="item.isTotal ? 'text-muted-foreground' : 'text-foreground'">
-            {{ item.name }}
-          </p>
-          <p class="w-[100px] font-medium text-foreground truncate text-right">
-            <a v-if="isinLink && item.isin" :href="linkFor(item.isin)" target="_blank" rel="noopener noreferrer"
-              class="rounded-sm text-blue-600 dark:text-blue-400 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
-              {{ item.isin }}
-            </a>
-            <span v-else>{{ item.isin }}</span>
-          </p>
-          <p class="w-[100px] text-sm text-muted-foreground text-right truncate tabular-nums">
-            {{ numberToGerman(item.currentValue) }}
-          </p>
-          <p class="w-[100px] font-semibold text-right truncate tabular-nums" :class="toneClass">
-            {{ sign }}{{ numberToGerman(item.change) }}
-          </p>
-          <p class="w-[90px] font-semibold text-right truncate tabular-nums" :class="toneClass">
-            {{ sign }}{{ numberToGerman(item.changePercent, false, 2) }}%
-          </p>
-        </div>
+        class="movers-row items-center border-b last:border-none p-1.5 tabular-nums whitespace-nowrap"
+        :class="item.isTotal ? 'bg-muted rounded-md mt-2 font-semibold' : ''">
+        <span class="min-w-0 truncate font-medium" :class="item.isTotal ? 'text-muted-foreground' : 'text-foreground'"
+          :title="item.name">
+          {{ item.name }}
+        </span>
+        <span class="max-sm:hidden truncate">
+          <a v-if="isinLink && item.isin" :href="linkFor(item.isin)" target="_blank" rel="noopener noreferrer"
+            class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+            {{ item.isin }}
+          </a>
+          <span v-else class="text-muted-foreground">{{ item.isin }}</span>
+        </span>
+        <span class="text-right">{{ numberToGerman(item.currentValue) }}</span>
+        <span class="text-right font-semibold" :class="toneClass">{{ sign }}{{ numberToGerman(item.change) }}</span>
+        <span class="text-right font-semibold" :class="toneClass">{{ sign }}{{ numberToGerman(item.changePercent, false, 2) }}</span>
       </li>
     </ul>
+  </div>
   </div>
 </template>
 
@@ -76,11 +72,28 @@ const props = defineProps<{
 
 const emit = defineEmits(['reload']);
 
-const toneClass = computed(() => props.tone === 'gain' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400');
+const toneClass = computed(() => props.tone === 'gain' ? 'text-success' : 'text-destructive');
 const sign = computed(() => props.tone === 'gain' ? '+' : '');
 </script>
 
 <style scoped>
+/* Header and rows share the outer grid's tracks through subgrid, so auto widths still line up row to row */
+.movers-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(3, auto);
+  column-gap: 1rem;
+}
+/* 40rem, not 640px: must flip with max-sm:hidden on the ISIN cells at any root font size */
+@media (min-width: 40rem) {
+  .movers-table { grid-template-columns: minmax(0, 1fr) repeat(4, auto); }
+}
+.movers-table > ul,
+.movers-row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+}
+
 /* ghosted rows keep the panel's shape visible instead of leaving a white void */
 .movers-empty {
   position: relative;

@@ -224,7 +224,7 @@ export async function importAll(file: File) {
     await storage.removeItem('local:ACCOUNTS_SCHEMA');
   }
 
-  // Sample file from Settings or the welcome dialog alike: a real login must not save rows under its fake account ids.
+  // Sample file from Settings or the setup guide dialog alike: a real login must not save rows under its fake account ids.
   if (isSample) await accountClearCurrentIds();
 
   return { valid: true, summary: backupSummary(entries) };

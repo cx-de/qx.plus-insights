@@ -1,9 +1,11 @@
 <template>
   <div>
-    <div class="mx-auto grid flex-1 auto-rows-max gap-4">
-      <div class="w-full overflow-auto shadow-lg rounded-lg">
-      
-        <Card class="border-0 shadow-none rounded-lg block w-full p-6 pt-3 bg-card text-card-foreground transition-all">
+    <h1 class="sr-only">{{ $t('list') }}</h1>
+    <!-- grid-cols-1 (minmax(0,1fr)): an auto column grows to the wide table and scrolls the page -->
+    <div class="mx-auto grid grid-cols-1 flex-1 auto-rows-max gap-4">
+      <div class="w-full min-w-0">
+
+        <Card class="block w-full min-w-0 p-4 sm:p-5">
           <!-- Card p-6 + CardHeader p-6 + toolbar p-2 stacked ~60px above the filter row. -->
           <CardHeader class="pt-0 pb-0">
             <div class="flex flex-wrap items-center justify-start gap-5 mb-2">
@@ -12,9 +14,9 @@
                 
                 <!-- one row, labels sr-only: the stacked label/field layout ate ~180px above the table -->
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border bg-muted/60 px-3 py-2">
-                  <span class="inline-flex h-7 items-center rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground">
+                  <Badge class="h-7 px-3">
                     {{ Object.keys(rowSelection).length }} {{ $t('selected') }}
-                  </span>
+                  </Badge>
 
                   <div class="hidden h-6 w-px bg-border sm:block" aria-hidden="true"></div>
 
@@ -57,7 +59,7 @@
 
                   <Button size="sm" variant="ghost" class="h-8" :class="{ 'sm:ml-auto': Object.keys(rowSelection).length > 1 || isCashRow(currentRow) }"
                     @click="rowSelection = {}">
-                    <X class="mr-1 h-4 w-4" />
+                    <X />
                     {{ $t('clear_selection') }}
                   </Button>
                 </div>
@@ -81,9 +83,9 @@
                 <CombineSwitch :rows="accountViewFilter(mainListData)" @change="onCombineChange()" />
 
                 <!-- Cached rows are already on screen, so say they are about to change. -->
-                <span v-if="isRefreshing && !isLoading"
+                <span v-if="isRefreshing && !isLoading" role="status"
                   class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <RefreshCcw class="h-3.5 w-3.5 animate-spin" />
+                  <RefreshCcw class="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
                   {{ $t('fetching_latest_data') }}
                 </span>
                 </div>
@@ -93,9 +95,9 @@
                 
                 <DropdownMenu @update:open="onColumnMenuOpen">
                   <DropdownMenuTrigger as-child>
-                      <Button variant="outline" class="flex items-center">
-                        <ListFilter class="h-3.5 w-3.5" />
-                        <span class="sm:whitespace-nowrap ml-2">
+                      <Button variant="outline">
+                        <ListFilter />
+                        <span class="sm:whitespace-nowrap">
                           {{ $t('view') }}
                         </span>
                       </Button>
@@ -123,7 +125,7 @@
                             <Button size="icon" variant="ghost" class="h-7 w-7 shrink-0"
                               :class="stickyColumns.includes(colId)
                                 ? 'text-primary'
-                                : 'text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100'"
+                                : 'text-muted-foreground opacity-40 group-hover:opacity-100 focus-visible:opacity-100'"
                               :disabled="!columnOrder.includes(colId)"
                               :title="$t(stickyColumns.includes(colId) ? 'unpin_column' : 'pin_column')"
                               :aria-label="$t(stickyColumns.includes(colId) ? 'unpin_column' : 'pin_column')"
@@ -145,8 +147,8 @@
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
                     <Button variant="outline">
-                      <Download class="h-3.5 w-3.5" />
-                      <span class="sm:whitespace-nowrap ml-2">
+                      <Download />
+                      <span class="sm:whitespace-nowrap">
                         {{ $t('export') }}
                       </span>
                     </Button>
@@ -170,17 +172,17 @@
                 <Button @click="reloadPriceData(true)" variant="outline" 
                   class="flex items-center" :disabled="isPriceLoading">
                   <!-- Not disabled while refreshing: a click must reach reloadPriceData to get the "already running" toast. -->
-                  <RefreshCcw class="h-3.5 w-3.5"
+                  <RefreshCcw class="motion-reduce:animate-none"
                     :class="{ 'animate-spin opacity-50': isPriceLoading || isRefreshing }"  />
-                  <span class="sm:whitespace-nowrap ml-2">
+                  <span class="sm:whitespace-nowrap">
                     {{ isPriceLoading ? $t('loading') : $t('reload') }}
                   </span>
                 </Button>
 
                 <Button @click="isOpenAlertList=true" variant="outline" 
                   class="flex items-center">
-                  <AlarmClockPlus class="h-3.5 w-3.5" />
-                  <span class="sm:whitespace-nowrap ml-2">
+                  <AlarmClockPlus />
+                  <span class="sm:whitespace-nowrap">
                     {{ $t('alerts') }}
                   </span>
                 </Button>
@@ -213,7 +215,8 @@
                                 header.column.getIsSorted() ? 'bg-accent text-accent-foreground' : '',
                                 !nonDraggableColumns.includes(header.column.id) ? 'cursor-move drag-handle' : '',
                                 cellClass(header.column.id, 'z-20')
-                              ]" :style="stickyStyle(header.column.id)" :data-col="header.column.id" draggable="true">
+                              ]" :style="stickyStyle(header.column.id)" :data-col="header.column.id" draggable="true"
+                              :aria-sort="header.column.getIsSorted() === 'asc' ? 'ascending' : header.column.getIsSorted() === 'desc' ? 'descending' : undefined">
                               <div :class="{'w-80': header.id === 'stock_name',}">
                                 <FlexRender
                                   v-if="!header.isPlaceholder"
@@ -247,7 +250,7 @@
                                       <Button @click="askConfirm($t('confirm_remove_group'), () => removeGroup(row.original.id))"
                                         class="mr-2 h-8 w-8" size="icon" variant="ghost"
                                         :title="$t('delete_group')" :aria-label="$t('delete_group')">
-                                        <Trash class="h-4 w-4 text-red-600 dark:text-red-400" />
+                                        <Trash class="h-4 w-4 text-destructive" />
                                       </Button>
                                     </template>
 
@@ -344,15 +347,15 @@
                                   <!-- Combined rows are display-only; per-account inputs and alerts live on the split view. -->
                                   <template v-else-if="row.original.isCombined && cell.column.id === 'stock_name'">
                                     {{ row.original.stock_name }}
-                                    <span class="ml-1 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-100 whitespace-nowrap">
+                                    <Badge variant="secondary" class="ml-1 font-normal">
                                       {{ $t('accounts_selected', { count: row.original.combined_count }) }}
-                                    </span>
+                                    </Badge>
                                   </template>
                                   <template v-else-if="row.original.isCombined && ['select', 'notes', 'position_target_percentage', 'actions'].includes(cell.column.id)">&nbsp;</template>
 
                                   <template v-else-if="cell.column.id === 'isin'">
                                     <a v-if="isinLink" :href="formattedISINLink(row.original.isin)" target="_blank"
-                                        class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                        class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                         <StockInfoCard :wkn="row.original.isin" 
                                           :info="row.original" 
                                           :columns="columnOrder" />
@@ -366,7 +369,7 @@
 
                                   <template v-else-if="cell.column.id === 'wkn'">
                                     <a v-if="wknLink" :href="formattedWKNLink(row.original.wkn)" target="_blank"
-                                        class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                        class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                       <StockInfoCard :wkn="row.original.wkn" 
                                         :info="row.original" 
                                         :columns="columnOrder" />
@@ -505,7 +508,7 @@
                                   <template v-else-if="cell.column.id === 'underlying_isin'">
                                     <template v-if="row.original.underlying_isin">
                                       <a v-if="isinLink" :href="formattedISINLink(row.original.underlying_isin)" target="_blank"
-                                          class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                          class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                           <StockInfoCard :wkn="row.original.underlying_isin" 
                                             :info="row.original" :columns="columnOrder" />
                                       </a>
@@ -595,7 +598,7 @@
                                   <Button @click="removeItemFromGroup(row.original.id,item.original.id)" class="mr-2 h-8 w-8"
                                     size="icon" variant="ghost"
                                     :title="$t('delete_from_group')" :aria-label="$t('delete_from_group')">
-                                    <X class="h-4 w-4 text-red-600 dark:text-red-400" />
+                                    <X class="h-4 w-4 text-destructive" />
                                   </Button>
                                 </template>
 
@@ -617,7 +620,7 @@
 
                                 <!-- v-else-if: a plain v-if restarted the chain, so the select cell also fell through to FlexRender -->
                                 <template v-else-if="column.id === 'isin'">
-                                  <a v-if="isinLink" :href="formattedISINLink(item.original.isin)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                  <a v-if="isinLink" :href="formattedISINLink(item.original.isin)" target="_blank" class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                     <StockInfoCard :wkn="item.original.isin" 
                                       :info="item.original"  :columns="columnOrder" />
                                   </a>
@@ -628,7 +631,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'wkn'">
-                                  <a v-if="wknLink" :href="formattedWKNLink(item.original.wkn)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                  <a v-if="wknLink" :href="formattedWKNLink(item.original.wkn)" target="_blank" class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                     <StockInfoCard :wkn="item.original.wkn"
                                       :info="item.original" :columns="columnOrder" />
                                   </a>
@@ -640,7 +643,7 @@
 
                                 <template v-else-if="column.id === 'underlying_isin'">
                                   <template v-if="item.original.underlying_isin">
-                                    <a v-if="isinLink" :href="formattedISINLink(item.original.underlying_isin)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                    <a v-if="isinLink" :href="formattedISINLink(item.original.underlying_isin)" target="_blank" class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                       <StockInfoCard :wkn="item.original.underlying_isin" 
                                         :info="item.original" :columns="columnOrder" />
                                     </a>
@@ -875,7 +878,7 @@
           <DialogContent class="max-w-2xl">
             <div class="space-y-6">
               <DialogHeader>
-                <DialogTitle class="text-xl font-semibold">
+                <DialogTitle>
                   {{ selectedItem?.stock_name }}
                 </DialogTitle>
               </DialogHeader>
@@ -887,7 +890,7 @@
                 <Input id="alert_name" v-model="alertForm.alert_name"  
                   :placeholder="$t('alert_name')" class="w-full" />
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- Field -->
                 <div class="flex flex-col">
                   <Label for="field" class="mb-1">
@@ -937,7 +940,7 @@
               </div>
               
       
-              <DialogFooter class="mt-6">
+              <DialogFooter>
                 <Button variant="outline" @click="closeModal">
                   {{  $t('cancel') }}
                 </Button>
@@ -961,14 +964,14 @@
           <DialogContent class="max-w-5xl">
             <div class="space-y-6 ">
               <DialogHeader>
-                <DialogTitle class="text-xl font-semibold">
+                <DialogTitle>
                   {{ $t('alerts') }}
                 </DialogTitle>
               </DialogHeader>
               
               <div class="max-w-full overflow-x-auto">
                 <div class="min-w-[720px] max-h-[60vh] overflow-y-auto rounded-md border">
-                  <Table>
+                  <Table class="alerts-table">
                     <TableHeader>
                       <TableRow class="bg-muted sticky top-0 z-10">
                         <TableHead>{{ $t('alert_name') }}</TableHead>
@@ -999,7 +1002,7 @@
                           </Button>
                           <Button @click="confirmDeleteAlert(alert.id)" variant="ghost" size="icon" class="h-8 w-8"
                             :aria-label="$t('delete')" :title="$t('delete')">
-                            <Trash class="w-4 h-4 text-red-600 dark:text-red-400" />
+                            <Trash class="w-4 h-4 text-destructive" />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -1021,11 +1024,11 @@
 
          <!-- final alert dialog -->
          <Dialog v-model:open="alertDialog">
-          <DialogContent class="max-w-sm text-center">
+          <DialogContent class="max-w-sm">
             <DialogHeader>
               <DialogTitle>{{ $t('alert_triggered') }}</DialogTitle>
             </DialogHeader>
-            <div class="py-4 text-left" v-if="triggeredAlert">
+            <div class="space-y-1 py-2 text-sm" v-if="triggeredAlert">
               <p><strong>{{ $t('alert_name') }}</strong>: {{ triggeredAlert.alertName }}</p>
               <p v-if="triggeredAlert.contextKey === 'stock_name'"><strong>{{ $t('stock_name') }}</strong>: {{ triggeredAlert.stockName }}</p>
               <p v-else-if="triggeredAlert.contextKey === 'group_name'"><strong>{{ $t('group_name') }}</strong>: {{ triggeredAlert.stockName }}</p>
@@ -1046,7 +1049,7 @@
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>{{ $t('cancel') }}</AlertDialogCancel>
-              <AlertDialogAction class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="runConfirm()">
+              <AlertDialogAction :class="buttonVariants({ variant: 'destructive' })" @click="runConfirm()">
                 {{ $t('delete') }}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -1097,7 +1100,8 @@ import {
 
 import { valueUpdater } from '~/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -1397,6 +1401,7 @@ const allColumns:any = {
         getSortingHeader(column, "broker"),
         h(DataTableFacetedFilter, {
           column,
+          title: t("broker"),
           options: brokerOptions.value.map(item => ({
             label: item, value: item,
           })),
@@ -1417,6 +1422,7 @@ const allColumns:any = {
         getSortingHeader(column, "type"),
         h(DataTableFacetedFilter, {
           column,
+          title: t("type"),
           options: typeOptions.value.map(type => ({
             label: t(type), value: type,
           })),
@@ -1434,6 +1440,7 @@ const allColumns:any = {
         getSortingHeader(column, "stocks_owned"),
         h(DataTableFacetedFilter, {
           column,
+          title: t("stocks_owned"),
           options: [{ label: t('hide_zero_stocks_owned'), value: 'hideZero' }],
         }),
       ]),
@@ -1456,6 +1463,7 @@ const allColumns:any = {
         getSortingHeader(column, "issuer"),
         h(DataTableFacetedFilter, {
           column,
+          title: t("issuer"),
           options: issuerOptions.value.map(item => ({
             label: item, value: item,
           })),
@@ -2876,7 +2884,7 @@ function getClassForAlert(field:any, row:any) {
   const classes:any[] = [];
   if (topColor) classes.push('alert_top', topColor);
   if (bottomColor) classes.push('alert_bottom', bottomColor);
-  if (matchingAlerts.length > 1) classes.push('alert_bg','bg-green-200');
+  if (matchingAlerts.length > 1) classes.push('alert_bg','bg-success/20');
 
   return classes.join(' ');
 }
@@ -3356,15 +3364,15 @@ th,td {
 .high{
   display: block;
   padding: 6px;
-  border-left: 2px solid #059669;
-  border-right: 2px solid #059669;
+  border-left: 2px solid hsl(var(--success));
+  border-right: 2px solid hsl(var(--success));
 }
 
 .low{
   display: block;
   padding: 6px;
-  border-left: 2px solid #e11d48;
-  border-right: 2px solid #e11d48;
+  border-left: 2px solid hsl(var(--destructive));
+  border-right: 2px solid hsl(var(--destructive));
 }
 
 td:has(.high),
@@ -3397,17 +3405,17 @@ td:has(.alert_bottom) {
 }
 
 .border-top-red {
-  border-top-color: red !important;
+  border-top-color: hsl(var(--destructive)) !important;
 }
 .border-top-green {
-  border-top-color: green !important;
+  border-top-color: hsl(var(--success)) !important;
 }
 .border-bottom-red {
-  border-bottom-color: red !important;
+  border-bottom-color: hsl(var(--destructive)) !important;
 }
 
 .border-bottom-green {
-  border-bottom-color: green !important;
+  border-bottom-color: hsl(var(--success)) !important;
 }
 
 
@@ -3415,8 +3423,13 @@ td:has(.alert_bottom) {
   transition: color 0.5s ease, background-color 0.5s ease;
 }
 
-.up {  background-color: #00915a; }
-.down {  background-color: #e4200e; }
+/* tints, not solid fills, so dark cell text stays readable during the flash */
+.up {  background-color: hsl(var(--success) / 0.25); }
+.down {  background-color: hsl(var(--destructive) / 0.25); }
+
+/* the main table's right-aligned th,td rule above also reaches this dialog's text columns */
+.alerts-table th,
+.alerts-table td { text-align: left; }
 
 .sticky_column {
   position: sticky;
@@ -3436,22 +3449,22 @@ td:has(.alert_bottom) {
   box-shadow: inset 0 -1px 0 hsl(var(--foreground) / 0.15), inset -1px 0 0 hsl(var(--foreground) / 0.15), 6px 0 8px -4px rgb(0 0 0 / 0.12);
 }
 
-/* solid indigo band + closing rule: pale tints read as just another zebra stripe */
+/* solid navy band + closing rule: a pale tint reads as another zebra stripe; hue of --chart-1 */
 :global(:root) {
-  --grp-bg: #4f46e5; --grp-bg-hover: #4338ca; --grp-fg: #ffffff; --grp-danger: #fecaca;
-  --grp-child-bg: #e0e7ff; --grp-child-bg-hover: #c7d2fe; --grp-child-fg: #1e1b4b; --grp-child-bar: #4f46e5; --grp-child-line: #c7d2fe;
+  --grp-bg: #1e3a5f; --grp-bg-hover: #172e4b; --grp-fg: #ffffff; --grp-danger: #fecaca;
+  --grp-child-bg: #e3ebf5; --grp-child-bg-hover: #d0deee; --grp-child-fg: #0f1f33; --grp-child-bar: #1e3a5f; --grp-child-line: #c9d7e8;
 }
 /* vars, not :global(.dark) rules: the scoped [data-v] attribute out-ranked those and dark mode kept the light tints */
 :global(.dark) {
-  --grp-bg: #4338ca; --grp-bg-hover: #3730a3; --grp-fg: #ffffff; --grp-danger: #fca5a5;
-  --grp-child-bg: #1e1b4b; --grp-child-bg-hover: #272463; --grp-child-fg: #e0e7ff; --grp-child-bar: #818cf8; --grp-child-line: #312e81;
+  --grp-bg: #2c4a70; --grp-bg-hover: #253f60; --grp-fg: #ffffff; --grp-danger: #fca5a5;
+  --grp-child-bg: #14223a; --grp-child-bg-hover: #1b2c48; --grp-child-fg: #dbe6f3; --grp-child-bar: #7096c8; --grp-child-line: #233652;
 }
 .group-row,
 .group-row > td { background-color: var(--grp-bg) !important; color: var(--grp-fg); font-weight: 700; }
 .group-row:hover,
 .group-row:hover > td { background-color: var(--grp-bg-hover) !important; }
-/* red-600 trash icon disappears on the indigo band */
-.group-row .text-red-600 { color: var(--grp-danger) !important; }
+/* the destructive trash icon disappears on the navy band */
+.group-row .text-destructive { color: var(--grp-danger) !important; }
 /* ghost hover's pale accent swallowed the light icons; :not keeps the rename Save button primary */
 .group-row button:not(.bg-primary):hover { background-color: rgb(255 255 255 / 0.15) !important; color: inherit !important; }
 

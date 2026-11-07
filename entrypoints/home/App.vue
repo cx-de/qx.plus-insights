@@ -19,14 +19,16 @@
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
+          <!-- Destructive Replace sits apart on the left, away from the primary Add -->
+          <Button variant="outline" class="border-destructive/50 text-destructive hover:bg-destructive/10 hover:text-destructive sm:mr-auto"
+            @click="replaceNewAccount()">{{ $t('account_switch.replace_account') }}</Button>
           <AlertDialogCancel @click="cancelAccountSwitch()">{{ $t('cancel') }}</AlertDialogCancel>
-          <Button variant="destructive" @click="replaceNewAccount()">{{ $t('account_switch.replace_account') }}</Button>
           <AlertDialogAction @click="addNewAccount()">{{ $t('account_switch.add_account') }}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
 
-    <WelcomeDialog :blocked="isNewAccount || isUpdateShown" />
+    <SetupGuideDialog :blocked="isNewAccount || isUpdateShown" />
     <UpdateDialog v-model:shown="isUpdateShown" :blocked="isNewAccount" />
   </Layout>
 
@@ -35,7 +37,7 @@
 <script lang="ts" setup>
 import Layout from '@/components/Layout.vue';
 import UpdateDialog from '@/components/UpdateDialog.vue';
-import WelcomeDialog from '@/components/WelcomeDialog.vue';
+import SetupGuideDialog from '@/components/SetupGuideDialog.vue';
 import SampleDataBanner from '@/components/SampleDataBanner.vue';
 import { todayIso } from "~/utils/helper";
 

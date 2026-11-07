@@ -1,8 +1,8 @@
 <template>
   <div v-if="accounts.length > 1" class="flex items-center gap-2">
     <template v-if="!compact">
-      <Filter class="h-4 w-4 text-zinc-500" />
-      <Label class="text-sm font-medium text-zinc-600">{{ $t('account') }}:</Label>
+      <Filter class="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+      <Label class="text-sm font-medium text-muted-foreground">{{ $t('account') }}:</Label>
     </template>
     <DropdownMenu>
       <DropdownMenuTrigger as-child>

@@ -36,7 +36,7 @@
     <Dialog v-model:open="isOpen">
       <!-- Screenshot beside the form on wide screens so Send never drops below the fold; without one, a plain narrow form. -->
       <DialogContent :class="['flex max-h-[92vh] flex-col gap-0 p-0', showShot && !reference ? 'max-w-6xl' : 'max-w-lg']" data-support-ignore
-        @open-auto-focus.prevent="messageRef?.focus()">
+        @open-auto-focus.prevent="messageRef?.$el?.focus()">
         <DialogHeader class="shrink-0 border-b px-6 py-4">
           <DialogTitle class="flex items-center gap-2"><LifeBuoy class="h-5 w-5" />{{ $t('support') }}</DialogTitle>
           <!-- Kept for screen readers after sending; visually it would still promise a screenshot that is already sent. -->
@@ -44,14 +44,14 @@
         </DialogHeader>
 
         <div v-if="reference" class="flex flex-col items-center gap-4 px-6 pb-6 pt-8 text-center">
-          <CircleCheck class="h-10 w-10 text-green-600" aria-hidden="true" />
+          <CircleCheck class="h-10 w-10 text-success" aria-hidden="true" />
           <p class="text-sm" role="status">{{ $t('support_sent') }}</p>
           <div class="flex items-center gap-1 rounded-md border bg-muted/40 py-1 pl-3 pr-1">
             <span class="font-mono text-lg font-semibold tracking-wide">{{ reference }}</span>
             <button type="button" :class="[iconButton, 'text-muted-foreground hover:bg-accent hover:text-foreground']"
               :title="$t(referenceCopied ? 'support_copied' : 'support_copy_reference')" :aria-label="$t(referenceCopied ? 'support_copied' : 'support_copy_reference')"
               @click="copyReference">
-              <Check v-if="referenceCopied" class="h-4 w-4 text-green-600" /><Copy v-else class="h-4 w-4" />
+              <Check v-if="referenceCopied" class="h-4 w-4 text-success" /><Copy v-else class="h-4 w-4" />
             </button>
           </div>
           <p class="max-w-sm text-balance text-xs text-muted-foreground">{{ $t('support_reference_hint') }}</p>
@@ -94,13 +94,13 @@
             <p class="text-xs text-muted-foreground">{{ $t('support_annotate_hint') }}</p>
           </section>
 
-          <section class="flex min-h-0 flex-col" :class="showShot && 'border-t md:border-l md:border-t-0'">
+          <!-- Form first below md, so Send is not pushed below a tall screenshot on a phone -->
+          <section class="flex min-h-0 flex-col max-md:order-first" :class="showShot && 'max-md:border-b md:border-l'">
             <div class="grid flex-1 content-start gap-4 p-4 md:overflow-y-auto md:p-6">
               <div class="grid gap-1.5">
-                <label class="text-sm font-medium" for="support-message">{{ $t('support_message') }}</label>
-                <textarea id="support-message" ref="messageRef" v-model="message" rows="7" maxlength="5000"
-                  :placeholder="$t('support_message_placeholder')"
-                  class="flex w-full resize-y rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs placeholder:text-muted-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring" />
+                <Label for="support-message">{{ $t('support_message') }}</Label>
+                <Textarea id="support-message" ref="messageRef" v-model="message" rows="7" maxlength="5000"
+                  :placeholder="$t('support_message_placeholder')" class="resize-y" />
                 <p v-if="errors.message" class="text-xs text-destructive">{{ errors.message }}</p>
                 <p v-else-if="charsNeeded" class="text-xs text-muted-foreground">{{ $t('support_chars_needed', { n: charsNeeded }) }}</p>
                 <p v-if="errors.screenshot" class="text-xs text-destructive">{{ errors.screenshot }}</p>
@@ -108,12 +108,12 @@
 
               <template v-if="askContact">
                 <div class="grid gap-1.5">
-                  <label class="text-sm font-medium" for="support-name">{{ $t('support_name') }}</label>
+                  <Label for="support-name">{{ $t('support_name') }}</Label>
                   <Input id="support-name" v-model="name" maxlength="100" autocomplete="name" :placeholder="$t('support_name_placeholder')" />
                   <p v-if="errors.name" class="text-xs text-destructive">{{ errors.name }}</p>
                 </div>
                 <div class="grid gap-1.5">
-                  <label class="text-sm font-medium" for="support-email">{{ $t('support_email') }}</label>
+                  <Label for="support-email">{{ $t('support_email') }}</Label>
                   <Input id="support-email" v-model="email" type="email" maxlength="255" autocomplete="email" :placeholder="$t('support_email_placeholder')" />
                   <p v-if="errors.email" class="text-xs text-destructive">{{ errors.email }}</p>
                 </div>
@@ -163,6 +163,8 @@ import { useI18n } from 'vue-i18n';
 import { domToCanvas } from 'modern-screenshot';
 import { Camera, Check, CircleCheck, Copy, Eraser, EyeOff, Highlighter, LifeBuoy, Loader2, MoveUpRight, Pencil, Send, Square, Type, Undo2 } from 'lucide-vue-next';
 import { Button } from '~/components/ui/button';
+import { Label } from '~/components/ui/label';
+import { Textarea } from '~/components/ui/textarea';
 import { Input } from '~/components/ui/input';
 import { Switch } from '~/components/ui/switch';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog';
@@ -206,7 +208,8 @@ const tool = ref('pen');
 const color = ref(colors[0]);
 const pendingText = ref<any>(null);
 const textInputRef = ref<HTMLInputElement | null>(null);
-const messageRef = ref<HTMLTextAreaElement | null>(null);
+// Component instance; its root element is the <textarea>.
+const messageRef = ref<any>(null);
 const strokes = ref<any[]>([]);
 const name = ref('');
 const email = ref('');

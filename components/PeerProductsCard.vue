@@ -2,25 +2,23 @@
   <HoverCard v-if="peer_members" :openDelay="100" :closeDelay="closeDelayTime">
     <HoverCardTrigger as-child>
       <span class="cursor-pointer" @mouseenter="getPeersPriceData">
-        <span class="underline">{{ peer_members.length>0 ? peer_members.filter(item => item !== wkn).join(',') : '' }}</span>
-        <span v-if="activeSwitch" :title="switchHint"
-          class="ml-1 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-800 dark:bg-green-900 dark:text-green-100 whitespace-nowrap">
+        <span class="underline underline-offset-4 decoration-muted-foreground/50 hover:decoration-foreground">{{ peer_members.length>0 ? peer_members.filter(item => item !== wkn).join(',') : '' }}</span>
+        <Badge v-if="activeSwitch" variant="success" :title="switchHint" class="ml-1 font-medium tabular-nums">
           → {{ activeSwitch.wkn }} +{{ numberToGerman(switchTotal, false, 2) }} €
-        </span>
+        </Badge>
       </span>
     </HoverCardTrigger>
     
     <HoverCardContent class="w-max max-w-[90vw] h-[250px] overflow-y-auto p-4
-      border shadow-lg rounded-md 
-      bg-white/90 dark:bg-gray-900/90 text-sm 
-      text-gray-900 dark:text-gray-100">
+      text-sm">
       
       <div class="space-between flex items-center">
         <div class="ml-auto mr-4">
           <DropdownMenu>
             <DropdownMenuTrigger as-child>
-              <Button @click="getPeerProductData" variant="outline" class="ml-auto">
-                <CirclePlus class="h-4 w-4" />
+              <Button @click="getPeerProductData" variant="outline" size="icon" class="ml-auto"
+                :aria-label="$t('view')" :title="$t('view')">
+                <CirclePlus />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -44,7 +42,7 @@
       <TableHeader>
         <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
           <TableHead v-for="header in headerGroup.headers" :key="header.id" 
-            class="h-auto px-0 bg-gray-600 text-white">
+            class="h-auto px-0 bg-muted text-foreground">
             <FlexRender v-if="!header.isPlaceholder"
               :render="header.column.columnDef.header" 
               :props="header.getContext()" />
@@ -55,8 +53,8 @@
         <template v-if="table.getRowModel().rows?.length">
           <template v-for="row in table.getRowModel().rows" :key="row.id">
             <TableRow :data-state="row.getIsSelected() && 'selected'"
-              :class="{'font-bold bg-gray-400!': wkn === row.original.wkn,
-                'font-bold bg-green-200! dark:bg-green-900!': activeSwitch?.wkn === row.original.wkn}"
+              :class="{'font-bold bg-accent!': wkn === row.original.wkn,
+                'font-bold bg-success/15!': activeSwitch?.wkn === row.original.wkn}"
               :title="activeSwitch?.wkn === row.original.wkn ? switchHint : undefined">
               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
                 <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
@@ -123,6 +121,7 @@ import { computed, h, ref } from 'vue'
 import { useNow } from '@vueuse/core'
 import { valueUpdater } from '~/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {useI18n} from "vue-i18n";
 
 const { t } = useI18n();
@@ -177,7 +176,7 @@ const getPeersPriceData = async () => {
     }
 };
 
-const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label), 'hover:bg-gray-300 hover:text-black');
+const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label), 'hover:bg-accent hover:text-accent-foreground');
 
 const columns = [
   {

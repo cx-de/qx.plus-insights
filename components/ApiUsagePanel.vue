@@ -1,6 +1,5 @@
 <template>
   <!-- Daily meter mirrors the portal's billing usage block (quexportal pages/billing.vue) so both read the same -->
-  <!-- text-red-*, not text-destructive: the dark --destructive is too dim to read on the dark card -->
   <!-- shadow-none: it sits inside the page card, a second shadow made it float above the form -->
   <Card class="shadow-none">
     <CardHeader class="pb-3">
@@ -17,7 +16,7 @@
       >
         <div
           class="mb-3 flex h-10 w-10 items-center justify-center rounded-full"
-          :class="emptyState.alert ? 'bg-destructive/10 text-red-600 dark:text-red-400' : 'bg-muted text-muted-foreground'"
+          :class="emptyState.alert ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'"
         >
           <component :is="emptyState.icon" class="h-5 w-5" aria-hidden="true" />
         </div>
@@ -57,10 +56,10 @@
         <div class="flex h-6 items-center justify-between gap-3">
           <span class="text-sm font-medium">{{ $t('settings_page.usage_today_label') }}</span>
           <!-- Calls outside service hours are rejected, so say whether they work right now -->
-          <span v-if="serviceStatus" class="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
-            <span class="h-1.5 w-1.5 rounded-full" :class="serviceStatus.open ? 'bg-emerald-500' : 'bg-muted-foreground'" aria-hidden="true"></span>
+          <Badge v-if="serviceStatus" variant="outline" class="gap-1.5 font-normal text-muted-foreground">
+            <span class="h-1.5 w-1.5 rounded-full" :class="serviceStatus.open ? 'bg-success' : 'bg-muted-foreground'" aria-hidden="true"></span>
             {{ serviceStatus.label }}
-          </span>
+          </Badge>
         </div>
         <!-- Headline is what's left: the number a user acts on, same as the portal billing card -->
         <p class="mb-2 mt-1 flex h-7 items-baseline gap-2">
@@ -89,7 +88,7 @@
 
         <div
           v-if="dailyRemaining <= 0"
-          class="mt-3 rounded-lg border px-3 py-2 border-destructive/30 bg-destructive/10 text-red-600 dark:text-red-400"
+          class="mt-3 rounded-lg border px-3 py-2 border-destructive/30 bg-destructive/10 text-destructive"
           role="alert"
         >
           <p class="text-sm font-medium">{{ $t('settings_page.usage_limit_reached_title') }}</p>
@@ -139,6 +138,7 @@
 </template>
 
 <script lang="ts" setup>
+import { Badge } from '@/components/ui/badge'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { RefreshCw, KeyRound, WifiOff, Clock, CreditCard, Lock, ExternalLink } from 'lucide-vue-next';
@@ -220,7 +220,7 @@ const toneBar = (percent: number) =>
   percent >= 100 ? 'bg-destructive' : percent >= 80 ? 'bg-warning' : 'bg-primary';
 
 const toneText = (percent: number) =>
-  percent >= 100 ? 'text-red-600 dark:text-red-400' : percent >= 80 ? 'text-warning' : '';
+  percent >= 100 ? 'text-destructive' : percent >= 80 ? 'text-warning' : '';
 
 const dailyRemaining = computed(() => {
   const d = usage.value?.today;

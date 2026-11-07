@@ -21,6 +21,7 @@
       <AlertDialogFooter>
         <AlertDialogCancel v-if="!info?.force" @click="later()">{{ $t('update_dialog.later') }}</AlertDialogCancel>
         <Button :disabled="updating" @click="updateNow()">
+          <Loader2 v-if="updating" class="animate-spin motion-reduce:animate-none" aria-hidden="true" />
           {{ info?.ready ? $t('update_dialog.restart_now') : $t('update_dialog.update_now') }}
         </Button>
       </AlertDialogFooter>
@@ -31,12 +32,13 @@
 <script lang="ts" setup>
 import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-vue-next';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { versionHoldUpdate, versionNextUpdate, versionSnooze, versionUpdateNow } from '~/utils/version-utils';
 
 // Held back while another dialog (the account switch) needs an answer first.
 const props = defineProps<{ blocked?: boolean }>();
-// Lets App hold the welcome dialog back: a forced update must never wait behind onboarding.
+// Lets App hold the setup guide dialog back: a forced update must never wait behind onboarding.
 const shown = defineModel<boolean>('shown', { default: false });
 
 const { locale } = useI18n();
