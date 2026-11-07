@@ -834,7 +834,7 @@ export const flatexSyncState:any = {
 };
 
 function cellText(row:any, selector:any) {
-  return (row.querySelector(selector)?.textContent || '').replace(/ /g, ' ').trim();
+  return (row.querySelector(selector)?.textContent || '').replace(/\u00a0/g, ' ').trim();
 }
 
 // Auto-translate wraps labels in <font>, and the label may be German or the viewer's language.

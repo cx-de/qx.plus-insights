@@ -29,6 +29,8 @@ export default defineContentScript({
     const wikifolioWebsite = 'wikifolio.com';
     const justtradeWebsite = 'webtrading.justtrade.com';
     const scalableWebsite = 'de.scalable.capital';
+    const host = window.location.hostname;
+    const onHost = (domain: string) => host === domain || host.endsWith('.' + domain);
     
     /* --- Sync QX+ button ------------------------------------------------------
      * One button does everything: persist the depot, then fill in any missing
@@ -219,9 +221,9 @@ export default defineContentScript({
     // Stamps account_id onto pre-2.8 data before any scraper writes; no-op after the first run.
     await accountMigrate();
 
-    if (window.location.href.includes(flatexWebsite)) {
+    if (onHost(flatexWebsite)) {
 
-      if (!window.location.href.includes(kontoFlatexWebsite)) {
+      if (!onHost(kontoFlatexWebsite)) {
         // Scoped to flatex: www.flatex.de only resets the flatex pending prompt, never other brokers'.
         await chrome.storage.local.set({ flatexUserSync: '' });
         return;
@@ -258,7 +260,7 @@ export default defineContentScript({
         }
       }, { capture: true });
 
-    } else if (window.location.href.includes(consorsBankWebsite)) {
+    } else if (onHost(consorsBankWebsite)) {
       // A loop, not one retry: the SPA can reach the portfolio long after the first 10 s.
       void brokerLoop('mainConsorsBank', mainConsorsBank);
       // Delegated: re-attaching to the select on every change stacked one extra mainConsorsBank() run per event.
@@ -268,20 +270,20 @@ export default defineContentScript({
         mainConsorsBank().catch((err) => console.error('mainConsorsBank error:', err));
       });
 
-    } else if (window.location.href.includes(smartBrokerPlusBankWebsite)) {
+    } else if (onHost(smartBrokerPlusBankWebsite)) {
       void brokerLoop('mainSmartBrokerPlus', mainSmartBrokerPlus);
-    } else if (window.location.href.includes(wikifolioWebsite)) {
+    } else if (onHost(wikifolioWebsite)) {
       addCustomRowHeaderWikifolio();
       updateCustomRowDataWikifolio().catch((err) => console.error('updateCustomRowDataWikifolio error:', err));
       void brokerLoop('mainWikiFolio', mainWikiFolio);
-    } else if (window.location.href.includes(justtradeWebsite)) {
+    } else if (onHost(justtradeWebsite)) {
       mainJusttrade().catch((err) => console.error('mainJusttrade error:', err));
-    } else if (window.location.href.includes(scalableWebsite)) {
+    } else if (onHost(scalableWebsite)) {
       void brokerLoop('mainScalable', mainScalable);
     }
 
     // flatex ticks its guide right after each save above; the other brokers save in their own loops.
-    if (!window.location.href.includes(flatexWebsite)) void brokerLoop('tourTick', () => tourTick(ctx));
+    if (!onHost(flatexWebsite)) void brokerLoop('tourTick', () => tourTick(ctx));
 
   },
 });
