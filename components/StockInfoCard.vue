@@ -68,7 +68,7 @@
                           <td class="dc-k">{{ $t(column) }}</td>
                           <td class="dc-v">
                             <template v-if="column === 'underlying_price'">
-                              {{ info[column] ? numberToGerman(getComparableUnderlyingPrice(info)) : '' }}
+                              {{ info[column] ? numberToGerman(getComparableUnderlyingPrice(info), false, 4) : '' }}
                             </template>
                             <template v-else-if="column === 'wkn' || column === 'isin'">
                               <span class="inline-flex items-center gap-1">
@@ -81,7 +81,7 @@
                               </span>
                             </template>
                             <template v-else-if="priceColumns.includes(column)">
-                              {{ info[column] ? numberToGerman(info[column], false, percentColumns.includes(column) ? 2 : undefined) : '' }}
+                              {{ info[column] ? (['buy_price', 'bid', 'ask'].includes(column) ? unitPriceToGerman(info[column], info.type) : numberToGerman(info[column])) : '' }}
                             </template>
                             <template v-else-if="column === 'type' ">
                               {{ info[column] ? $t(info[column]) : '' }}
@@ -152,7 +152,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 
-import { numberToGerman, formatTimestamp, getComparableUnderlyingPrice } from '~/utils/helper';
+import { numberToGerman, unitPriceToGerman, formatTimestamp, getComparableUnderlyingPrice } from '~/utils/helper';
 import { buildDerivativeData, renderDerivativeChart } from '~/utils/derivative-chart-utils';
 import { Copy, Check } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n';
@@ -211,8 +211,6 @@ const priceColumns = ref([
     'cap_strike',
     'implied_volatility',
 ]);
-const percentColumns = ['profit_loss_percentage', 'profit_loss_target_pa', 'position_percentage', 'position_target_percentage',
-  'sideways_return_pa', 'yield_pa_since_purchase', 'implied_volatility'];
 
 const VIEW_KEY = 'stock_info_card_view';
 const readStoredView = () => {

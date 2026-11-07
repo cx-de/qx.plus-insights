@@ -77,6 +77,15 @@ describe('accountDetect', () => {
     expect(pending.map((p: any) => p.account_id)).toEqual(['B']);
   });
 
+  it('skips detection while sample data is loaded', async () => {
+    await accountDetect('flatex', 'A');
+    await storage.setItem('local:SAMPLE_DATA', true);
+    const before = await storage.getItem('local:ACCOUNTS');
+    expect(await accountDetect('flatex', 'B')).toBeNull();
+    expect(await storage.getItem('local:NEW_ACCOUNTS')).toBeNull();
+    expect(await storage.getItem('local:ACCOUNTS')).toEqual(before);
+  });
+
   it('folds Consors depot ids into the real customer id and adds their history', async () => {
     const broker = 'Consorsbank';
     await storage.setItem('local:ACCOUNTS', [

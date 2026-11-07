@@ -36,7 +36,7 @@ const settlementKind = (v: any) => {
   if (!s) return '';
   if (s.includes('phys') || s.includes('lieferung')) return 'physical';
   if (s.includes('cash') || s.includes('bar')) return 'cash';
-  return (v || '').toString().trim();
+  return '';
 };
 
 const daysBetween = (a: string, b: string) => Math.round((new Date(`${b}T00:00:00`).getTime() - new Date(`${a}T00:00:00`).getTime()) / DAY_MS);

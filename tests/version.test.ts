@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { storage } from '#imports';
-import { versionNextUpdate, versionSnooze, versionIsStoreUrl, versionUpdateNow } from '@/utils/version-utils';
+import { versionNextUpdate, versionSnooze, versionUpdateNow, versionApplyUpdate, versionAfterUpdate, versionOnConnect, versionHoldUpdate, versionReopenDashboard, versionRetryUpdate } from '@/utils/version-utils';
 
 const NOW = new Date('2026-10-12T12:00:00Z');
 const HOUR = 3_600_000;
@@ -117,8 +117,62 @@ describe('versionNextUpdate', () => {
   });
 });
 
+describe('versionNextUpdate offline', () => {
+  it('skips the request while the browser is offline', async () => {
+    vi.stubGlobal('navigator', { onLine: false });
+    const spy = stubFetch(async () => json(answer()));
+
+    expect(await versionNextUpdate()).toBeNull();
+    expect(spy).not.toHaveBeenCalled();
+    expect(console.error).not.toHaveBeenCalled();
+  });
+
+  it('backs off for 15 minutes after a failed request', async () => {
+    const spy = stubFetch(async () => { throw new TypeError('Failed to fetch'); });
+
+    expect(await versionNextUpdate()).toBeNull();
+    await versionNextUpdate();
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(console.error).not.toHaveBeenCalled();
+
+    vi.setSystemTime(NOW.getTime() + 16 * 60_000);
+    const ok = stubFetch(async () => json(answer()));
+    expect((await versionNextUpdate() as any)?.latest_version).toBe('2.11.0');
+    expect(ok).toHaveBeenCalledTimes(1);
+    expect(await storage.getItem('local:VERSION_CHECK_FAIL')).toBeNull();
+  });
+
+  it('announces a downloaded update as ready even without a server answer', async () => {
+    stubFetch(async () => { throw new TypeError('Failed to fetch'); });
+    await storage.setItem('local:UPDATE_READY', { version: '2.12.0' });
+
+    const info: any = await versionNextUpdate();
+    expect(info).toMatchObject({ latest_version: '2.12.0', current_version: '1.0.0', ready: true });
+  });
+
+  it('takes notes and force only from a server answer for the downloaded version', async () => {
+    stubFetch(async () => json(answer({ latest_version: '2.13.0', force: true })));
+    await storage.setItem('local:UPDATE_READY', { version: '2.12.0' });
+
+    const info: any = await versionNextUpdate();
+    expect(info).toMatchObject({ latest_version: '2.12.0', ready: true });
+    expect(info.force).toBeUndefined();
+    expect(info.notes).toBeUndefined();
+
+    await storage.removeItem('local:VERSION_CHECK');
+    stubFetch(async () => json(answer({ latest_version: '2.12.0', force: true })));
+    expect(await versionNextUpdate()).toMatchObject({ latest_version: '2.12.0', force: true, notes: { en: 'New' } });
+  });
+
+  it('ignores a ready marker for the version already installed', async () => {
+    stubFetch(async () => json(answer({ update_available: false })));
+    await storage.setItem('local:UPDATE_READY', { version: '1.0.0' });
+
+    expect(await versionNextUpdate()).toBeNull();
+  });
+});
+
 describe('versionUpdateNow', () => {
-  const STORE = 'https://chromewebstore.google.com/detail/abc';
   let reload: any;
   let createTab: any;
 
@@ -135,7 +189,7 @@ describe('versionUpdateNow', () => {
   it('reloads only once the update has downloaded', async () => {
     stubCheck(async () => ({ status: 'update_available' }));
 
-    const pending = versionUpdateNow(STORE);
+    const pending = versionUpdateNow();
     await vi.advanceTimersByTimeAsync(1_000);
     expect(reload).not.toHaveBeenCalled();
 
@@ -148,50 +202,206 @@ describe('versionUpdateNow', () => {
   it('reloads after the timeout when no download event comes', async () => {
     stubCheck(async () => ['update_available', { version: '2.11.0' }]);
 
-    const pending = versionUpdateNow(STORE);
+    const pending = versionUpdateNow();
     await vi.advanceTimersByTimeAsync(30_000);
 
     expect(await pending).toBe('reloading');
     expect(reload).toHaveBeenCalledTimes(1);
   });
 
-  it('opens the store page when the check never answers', async () => {
+  it('reports pending when the check never answers', async () => {
     stubCheck(() => new Promise(() => {}));
 
-    const pending = versionUpdateNow(STORE);
+    const pending = versionUpdateNow();
     await vi.advanceTimersByTimeAsync(10_000);
 
-    expect(await pending).toBe('store');
-    expect(createTab).toHaveBeenCalledWith({ url: STORE });
+    expect(await pending).toBe('pending');
+    expect(createTab).not.toHaveBeenCalled();
     expect(reload).not.toHaveBeenCalled();
   });
 
-  it('opens the store page when the store has no update yet', async () => {
-    stubCheck(async () => ({ status: 'no_update' }));
+  it.each([
+    [{ status: 'no_update' }],
+    [{ status: 'throttled' }],
+  ])('reports pending without opening the store for %o', async (status) => {
+    stubCheck(async () => status);
 
-    expect(await versionUpdateNow(STORE)).toBe('store');
-    expect(createTab).toHaveBeenCalledWith({ url: STORE });
+    expect(await versionUpdateNow()).toBe('pending');
+    expect(createTab).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
   });
 
-  it('reports unavailable without a store page to open', async () => {
-    stubCheck(async () => ({ status: 'throttled' }));
+  it('reports pending when update checks are unsupported', async () => {
+    stubCheck(async () => { throw new Error('not supported'); });
 
-    expect(await versionUpdateNow(null)).toBe('unavailable');
-    expect(createTab).not.toHaveBeenCalled();
+    expect(await versionUpdateNow()).toBe('pending');
+  });
+
+  it('restarts straight away when the update is already downloaded', async () => {
+    const check = vi.fn();
+    (browser.runtime as any).requestUpdateCheck = check;
+    await storage.setItem('local:UPDATE_READY', { version: '2.11.0' });
+
+    expect(await versionUpdateNow()).toBe('reloading');
+    expect(check).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(await storage.getItem('local:REOPEN_DASHBOARD')).toBe(true);
+  });
+});
+
+describe('versionApplyUpdate', () => {
+  let reload: any;
+
+  beforeEach(() => {
+    reload = vi.spyOn(browser.runtime, 'reload').mockImplementation(() => {});
+  });
+
+  it('reloads at once when no dashboard answers', async () => {
+    vi.spyOn(browser.runtime, 'sendMessage').mockRejectedValue(new Error('Receiving end does not exist.'));
+
+    expect(await versionApplyUpdate('2.11.0')).toBe('reloading');
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(await storage.getItem('local:UPDATE_READY')).toEqual({ version: '2.11.0' });
+  });
+
+  it('defers while a broker tab runs the content script', async () => {
+    vi.spyOn(browser.runtime, 'sendMessage').mockRejectedValue(new Error('Receiving end does not exist.'));
+    vi.spyOn(browser.tabs, 'query').mockResolvedValue([{ id: 1 }, { id: 2 }] as any);
+    const tabSend = vi.spyOn(browser.tabs, 'sendMessage').mockImplementation((async (id: number) => {
+      if (id === 2) return true;
+      throw new Error('Receiving end does not exist.');
+    }) as any);
+
+    expect(await versionApplyUpdate('2.11.0')).toBe('deferred');
+    expect(tabSend).toHaveBeenCalledWith(2, { type: 'qx:in-use' });
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('retries after a tab closes and installs once nothing is in use', async () => {
+    vi.spyOn(browser.runtime, 'sendMessage').mockRejectedValue(new Error('Receiving end does not exist.'));
+    const query = vi.spyOn(browser.tabs, 'query').mockResolvedValue([{ id: 2 }] as any);
+    vi.spyOn(browser.tabs, 'sendMessage').mockResolvedValue(true as any);
+    await versionApplyUpdate('2.11.0');
+    expect(reload).not.toHaveBeenCalled();
+
+    query.mockResolvedValue([] as any);
+    expect(await versionRetryUpdate()).toBe('reloading');
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries nothing without a downloaded update', async () => {
+    expect(await versionRetryUpdate()).toBeNull();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('leaves it to an open dashboard', async () => {
+    const send = vi.spyOn(browser.runtime, 'sendMessage').mockResolvedValue(true as any);
+
+    expect(await versionApplyUpdate('2.11.0')).toBe('deferred');
+    expect(send).toHaveBeenCalledWith({ type: 'qx:update-ready', version: '2.11.0' });
     expect(reload).not.toHaveBeenCalled();
   });
 });
 
-describe('versionIsStoreUrl', () => {
-  it.each([
-    ['https://chromewebstore.google.com/detail/abc', true],
-    ['https://addons.mozilla.org/firefox/addon/qx/', true],
-    ['https://microsoftedge.microsoft.com/addons/detail/abc', true],
-    ['http://addons.mozilla.org/firefox/addon/qx/', false],
-    ['https://evil.example/addons.mozilla.org', false],
-    ['javascript:alert(1)', false],
-    [null, false],
-  ])('%s -> %s', (url, expected) => {
-    expect(versionIsStoreUrl(url)).toBe(expected);
+describe('versionAfterUpdate', () => {
+  it('clears the ready marker', async () => {
+    await storage.setItem('local:UPDATE_READY', { version: '2.11.0' });
+
+    await versionAfterUpdate();
+
+    expect(await storage.getItem('local:UPDATE_READY')).toBeNull();
+  });
+});
+
+describe('versionReopenDashboard', () => {
+  it('reopens the dashboard once after a restart from it', async () => {
+    const createTab = vi.spyOn(browser.tabs, 'create').mockResolvedValue({} as any);
+    await storage.setItem('local:REOPEN_DASHBOARD', true);
+
+    await versionReopenDashboard();
+    await versionReopenDashboard();
+
+    expect(createTab).toHaveBeenCalledTimes(1);
+    expect(await storage.getItem('local:REOPEN_DASHBOARD')).toBeNull();
+  });
+
+  it('opens nothing on a normal startup', async () => {
+    const createTab = vi.spyOn(browser.tabs, 'create').mockResolvedValue({} as any);
+
+    await versionReopenDashboard();
+
+    expect(createTab).not.toHaveBeenCalled();
+  });
+});
+
+describe('versionOnConnect', () => {
+  const fakePort = (name = 'qx:update-hold') => {
+    const listeners: any[] = [];
+    return {
+      name,
+      onDisconnect: { addListener: (fn: any) => listeners.push(fn) },
+      close: () => Promise.all(listeners.map((fn) => fn())),
+    };
+  };
+  let reload: any;
+  let send: any;
+
+  beforeEach(() => {
+    reload = vi.spyOn(browser.runtime, 'reload').mockImplementation(() => {});
+    send = vi.spyOn(browser.runtime, 'sendMessage').mockRejectedValue(new Error('Receiving end does not exist.'));
+  });
+
+  it('installs the waiting update when the last holding dashboard closes', async () => {
+    await storage.setItem('local:UPDATE_READY', { version: '2.11.0' });
+    const first = fakePort();
+    const second = fakePort();
+    versionOnConnect(first);
+    versionOnConnect(second);
+
+    await first.close();
+    expect(reload).not.toHaveBeenCalled();
+
+    await second.close();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits when another dashboard still answers', async () => {
+    await storage.setItem('local:UPDATE_READY', { version: '2.11.0' });
+    send.mockResolvedValue(true as any);
+    const port = fakePort();
+    versionOnConnect(port);
+
+    await port.close();
+
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('does nothing without a waiting update or for other ports', async () => {
+    const port = fakePort();
+    versionOnConnect(port);
+    versionOnConnect(fakePort('other'));
+
+    await port.close();
+
+    expect(send).not.toHaveBeenCalled();
+    expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+describe('versionHoldUpdate', () => {
+  it('holds a port only while an update waits, and releases it', async () => {
+    const disconnect = vi.fn();
+    const connect = vi.spyOn(browser.runtime, 'connect').mockReturnValue({ onDisconnect: { addListener: () => {} }, disconnect } as any);
+
+    versionHoldUpdate();
+    await vi.waitFor(() => {});
+    expect(connect).not.toHaveBeenCalled();
+
+    await storage.setItem('local:UPDATE_READY', { version: '2.11.0' });
+    const release = versionHoldUpdate();
+    await vi.waitFor(() => expect(connect).toHaveBeenCalledWith({ name: 'qx:update-hold' }));
+
+    release();
+    expect(disconnect).toHaveBeenCalledTimes(1);
   });
 });

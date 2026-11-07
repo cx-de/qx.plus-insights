@@ -1,8 +1,12 @@
 <template>
   <HoverCard v-if="peer_members" :openDelay="100" :closeDelay="closeDelayTime">
     <HoverCardTrigger as-child>
-      <span class="cursor-pointer underline" @mouseenter="getPeersPriceData">
-        {{ peer_members.length>0 ? peer_members.filter(item => item !== wkn).join(',') : '' }}
+      <span class="cursor-pointer" @mouseenter="getPeersPriceData">
+        <span class="underline">{{ peer_members.length>0 ? peer_members.filter(item => item !== wkn).join(',') : '' }}</span>
+        <span v-if="activeSwitch" :title="switchHint"
+          class="ml-1 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-800 dark:bg-green-900 dark:text-green-100 whitespace-nowrap">
+          → {{ activeSwitch.wkn }} +{{ numberToGerman(switchTotal, false, 2) }} €
+        </span>
       </span>
     </HoverCardTrigger>
     
@@ -51,7 +55,9 @@
         <template v-if="table.getRowModel().rows?.length">
           <template v-for="row in table.getRowModel().rows" :key="row.id">
             <TableRow :data-state="row.getIsSelected() && 'selected'"
-              :class="{'font-bold bg-gray-400!': wkn === row.original.wkn}">
+              :class="{'font-bold bg-gray-400!': wkn === row.original.wkn,
+                'font-bold bg-green-200! dark:bg-green-900!': activeSwitch?.wkn === row.original.wkn}"
+              :title="activeSwitch?.wkn === row.original.wkn ? switchHint : undefined">
               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
                 <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
               </TableCell>
@@ -73,7 +79,7 @@
 <script setup lang="ts">
 
 import { storage } from '#imports';
-import { apiBaseUrl, apiKey, apiAuthFailed, isApiRateLimited, fetchFeed, numberToGerman, formatTimestamp, chunkArray, deepCloneReactiveData, todayIso } from '~/utils/helper';
+import { apiBaseUrl, apiKey, apiAuthFailed, isApiRateLimited, fetchFeed, isMarketClosed, numberToGerman, formatTimestamp, chunkArray, deepCloneReactiveData, todayIso } from '~/utils/helper';
 
 import {
   HoverCard,
@@ -113,7 +119,8 @@ import { sortableHeader } from '~/utils/table-utils';
 import { getPeerPrices } from '~/utils/price-data-utils';
 import { CirclePlus } from 'lucide-vue-next';
 
-import { h, ref } from 'vue'
+import { computed, h, ref } from 'vue'
+import { useNow } from '@vueuse/core'
 import { valueUpdater } from '~/lib/utils'
 import { Button } from '@/components/ui/button'
 import {useI18n} from "vue-i18n";
@@ -122,7 +129,30 @@ const { t } = useI18n();
 const props = defineProps<{
   wkn: string,
   peer_members: string[],
+  peer_switch?: { wkn: string, bid: number, ask: number, gainPerPiece: number, at?: string } | null,
+  stocks_owned?: number | string,
 }>()
+
+// Outside service hours the stored suggestion is the last session's prices, not a live offer.
+// useNow ticks the computed, so the badge goes away at 22:00 without a list refresh.
+const now = useNow({ interval: 60_000 });
+const activeSwitch = computed(() => (now.value, props.peer_switch && !isMarketClosed() ? props.peer_switch : null));
+// From the current quantity: a sync can change it between price intervals.
+const switchTotal = computed(() => (activeSwitch.value?.gainPerPiece || 0) * (Number(props.stocks_owned) || 0));
+
+const switchHint = computed(() => {
+  const s = activeSwitch.value;
+  if (!s) return '';
+  return t('peer_switch_hint', {
+    own: props.wkn,
+    bid: numberToGerman(s.bid, false, 2),
+    peer: s.wkn,
+    ask: numberToGerman(s.ask, false, 2),
+    gain: numberToGerman(s.gainPerPiece, false, 2),
+    total: numberToGerman(switchTotal.value, false, 2),
+    time: s.at ? new Date(s.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '-',
+  });
+});
 
 const isLoading = ref(true);
 const products = ref<any[]>([]);

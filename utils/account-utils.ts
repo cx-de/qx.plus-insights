@@ -6,6 +6,7 @@
     Public API is small on purpose: everything not consumed by another file is
     module-private, because WXT turns every export into a project-wide global.
 */
+import { ref } from 'vue';
 import { storage } from '#imports';
 
 const ACCOUNTS_KEY = 'local:ACCOUNTS';
@@ -538,6 +539,12 @@ async function accountDepositeNumbers(broker:any) {
 // while a prompt is pending - which is what keeps that broker's writes frozen.
 export async function accountDetect(broker:any, accountId:any, legacyId:any = undefined) {
   if (!accountId) return null;
+  // Demo accounts are fake: a real id must neither prompt against them nor join the registry.
+  // null freezes the save like a pending prompt; only a confirmed Sync click (contentSampleGate) clears the demo.
+  if (await storage.getItem('local:SAMPLE_DATA')) {
+    console.log('accountDetect: sample data loaded, skipping', broker);
+    return null;
+  }
   const accounts = await accountList();
 
   if (accounts.some((r:any) => r.broker === broker && r.account_id === accountId)) {

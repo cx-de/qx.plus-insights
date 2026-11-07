@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { storage } from '#imports';
-import { exportAll, importAll } from '@/lib/storage-utils';
+import { exportAll, importAll, storageClearKeepPrivate } from '@/lib/storage-utils';
+import { contentSampleGate } from '@/utils/contents-utils';
 
 // Node has no FileReader or DOM; importAll only needs readAsText, exportAll only a link to click.
 const backupFile = (data: any) => ({ text: JSON.stringify(data) }) as any;
@@ -140,11 +141,75 @@ describe('importAll', () => {
     expect(localStorage.getItem('columnOrder')).toBe('["stock_name"]');
   });
 
+  it('leaves an unset theme unset when the sample is imported, so the OS default applies', async () => {
+    localStorage.clear();
+    await importAll(backupFile({
+      extension: [{ key: 'local:SAMPLE_DATA', value: true }, { key: 'local:MAIN_LIST', value: [] }],
+      local: { theme: 'light' },
+    }));
+
+    expect(localStorage.getItem('theme')).toBeNull();
+  });
+
   it('drops link templates that are not web URLs', async () => {
     await importAll(backupFile({
       extension: [{ key: 'local:settings', value: { isin_link: 'javascript:alert(1)//$ISIN', wkn_link: 'https://ariva.de/$WKN' } }],
     }));
 
     expect(await storage.getItem('local:settings')).toEqual({ isin_link: '', wkn_link: 'https://ariva.de/$WKN' });
+  });
+});
+
+describe('storageClearKeepPrivate', () => {
+  it('drops portfolio and sample data but keeps credentials', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    await storage.setItems([
+      { key: 'local:SAMPLE_DATA', value: true },
+      { key: 'local:ACCOUNTS', value: [{ broker: 'Flatex', account_id: '90000001' }] },
+      { key: 'local:MAIN_LIST', value: [{ wkn: 'X' }] },
+      { key: 'local:api_key', value: 'qxp_test' },
+      { key: 'local:flatexProbedAccount', value: '123' },
+      { key: 'local:settings', value: { price_duration: 1, telegram_bot_token: 'bot', telegram_channel_id: 'chan' } },
+    ]);
+    await storageClearKeepPrivate();
+    expect(await storage.getItem('local:settings')).toEqual({ telegram_bot_token: 'bot', telegram_channel_id: 'chan' });
+    expect(await storage.getItem('local:SAMPLE_DATA')).toBeNull();
+    expect(await storage.getItem('local:ACCOUNTS')).toBeNull();
+    expect(await storage.getItem('local:MAIN_LIST')).toBeNull();
+    expect(await storage.getItem('local:api_key')).toBe('qxp_test');
+    expect(await storage.getItem('local:flatexProbedAccount')).toBe('123');
+  });
+});
+
+describe('contentSampleGate', () => {
+  const confirm = vi.fn();
+  beforeEach(() => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    (globalThis as any).window = { confirm };
+    confirm.mockReset();
+  });
+  afterEach(() => { delete (globalThis as any).window; });
+
+  it('passes without sample data and never asks', async () => {
+    expect(await contentSampleGate()).toBe('none');
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('keeps the demo when the user declines', async () => {
+    await storage.setItem('local:SAMPLE_DATA', true);
+    confirm.mockReturnValue(false);
+    expect(await contentSampleGate()).toBe('declined');
+    expect(await storage.getItem('local:SAMPLE_DATA')).toBe(true);
+  });
+
+  it('clears the demo when the user confirms', async () => {
+    await storage.setItems([
+      { key: 'local:SAMPLE_DATA', value: true },
+      { key: 'local:api_key', value: 'qxp_test' },
+    ]);
+    confirm.mockReturnValue(true);
+    expect(await contentSampleGate()).toBe('replaced');
+    expect(await storage.getItem('local:SAMPLE_DATA')).toBeNull();
+    expect(await storage.getItem('local:api_key')).toBe('qxp_test');
   });
 });

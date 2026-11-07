@@ -37,7 +37,6 @@ import Layout from '@/components/Layout.vue';
 import UpdateDialog from '@/components/UpdateDialog.vue';
 import WelcomeDialog from '@/components/WelcomeDialog.vue';
 import SampleDataBanner from '@/components/SampleDataBanner.vue';
-import { resetAll } from '@/lib/storage-utils';
 import { todayIso } from "~/utils/helper";
 
 import { Button } from "@/components/ui/button"
@@ -100,11 +99,11 @@ const replaceNewAccount = async () => {
 
 const detectAccountChange = async () =>{
   const next = await accountNextPrompt();
-  // A real account met the sample's fake one: drop the sample so the real one is adopted as the first, unasked.
+  // Never prompt against demo accounts, and never wipe the demo unasked: only a confirmed Sync click replaces it.
   if (next && (await storage.getItem('local:SAMPLE_DATA'))) {
-    console.log('detectAccountChange: removing sample data for', next.broker);
-    await resetAll();
-    location.reload();
+    console.log('detectAccountChange: sample data loaded, no prompt for', next.broker);
+    pendingAccount.value = null;
+    isNewAccount.value = false;
     return;
   }
   pendingAccount.value = next;

@@ -4,6 +4,10 @@ import '@/assets/tailwind.css';
 import App from './App.vue';
 import router from './router';
 import { i18n } from './i18n';
+import { applyTheme } from '~/utils/helper';
+
+// Before mount, so a dark theme does not flash light while Vue boots.
+applyTheme();
 
 const app = createApp(App);
 

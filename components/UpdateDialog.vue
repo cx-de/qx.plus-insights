@@ -9,10 +9,9 @@
           <span v-if="info?.force" class="mt-2 block font-medium text-destructive">
             {{ $t('update_dialog.force_text') }}
           </span>
-          <span v-if="updating" class="mt-2 block">{{ $t('update_dialog.downloading') }}</span>
-          <span v-else-if="unavailable" class="mt-2 block font-medium text-destructive">
-            {{ $t('update_dialog.not_yet_available') }}
-          </span>
+          <span v-if="info?.ready" class="mt-2 block font-medium">{{ $t('update_dialog.ready_text') }}</span>
+          <span v-else-if="updating" class="mt-2 block">{{ $t('update_dialog.downloading') }}</span>
+          <span v-else-if="pending" class="mt-2 block font-medium">{{ $t('update_dialog.pending') }}</span>
         </AlertDialogDescription>
       </AlertDialogHeader>
       <div v-if="notes" class="max-h-60 overflow-y-auto rounded-md border p-3 text-sm">
@@ -21,7 +20,9 @@
       </div>
       <AlertDialogFooter>
         <AlertDialogCancel v-if="!info?.force" @click="later()">{{ $t('update_dialog.later') }}</AlertDialogCancel>
-        <Button :disabled="updating" @click="updateNow()">{{ $t('update_dialog.update_now') }}</Button>
+        <Button :disabled="updating" @click="updateNow()">
+          {{ info?.ready ? $t('update_dialog.restart_now') : $t('update_dialog.update_now') }}
+        </Button>
       </AlertDialogFooter>
     </AlertDialogContent>
   </AlertDialog>
@@ -31,7 +32,7 @@
 import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { versionNextUpdate, versionSnooze, versionUpdateNow } from '~/utils/version-utils';
+import { versionHoldUpdate, versionNextUpdate, versionSnooze, versionUpdateNow } from '~/utils/version-utils';
 
 // Held back while another dialog (the account switch) needs an answer first.
 const props = defineProps<{ blocked?: boolean }>();
@@ -42,7 +43,7 @@ const { locale } = useI18n();
 const info = ref<any>(null);
 watch(() => !!info.value && !props.blocked, (value) => { shown.value = value; }, { immediate: true });
 const updating = ref(false);
-const unavailable = ref(false);
+const pending = ref(false);
 
 const notes = computed(() => {
   const all = info.value?.notes || {};
@@ -65,9 +66,9 @@ const onEscape = (event:any) => {
 
 const updateNow = async () => {
   updating.value = true;
-  unavailable.value = false;
+  pending.value = false;
   try {
-    unavailable.value = await versionUpdateNow(info.value?.store_url) === 'unavailable';
+    pending.value = await versionUpdateNow() === 'pending';
   } finally {
     updating.value = false;
   }
@@ -82,18 +83,43 @@ const check = async () => {
   info.value = await versionNextUpdate();
 }
 
+// The background asks open dashboards before installing a downloaded update; answering keeps it from
+// reloading under the user. versionNextUpdate then reports it as ready (snooze still applies unless forced).
+const onMessage = (message:any) => {
+  if (message?.type !== 'qx:update-ready') return;
+  // Mid "Update now" the reload is already on its way; resetting would flash the dialog closed.
+  if (!info.value?.ready && !updating.value) info.value = null;
+  check();
+  hold();
+  return Promise.resolve(true);
+}
+
+// Holds a deferred update while this dashboard is open; closing it lets the background install.
+let releaseHold:any = null;
+const hold = () => {
+  releaseHold?.();
+  releaseHold = versionHoldUpdate();
+}
+
 const onVisible = () => {
   if (document.visibilityState === 'visible') check();
 }
 
 onMounted(() => {
   check();
+  hold();
   recheckTimer = setInterval(check, RECHECK_MS);
   document.addEventListener('visibilitychange', onVisible);
+  // Offline checks are skipped, so recheck as soon as the connection is back.
+  window.addEventListener('online', check);
+  browser.runtime.onMessage.addListener(onMessage);
 });
 
 onUnmounted(() => {
   clearInterval(recheckTimer);
   document.removeEventListener('visibilitychange', onVisible);
+  window.removeEventListener('online', check);
+  browser.runtime.onMessage.removeListener(onMessage);
+  releaseHold?.();
 });
 </script>

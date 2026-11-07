@@ -467,7 +467,7 @@ function scalableSetSync(state:any, detail = '') {
   if (!syncButton) return;
   // Idle shows how many positions wait for a Sync, so a stale buy-in is visible without the console.
   const idle = positionsNeedingSync ? `${t('sync_qx')} (${positionsNeedingSync})` : t('sync_qx');
-  const labels:any = { idle, busy: `${t('syncing')} ${detail}`.trim(), done: t('synced'), error: t('sync_failed') };
+  const labels:any = { idle, busy: `${t('syncing')} ${detail}`.trim(), done: t('synced'), error: t('sync_failed'), demo: t('tour.sample.sync_declined') };
   syncButton.textContent = labels[state];
   syncButton.style.backgroundColor = state === 'done' ? SYNC_COLOR_DONE : state === 'error' ? SYNC_COLOR_ERROR : SYNC_COLOR_IDLE;
   syncButton.style.opacity = state === 'busy' ? '0.7' : '1';
@@ -505,6 +505,13 @@ function scalableShowOverlay(show:boolean) {
 
 async function scalableRunSync() {
   if (syncInFlight) return;
+  // Declined: the demo stays and nothing is saved, which is not a failed sync.
+  if (await contentSampleGate() === 'declined') {
+    clearTimeout(syncResetTimer);
+    scalableSetSync('demo');
+    syncResetTimer = setTimeout(() => scalableSetSync('idle'), 2000);
+    return;
+  }
   syncInFlight = true;
   syncCancelled = false;
   clearTimeout(syncResetTimer);

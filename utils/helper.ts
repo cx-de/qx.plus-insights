@@ -1,3 +1,4 @@
+import { ref } from 'vue';
 import { storage } from '#imports';
 import {useI18n} from "vue-i18n";
 import { API_BASE_URL, PORTAL_URL } from './constants';
@@ -168,10 +169,20 @@ export const sleep = (ms:number) => new Promise((resolve) => setTimeout(resolve,
 // UTC date as YYYY-MM-DD, the key format of every daily snapshot in storage.
 export const todayIso = () => new Date().toISOString().slice(0, 10);
 
+export type ThemeChoice = 'light' | 'dark' | 'system';
+
+// No stored choice, or an unknown one from an old or edited backup, follows the OS.
+export const themeStored = (): ThemeChoice => {
+  const stored = localStorage.getItem('theme');
+  return stored === 'light' || stored === 'dark' ? stored : 'system';
+};
+
 // 'system' resolves at apply time, so an OS switch needs no stored change.
-export const applyTheme = (themeName = localStorage.getItem('theme') || 'light') => {
+// color-scheme makes scrollbars and native form controls match the page.
+export const applyTheme = (themeName: ThemeChoice = themeStored()) => {
   const dark = themeName === 'dark' || (themeName === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('dark', dark);
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
 };
 
 export const germanToNumer = (germanAmount:any)=> {
@@ -226,14 +237,8 @@ export const numberToGerman = (floatValue:any, isInt = false, decimalPoints?:any
   // Parse the input value to a float
   floatValue = parseFloat(floatValue);
 
-  // Only apply the <5 auto-bump when the caller did not pass an explicit
-  // decimalPoints — percent call sites pass 2 explicitly to opt out.
-  if (decimalPoints === undefined) {
-    decimalPoints = 2;
-    if (Math.abs(floatValue) < 5) {
-      decimalPoints = 4;
-    }
-  }
+  // Amounts, percentages and totals are 2 decimals; unit prices go through unitPriceToGerman.
+  decimalPoints ??= 2;
 
   const floatString = isInt ? floatValue.toFixed(0) : floatValue.toFixed(decimalPoints);
   
@@ -243,6 +248,11 @@ export const numberToGerman = (floatValue:any, isInt = false, decimalPoints?:any
   const formattedIntegerPart = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return isInt ? formattedIntegerPart : `${formattedIntegerPart},${decimalPart}`;
 }
+
+// Stocks and ETFs quote in cents; only derivatives trade in sub-cent steps below 5 €.
+const CENT_QUOTED_TYPES = ['stock', 'exchangeTradedFund'];
+export const unitPriceToGerman = (value:any, type?:string) =>
+  numberToGerman(value, false, type && !CENT_QUOTED_TYPES.includes(type) && Math.abs(Number(value)) < 5 ? 4 : 2);
 
 // EUR lines carry rate 1; only a real FX rate is worth a cell.
 export const currencyRateText = (rate:any) => numberToGerman(rate, false, 4) === numberToGerman(1, false, 4) ? '' : numberToGerman(rate, false, 4);

@@ -3,12 +3,14 @@ import {
   isCashRow,
   germanToNumer,
   numberToGerman,
+  unitPriceToGerman,
   parseGermanDateOnly,
   chunkArray,
   getComparableUnderlyingPrice,
   formatMonthYear,
   formatDateToYMD,
   currencyRateText,
+  themeStored,
 } from '@/utils/helper';
 
 describe('currencyRateText', () => {
@@ -53,10 +55,10 @@ describe('numberToGerman', () => {
     expect(numberToGerman(-1234.5)).toBe('-1.234,50');
   });
 
-  it('bumps to 4 decimals below 5 only when decimalPoints is omitted', () => {
-    expect(numberToGerman(3)).toBe('3,0000');
-    // Percent call sites pass 2 explicitly to opt out of the bump.
-    expect(numberToGerman(3, false, 2)).toBe('3,00');
+  it('defaults to 2 decimals, even below 5', () => {
+    expect(numberToGerman(3)).toBe('3,00');
+    expect(numberToGerman(0.4321)).toBe('0,43');
+    expect(numberToGerman(0.4321, false, 4)).toBe('0,4321');
   });
 
   it('formats integers without a decimal part', () => {
@@ -67,6 +69,23 @@ describe('numberToGerman', () => {
     expect(numberToGerman(null)).toBe('');
     expect(numberToGerman(undefined)).toBe('');
     expect(numberToGerman(NaN)).toBe('');
+  });
+});
+
+describe('unitPriceToGerman', () => {
+  it('uses 4 decimals for derivative prices below 5', () => {
+    expect(unitPriceToGerman(0.4321, 'certificate')).toBe('0,4321');
+    expect(unitPriceToGerman(12.5, 'certificate')).toBe('12,50');
+  });
+
+  it('uses 2 decimals for stocks, ETFs and unknown types', () => {
+    expect(unitPriceToGerman(3, 'stock')).toBe('3,00');
+    expect(unitPriceToGerman(4.5, 'exchangeTradedFund')).toBe('4,50');
+    expect(unitPriceToGerman(3, undefined)).toBe('3,00');
+  });
+
+  it('returns an empty string for missing values', () => {
+    expect(unitPriceToGerman(null, 'certificate')).toBe('');
   });
 });
 
@@ -139,5 +158,25 @@ describe('formatDateToYMD', () => {
 
   it('returns an empty string for missing input', () => {
     expect(formatDateToYMD(null)).toBe('');
+  });
+});
+
+describe('themeStored', () => {
+  it('follows the OS when no theme is stored', () => {
+    localStorage.removeItem('theme');
+    expect(themeStored()).toBe('system');
+  });
+
+  it('returns a stored light or dark choice', () => {
+    localStorage.setItem('theme', 'dark');
+    expect(themeStored()).toBe('dark');
+    localStorage.setItem('theme', 'light');
+    expect(themeStored()).toBe('light');
+  });
+
+  it('treats an unknown stored value as system', () => {
+    localStorage.setItem('theme', 'blue');
+    expect(themeStored()).toBe('system');
+    localStorage.removeItem('theme');
   });
 });

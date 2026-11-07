@@ -550,7 +550,7 @@
 import { ref, reactive, computed, onMounted, h, defineComponent } from 'vue';
 
 
-import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman, todayIso, applyTheme } from '~/utils/helper'
+import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman, todayIso, applyTheme, themeStored, type ThemeChoice } from '~/utils/helper'
 import { storage } from '#imports';
 import { useI18n } from "vue-i18n";
 
@@ -635,9 +635,7 @@ const SaveButton = defineComponent({
 });
 
 // --- Theme ---
-const theme = ref(localStorage.getItem('theme') || 'light');
-
-applyTheme(theme.value);
+const theme = ref<ThemeChoice>(themeStored());
 
 const saveTheme = () => {
   applyTheme(theme.value);

@@ -21,7 +21,7 @@
     "buy_price": "Buy Price",
     "purchase_date": "Purchase Date",
     "days_since_purchase": "Days since Buy",
-    "yield_pa_since_purchase": "Yield p.a. since Buy",
+    "yield_pa_since_purchase": "Yield p.a. since Buy %",
     "fetch_purchase_dates": "Fetch purchase dates",
     "fetching_purchase_dates": "Purchase dates",
     "sync_qx": "Sync QX+",
@@ -47,7 +47,7 @@
     "maturity": "Maturity",
     "coupon": "Coupon",
     "sideways_return": "Sideways Return",
-    "sideways_return_pa": "Sideways Return P.A",
+    "sideways_return_pa": "Sideways Return p.a. %",
     "omega": "Omega",
     "theta": "Theta",
     "vega": "Vega",
@@ -58,6 +58,7 @@
     "number_of_positions": "Number of Positions",
     "number_of_brokers": "Number of Brokers",
     "no_key_live_prices_need_subscription": "Live prices need a QX+ subscription.",
+    "peer_members_needs_subscription": "Available with subscription",
     "start_subscription": "Start subscription",
     "i_already_have_a_key": "I already have a key",
     "api_key_was_rejected_prices_are_no_longer_updating": "API Key was rejected. Prices are no longer updating. Check your key in ",
@@ -188,7 +189,7 @@
     "clear": "Clear",
     "data_cleared_successfully": "Data Cleared Successfully",
     "currency_rate": "Currency Rate",
-    "position_target_percentage": "Position Target Percentage",
+    "position_target_percentage": "Position Target Percentage %",
     "loading": "Loading",
     "fetching_latest_data": "Fetching latest data…",
     "column_highest": "Highest in column",
@@ -207,6 +208,7 @@
     "by_valuation_date": "by valuation",
     "no_date": "No date",
     "peer_members": "Peer Members",
+    "peer_switch_hint": "Switch: sell {own} at bid {bid}, buy {peer} at ask {ask}: {gain} per piece, {total} € total (before fees), as of {time}",
     "profit_loss_target_per_day": "P/L Target € per day",
     "scenarios": {
         "title": "Scenarios",
@@ -364,7 +366,7 @@
         "contents": "Includes everything: settings, accounts, positions, cash lines, groups and notes, position history, daily totals, forecast scenarios, alerts and view preferences.",
         "summary": "{positions} positions · {cash_lines} cash lines · {groups} groups · {history_days} history days · {daily_totals} daily totals · {scenarios} scenarios · {virtual_puts} virtual puts · {alerts} alerts · {accounts} accounts"
     },
-    "implied_volatility": "Impl. Volatility",
+    "implied_volatility": "Impl. Volatility %",
     "account_switch":{
         "title": "New Account Detected",
         "flatex_text": "A new account was detected from Flatex. Do you want to clear your old account data and replace it with the new one?",
@@ -381,7 +383,9 @@
         "later": "Later",
         "update_now": "Update now",
         "downloading": "Downloading update…",
-        "not_yet_available": "The update is not yet available in your browser's store. Please try again later."
+        "pending": "The update installs automatically as soon as it is ready. No action needed.",
+        "ready_text": "The update has been downloaded. Restart QX+ Insights to finish installing it.",
+        "restart_now": "Restart now"
     },
     "settings_page": {
         "tab_has_errors": "This tab has fields to fix",
@@ -661,7 +665,9 @@
             "banner": "You are looking at sample data. These numbers are made up.",
             "connect": "Connect my real account",
             "remove": "Remove sample data",
-            "badge": "Demo data"
+            "badge": "Demo data",
+            "replace_confirm": "Demo data is loaded. Replace it with your real portfolio from this broker?",
+            "sync_declined": "Demo active"
         },
         "steps": {
             "login_title": "Log in to {broker}",

@@ -7,6 +7,7 @@
 import { germanToNumer, sleep } from "./helper";
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from "./constants";
 import { tourSyncDone } from "./tour-utils";
+import { i18n } from "~/entrypoints/home/i18n";
 
 const broker = "justTRADE";
 const ISIN_CACHE_KEY = 'JUSTTRADE_ISINS';
@@ -36,6 +37,8 @@ const SYNC_STYLES:any = {
   busy: { bg: SYNC_COLOR_IDLE, text: 'Syncing…' },
   done: { bg: SYNC_COLOR_DONE, text: 'Synced' },
   error: { bg: SYNC_COLOR_ERROR, text: 'Sync failed' },
+  // Read at render: i18n picks the language after this module loads.
+  demo: { bg: SYNC_COLOR_IDLE, text: () => i18n.global.t('tour.sample.sync_declined') },
 };
 
 
@@ -627,7 +630,7 @@ function justtradeSetSync(state:any) {
   const style = SYNC_STYLES[state];
   syncButton.style.backgroundColor = style.bg;
   syncButton.style.opacity = state === 'busy' ? '0.7' : '1';
-  syncButton.textContent = style.text;
+  syncButton.textContent = typeof style.text === 'function' ? style.text() : style.text;
   justtradeSyncTitle();
 }
 
@@ -640,6 +643,13 @@ function justtradeSyncTitle() {
 async function justtradeRunSync() {
   console.log("justtradeRunSync");
   if (syncInFlight) return;
+  // Declined: the demo stays and nothing is saved, which is not a failed sync.
+  if (await contentSampleGate() === 'declined') {
+    clearTimeout(syncResetTimer);
+    justtradeSetSync('demo');
+    syncResetTimer = setTimeout(() => justtradeSetSync('idle'), 2000);
+    return;
+  }
   syncInFlight = true;
   clearTimeout(syncResetTimer);
   justtradeSetSync('busy');

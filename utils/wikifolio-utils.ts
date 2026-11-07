@@ -54,6 +54,7 @@ function wikifolioSetSyncState(button:any, state:any, detail = '') {
     fetching: `${t('fetching_purchase_dates')} ${detail}`.trim(),
     done: t('synced'),
     error: t('sync_failed'),
+    demo: t('tour.sample.sync_declined'),
   };
   const busy = state === 'saving' || state === 'fetching';
   button.textContent = labels[state];
@@ -66,6 +67,12 @@ function wikifolioSetSyncState(button:any, state:any, detail = '') {
 // Save, fill missing Kaufdaten from the trades table, then save again so rows carry them.
 async function wikifolioRunSync(button:any) {
   if (syncInFlight) return;
+  // Declined: the demo stays and nothing is saved, which is not a failed sync.
+  if (await contentSampleGate() === 'declined') {
+    wikifolioSetSyncState(button, 'demo');
+    setTimeout(() => wikifolioSetSyncState(button, 'idle'), 2000);
+    return;
+  }
   syncInFlight = true;
   let state = 'done';
   try {
