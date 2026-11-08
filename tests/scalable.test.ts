@@ -56,7 +56,7 @@ describe('scalableUserIdFromCookie', () => {
 describe('scalableReadPosition', () => {
   it('divides the exact buy-in total, never the rounded average', () => {
     const read = scalableReadPosition(parse(position))!;
-    expect(read).toMatchObject({ stocks_owned: 24, total_entry_value: 123.5, wkn: '900001', type: 'certificate' });
+    expect(read).toMatchObject({ stocks_owned: 24, total_entry_value: 123.5, wkn: '900001', type: 'fund' });
     expect(read.total_entry_value / read.stocks_owned).toBeCloseTo(5.1458, 4);
   });
 

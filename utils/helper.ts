@@ -249,10 +249,35 @@ export const numberToGerman = (floatValue:any, isInt = false, decimalPoints?:any
   return isInt ? formattedIntegerPart : `${formattedIntegerPart},${decimalPart}`;
 }
 
-// Stocks and ETFs quote in cents; only derivatives trade in sub-cent steps below 5 €.
-const CENT_QUOTED_TYPES = ['stock', 'exchangeTradedFund'];
+// Stocks, ETFs and funds quote in cents; only derivatives trade in sub-cent steps below 5 €.
+const CENT_QUOTED_TYPES = ['stock', 'exchangeTradedFund', 'fund'];
 export const unitPriceToGerman = (value:any, type?:string) =>
   numberToGerman(value, false, type && !CENT_QUOTED_TYPES.includes(type) && Math.abs(Number(value)) < 5 ? 4 : 2);
+
+// Broker product labels (German/English, singular/plural, any case) to the row types the dashboard knows.
+// Without a feed subscription this is the only type a row gets, so ETFs, funds and bonds must not land in 'certificate'.
+// Unrecognised labels return `fallback`: some scrapers keep the raw broker label, others use 'certificate'.
+// First match wins, so the order matters: "Aktien-ETF" is an ETF, "Aktienfonds" and "Rentenfonds" are funds,
+// and "Aktienanleihe" (a reverse convertible) matches nothing and stays a derivative.
+const PRODUCT_TYPE_PATTERNS: [RegExp, string][] = [
+  [/\b(etf|etc|etn|etp)s?\b|^exchange[- ]traded/i, 'exchangeTradedFund'],
+  [/fonds|\bfunds?\b/i, 'fund'],
+  [/^(anleihen?|bonds?|renten(papiere?)?|schuldverschreibung(en)?)\b/i, 'bond'],
+  [/^(aktien?|stocks?|shares?|equit(y|ies))\b(?![-\w])/i, 'stock'],
+  [/^(zertifikate?|certificates?)\b/i, 'certificate'],
+];
+export const productTypeFromLabel = (label: unknown, fallback = 'certificate'): string => {
+  const text = String(label ?? '').trim();
+  if (!text) return '';
+  return PRODUCT_TYPE_PATTERNS.find(([pattern]) => pattern.test(text))?.[1] ?? fallback;
+};
+
+// Peers and other derivative-only feed data exist for everything except these.
+// Separate from CENT_QUOTED_TYPES: bonds are not derivatives but quote in percent.
+const NON_DERIVATIVE_TYPES = ['stock', 'exchangeTradedFund', 'fund', 'bond'];
+
+// A row without a type is not treated as a derivative.
+export const isDerivativeType = (type?:string) => !!type && !NON_DERIVATIVE_TYPES.includes(type);
 
 // EUR lines carry rate 1; only a real FX rate is worth a cell.
 export const currencyRateText = (rate:any) => numberToGerman(rate, false, 4) === numberToGerman(1, false, 4) ? '' : numberToGerman(rate, false, 4);

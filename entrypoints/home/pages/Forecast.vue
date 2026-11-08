@@ -2511,7 +2511,7 @@ const exportForecast = async() =>{
   isExporting.value = true;
   try {
     const { rows } = await prepareForecastData();
-    downloadXlsx(rows, "Forecast-Scenario", `Forecast_Scenario_${exportDate.value}.xlsx`);
+    await downloadXlsx(rows, "Forecast-Scenario", `Forecast_Scenario_${exportDate.value}.xlsx`);
   } catch (err) {
     // the user is told, instead of a click that does nothing
     console.error('exportForecast error:', err);

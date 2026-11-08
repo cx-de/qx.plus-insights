@@ -557,8 +557,9 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'peer_members'">
-                                    <PeerLockedLink v-if="peerLocked" />
-                                    <PeerProductsCard v-else-if="row.original.peer_members"
+                                    <!-- Peers exist only for derivatives: shares, ETFs and funds get no subscription notice. -->
+                                    <PeerLockedLink v-if="peerLocked && isDerivativeType(row.original.type)" />
+                                    <PeerProductsCard v-else-if="!peerLocked && row.original.peer_members"
                                       :wkn="row.original.wkn" :peer_members="row.original.peer_members"
                                       :peer_switch="row.original.peer_switch" :stocks_owned="row.original.stocks_owned" />
                                   </template>
@@ -615,7 +616,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'peer_members' && peerLocked">
-                                  <PeerLockedLink />
+                                  <PeerLockedLink v-if="isDerivativeType(item.original.type)" />
                                 </template>
 
                                 <!-- v-else-if: a plain v-if restarted the chain, so the select cell also fell through to FlexRender -->
@@ -1113,7 +1114,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso, currencyRateText } from '~/utils/helper';
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso, currencyRateText, isDerivativeType } from '~/utils/helper';
 
 import { 
   getPriceData,
@@ -1488,7 +1489,7 @@ const allColumns:any = {
     const v = String(info.getValue() ?? '').trim().toLowerCase();
     return v === 'physical' ? t('dc_physical') : v === 'cash' ? t('dc_cash') : '';
   }, header: ({ column }:any) => getSortingHeader(column, 'settlement')  },
-  quanto2: { accessorKey: 'quanto2', id: 'quanto2', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'quanto')  },
+  quanto2: { accessorKey: 'quanto2', id: 'quanto2', cell: (info:any) => info.getValue() ? t(info.getValue()) : '', header: ({ column }:any) => getSortingHeader(column, 'quanto')  },
   ratio: { accessorKey: 'ratio', id: 'ratio', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'ratio') },
   
   cap_strike: { accessorKey: 'cap_strike', id: 'cap_strike', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'cap_strike')  },
@@ -2486,6 +2487,7 @@ const rowsToExport = () => {
 const exportCellValue = (row:any, col:any) => {
   const value = getNestedValue(row, col.accessorKey || col.id);
   if (col.accessorKey === 'peer_members') return value != null ? value.join(',') : '';
+  if (col.accessorKey === 'quanto2') return value ? t(value) : '';
   if (amountFields.includes(col.accessorKey)) return value != null ? Number(parseFloat(value).toFixed(2)) : '';
   return value;
 };
@@ -2502,7 +2504,7 @@ const exportCSV = () => {
   downloadCsv(header + body, `list_${fileTimestamp()}.csv`);
 }
 
-const exportXlsx = () => {
+const exportXlsx = async () => {
   const activeColumns = columns.value.filter(col => !['select', 'id', 'actions'].includes(col.id));
 
   const exportData = rowsToExport().map(row => {
@@ -2513,7 +2515,13 @@ const exportXlsx = () => {
     return newRow;
   });
 
-  downloadXlsx(exportData, 'Sheet1', `list_${fileTimestamp()}.xlsx`);
+  // SheetJS loads on demand; a failed chunk load must not end as a click that does nothing.
+  try {
+    await downloadXlsx(exportData, 'Sheet1', `list_${fileTimestamp()}.xlsx`);
+  } catch (err) {
+    console.error('exportXlsx error:', err);
+    notifyError('forecast_export_failed');
+  }
 };
 
 const wknLink = ref('');

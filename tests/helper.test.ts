@@ -4,6 +4,8 @@ import {
   germanToNumer,
   numberToGerman,
   unitPriceToGerman,
+  productTypeFromLabel,
+  isDerivativeType,
   parseGermanDateOnly,
   chunkArray,
   getComparableUnderlyingPrice,
@@ -178,5 +180,58 @@ describe('themeStored', () => {
     localStorage.setItem('theme', 'blue');
     expect(themeStored()).toBe('system');
     localStorage.removeItem('theme');
+  });
+});
+
+describe('productTypeFromLabel', () => {
+  it('maps share labels from every broker to stock', () => {
+    for (const label of ['Aktie', 'Aktien', 'Aktien (12)', 'STOCK', 'Stocks', 'Shares', 'Equities']) {
+      expect(productTypeFromLabel(label)).toBe('stock');
+    }
+  });
+
+  it('maps exchange-traded products to exchangeTradedFund', () => {
+    for (const label of ['ETF', 'ETFs', 'ETC', 'ETN', 'ETP', 'Exchange Traded Funds', 'Aktien-ETF', 'Aktien ETF']) {
+      expect(productTypeFromLabel(label)).toBe('exchangeTradedFund');
+    }
+  });
+
+  it('maps funds to fund, including equity funds', () => {
+    for (const label of ['Fonds', 'Investmentfonds', 'Aktienfonds', 'Aktien-Fonds', 'Rentenfonds', 'FUND', 'Funds']) {
+      expect(productTypeFromLabel(label)).toBe('fund');
+    }
+  });
+
+  it('maps bonds to bond', () => {
+    for (const label of ['Anleihe', 'Anleihen', 'BOND', 'Bonds', 'Renten', 'Schuldverschreibung']) {
+      expect(productTypeFromLabel(label)).toBe('bond');
+    }
+  });
+
+  it('keeps derivatives out of the share, fund and bond buckets', () => {
+    expect(productTypeFromLabel('Zertifikat')).toBe('certificate');
+    expect(productTypeFromLabel('Aktienanleihe')).toBe('certificate');
+    expect(productTypeFromLabel('Strukturierte Produkte')).toBe('certificate');
+  });
+
+  it('returns the fallback for unknown labels and empty for none', () => {
+    expect(productTypeFromLabel('Optionsschein', 'Optionsschein')).toBe('Optionsschein');
+    expect(productTypeFromLabel('KNOCK_OUT')).toBe('certificate');
+    expect(productTypeFromLabel('')).toBe('');
+    expect(productTypeFromLabel(null)).toBe('');
+  });
+});
+
+describe('isDerivativeType', () => {
+  it('is false for shares, ETFs, funds, bonds and missing types', () => {
+    for (const type of ['stock', 'exchangeTradedFund', 'fund', 'bond', '', undefined]) {
+      expect(isDerivativeType(type)).toBe(false);
+    }
+  });
+
+  it('is true for certificates and feed derivative types', () => {
+    for (const type of ['certificate', 'discountCertificate', 'put', 'Optionsschein']) {
+      expect(isDerivativeType(type)).toBe(true);
+    }
   });
 });

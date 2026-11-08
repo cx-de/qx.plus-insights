@@ -1316,9 +1316,11 @@ const countryChart = ref<any>(null);
 const worldChartData = shallowRef<any>(null);
 
 // Outline fill and stroke from the foreground token, so the map follows the theme like the donuts.
+// chartjs-chart-geo reads the outline from outline* keys; its defaults (no fill, width 0) override
+// plain backgroundColor/borderWidth, which left the land undrawn.
 const mapOutlineColors = () => ({
-  backgroundColor: chartTokenColor('--foreground', 0.04),
-  borderColor: chartTokenColor('--foreground', 0.3),
+  outlineBackgroundColor: chartTokenColor('--foreground', 0.1),
+  outlineBorderColor: chartTokenColor('--foreground', 0.35),
 });
 
 const loadCountryChart = async () =>{
@@ -1381,8 +1383,8 @@ const loadCountryChart = async () =>{
           label: "World",
           outline: countries,
           showOutline: true,
-                    ...mapOutlineColors(),
-          borderWidth: 1,
+          ...mapOutlineColors(),
+          outlineBorderWidth: 1,
         },
         {
           // bubble dataset

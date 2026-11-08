@@ -157,12 +157,13 @@ export function scalableReadPosition(doc:any) {
   const assetClass = scalableDetailCell(doc, 'Anlageklasse') || scalableDetailCell(doc, 'Asset class');
   // Funds report "Aktien" as asset class too; only a plain share is priced by ISIN as 'stock'.
   const isFund = !!doc.querySelector('[data-testid="fund-details"]');
+  const type = isFund ? 'fund' : productTypeFromLabel(assetClass) || 'certificate';
   return {
     isin: scalableDetailCell(doc, 'ISIN') || null,
     stocks_owned,
     total_entry_value,
     wkn: scalableDetailCell(doc, 'WKN') || null,
-    type: !isFund && /^(Aktien|Stocks|Equities)$/i.test(assetClass) ? 'stock' : 'certificate',
+    type,
     purchase_date: sortedDates[0] || null,
     dates: sortedDates,
   };

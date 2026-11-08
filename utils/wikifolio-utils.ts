@@ -287,8 +287,8 @@ async function getAllStockDataWikiFolio(){
       if (row.classList.contains("table-group-row")) {
         const text = row.innerText.trim();
         // German and International site labels.
-        if (/^(Aktien|Stocks|Shares|Equities)/i.test(text)) currentGroup = "stocks";
-        else if (/^(Strukturierte|Structured)/i.test(text)) currentGroup = "structuredProducts";
+        // "Strukturierte Produkte" and other groups fall back to 'certificate'.
+        currentGroup = productTypeFromLabel(text);
         continue;
       }
 
@@ -300,7 +300,7 @@ async function getAllStockDataWikiFolio(){
       const isinEl = row.querySelector(".isin");
       const stock_name = row.querySelector("a span")?.textContent.trim() ?? "";
       
-      const type = currentGroup === 'stocks' ? 'stock' : 'certificate';
+      const type = currentGroup || 'certificate';
       console.log("getAllStockDataWikiFolio currentGroup",currentGroup);
       console.log("getAllStockDataWikiFolio type",type);
 

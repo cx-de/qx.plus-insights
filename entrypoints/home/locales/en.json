@@ -335,6 +335,8 @@
     "system": "System",
     "theme_description": "Pick how the dashboard looks.",
     "exchangeTradedFund": "ETF",
+    "fund": "Fund",
+    "bond": "Bond",
     "consors_bank": "Consorsbank",
     "justtrade": "justTRADE",
     "scalable": "Scalable Capital",
