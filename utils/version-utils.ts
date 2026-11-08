@@ -16,6 +16,8 @@ const installedVersion = () => browser.runtime.getManifest().version;
 async function fetchVersionInfo() {
   // Skipping the request offline also avoids the browser's own net::ERR_INTERNET_DISCONNECTED console line.
   if (globalThis.navigator?.onLine === false) return null;
+  // The App Store updates Safari; the Chrome fallback below would announce releases Safari cannot install.
+  if (import.meta.env.BROWSER === 'safari') return null;
   try {
     const url = new URL('../extension/version', apiBaseUrl);
     url.searchParams.set('current', installedVersion());
@@ -205,12 +207,12 @@ function waitForUpdateDownload() {
   return new Promise<void>((resolve) => {
     const done = () => {
       clearTimeout(timer);
-      browser.runtime.onUpdateAvailable.removeListener(done);
+      browser.runtime.onUpdateAvailable?.removeListener(done);
       resolve();
     };
     // On timeout reload anyway: an update downloaded earlier already fired its event and installs on reload.
     const timer = setTimeout(done, UPDATE_DOWNLOAD_TIMEOUT_MS);
-    browser.runtime.onUpdateAvailable.addListener(done);
+    browser.runtime.onUpdateAvailable?.addListener(done);
   });
 }
 
@@ -222,6 +224,8 @@ export async function versionUpdateNow() {
     await versionRestart();
     return 'reloading';
   }
+  // Safari has no update check; the App Store installs releases itself.
+  if (!browser.runtime.requestUpdateCheck) return 'pending';
   try {
     // Chrome resolves { status }, Firefox [status, details]. Only on a click: Chrome throttles frequent checks.
     const result:any = await withTimeout(browser.runtime.requestUpdateCheck(), UPDATE_CHECK_TIMEOUT_MS);

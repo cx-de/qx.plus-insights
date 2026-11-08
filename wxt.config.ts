@@ -18,7 +18,7 @@ export default defineConfig({
     includeSources: [
       'assets/**', 'components/**', 'entrypoints/**', 'lib/**', 'public/**', 'utils/**',
       'components.json', 'package.json', 'package-lock.json', 'tsconfig.json', 'wxt.config.ts',
-      'README.md', 'LICENSE', 'SECURITY.md', 'PRIVACY.md', 'examples/**',
+      'README.md', 'LICENSE', 'SECURITY.md', 'PRIVACY.md', 'examples/**', 'scripts/**',
     ],
   },
   manifest: ({ browser }) => ({
@@ -27,7 +27,7 @@ export default defineConfig({
     description:
       'Mehr Durchblick an der Börse: Mit zusätzlichen Insights und Details behalten Sie jederzeit die volle Kontrolle über Ihre Depots.',
     permissions: ['storage', 'unlimitedStorage'],
-    ...(browser !== 'firefox' && { minimum_chrome_version: '116' }),
+    ...(browser !== 'firefox' && browser !== 'safari' && { minimum_chrome_version: '116' }),
     // Derived from API_BASE_URL so the code can never call a host the manifest doesn't allow
     host_permissions: [`${new URL(API_BASE_URL).origin}/*`],
     // Telegram alerts are opt-in, so the third-party host is asked for only when the user saves a bot

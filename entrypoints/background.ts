@@ -3,7 +3,8 @@ import { versionAfterUpdate, versionApplyUpdate, versionOnConnect, versionReopen
 export default defineBackground(() => {
   // Registered at top level so the service worker wakes for it; without a listener a downloaded
   // update waits for a browser restart while the dashboard keeps the extension busy.
-  browser.runtime.onUpdateAvailable.addListener((details) => {
+  // Safari has no onUpdateAvailable (the App Store updates it); a throw here would skip every listener below.
+  browser.runtime.onUpdateAvailable?.addListener((details) => {
     versionApplyUpdate(details?.version);
   });
   browser.runtime.onConnect.addListener(versionOnConnect);
