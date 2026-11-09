@@ -108,7 +108,7 @@
   "telegram_bot": "Telegram",
   "sent_test_message": "Testnachricht senden",
   "test_message_sent_successfully": "Testnachricht erfolgreich gesendet",
-  "failed_to_send_the_test_message_please_verify_your_settings_and_try_again": "Testnachricht konnte nicht gesendet werden. Bitte überprüfe deine Einstellungen und versuche es erneut.",
+  "failed_to_send_the_test_message_please_verify_your_settings_and_try_again": "Testnachricht konnte nicht gesendet werden. Bitte überprüfen Sie Ihre Einstellungen und versuchen Sie es erneut.",
   "export": "Exportieren",
   "search": "Suche",
   "search_columns": "Spalten suchen",
@@ -156,7 +156,7 @@
   "show": "Anzeigen",
   "hide": "Ausblenden",
   "api_key_tested_successfully": "API-Schlüssel erfolgreich getestet",
-  "failed_to_test_api_key_please_verify_your_key_and_try_again": "API-Schlüsseltest fehlgeschlagen. Bitte überprüfe deinen Schlüssel und versuche es erneut.",
+  "failed_to_test_api_key_please_verify_your_key_and_try_again": "API-Schlüsseltest fehlgeschlagen. Bitte überprüfen Sie Ihren Schlüssel und versuchen Sie es erneut.",
   "test_api_key": "API-Schlüssel testen",
   "discountCall": "Discount Call",
   "discountCertificate": "Discount-Zertifikat",
@@ -684,7 +684,7 @@
             "connect": "Mein echtes Konto verbinden",
             "remove": "Beispieldaten entfernen",
             "badge": "Demodaten",
-            "replace_confirm": "Demodaten sind geladen. Durch dein echtes Depot von diesem Broker ersetzen?",
+            "replace_confirm": "Demodaten sind geladen. Durch Ihr echtes Depot von diesem Broker ersetzen?",
             "sync_declined": "Demo aktiv"
         },
         "steps": {
