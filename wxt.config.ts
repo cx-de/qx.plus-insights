@@ -36,7 +36,7 @@ export default defineConfig({
       extension_pages: "script-src 'self'; object-src 'self';"
     },
     action: {
-      default_title: 'QX+ insights',
+      default_title: 'QX+ Insights',
     },
     ...(browser === 'firefox' && {
       // Permanent AMO identity: changing it orphans every installed copy
