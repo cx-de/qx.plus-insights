@@ -1,7 +1,7 @@
 <template>
-  <!-- Welcome dialog: first steps for people with no portfolio yet; broker steps tick off live from the bank tab. -->
+  <!-- Setup guide: welcome and sample for people with no portfolio yet, the broker list for adding more; broker steps tick off live from the bank tab. -->
   <Dialog :open="open && !blocked" @update:open="onOpenChange">
-    <DialogContent class="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto gap-0 rounded-xl p-6 sm:max-w-lg sm:p-7">
+    <DialogContent class="max-h-[calc(100vh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto gap-0 rounded-lg p-6 sm:max-w-lg sm:p-7">
 
       <!-- Choose how to start -->
       <template v-if="view === 'choose'">
@@ -24,7 +24,7 @@
 
         <DialogHeader class="text-left">
           <DialogTitle class="text-2xl font-semibold leading-tight tracking-tight">{{ $t('tour.welcome_title') }}</DialogTitle>
-          <DialogDescription class="text-[15px] leading-relaxed">{{ $t('tour.welcome_text') }}</DialogDescription>
+          <DialogDescription class="text-sm leading-relaxed">{{ $t('tour.welcome_text') }}</DialogDescription>
         </DialogHeader>
 
         <div class="mt-6 flex flex-col gap-3">
@@ -47,23 +47,28 @@
           </button>
         </div>
 
-        <button type="button" class="link mt-6 justify-self-start" @click="dismiss()">{{ $t('tour.dont_show') }}</button>
+        <Button type="button" variant="link" class="h-auto p-0 font-normal text-muted-foreground hover:text-foreground mt-6 justify-self-start" @click="dismiss()">{{ $t('tour.dont_show') }}</Button>
       </template>
 
-      <!-- Pick the broker to start with; the others can follow later from Help. -->
+      <!-- Pick a broker: first one on first run, any further one from Home's "Connect broker" or "Connect another account". -->
       <template v-else-if="view === 'pick'">
-        <button type="button" class="link mb-4 inline-flex items-center gap-1 justify-self-start" @click="view = 'choose'">
+        <!-- Add mode (Home's "Connect broker"): the welcome and sample screens are first-run only, so no way back to them. -->
+        <Button v-if="!adding" type="button" variant="link" class="h-auto p-0 font-normal text-muted-foreground hover:text-foreground mb-4 inline-flex items-center gap-1 justify-self-start" @click="view = 'choose'">
           <ArrowLeft class="h-4 w-4" aria-hidden="true" />{{ $t('tour.back') }}
-        </button>
+        </Button>
         <DialogHeader class="text-left">
-          <DialogTitle class="text-xl leading-tight tracking-tight">{{ $t('tour.pick_title') }}</DialogTitle>
-          <DialogDescription class="leading-relaxed">{{ $t('tour.pick_text') }}</DialogDescription>
+          <DialogTitle class="text-xl leading-tight tracking-tight">{{ $t(adding ? 'tour.add_pick_title' : 'tour.pick_title') }}</DialogTitle>
+          <DialogDescription class="leading-relaxed">{{ $t(adding ? 'tour.add_pick_text' : 'tour.pick_text') }}</DialogDescription>
         </DialogHeader>
 
         <div class="mt-6 flex flex-col gap-2">
           <button v-for="(broker, key) in TOUR_BROKERS" :key="key" type="button" class="choice" @click="view = String(key)">
             <span class="choice-icon"><Landmark class="h-5 w-5" aria-hidden="true" /></span>
             <span class="choice-title min-w-0 flex-1">{{ broker.name }}</span>
+            <!-- Already connected brokers stay pickable (a second account), so this only tells what is there. -->
+            <span v-if="connectedCounts[key]" class="inline-flex shrink-0 items-center gap-1 text-sm text-muted-foreground">
+              <Check class="h-4 w-4 text-success" stroke-width="2.5" aria-hidden="true" />{{ $t('tour.connected_count', connectedCounts[key]) }}
+            </span>
             <ArrowRight class="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden="true" />
           </button>
         </div>
@@ -71,9 +76,9 @@
 
       <!-- Sample data -->
       <template v-else-if="view === 'sample'">
-        <button type="button" class="link mb-4 inline-flex items-center gap-1 justify-self-start" @click="view = 'choose'">
+        <Button type="button" variant="link" class="h-auto p-0 font-normal text-muted-foreground hover:text-foreground mb-4 inline-flex items-center gap-1 justify-self-start" @click="view = 'choose'">
           <ArrowLeft class="h-4 w-4" aria-hidden="true" />{{ $t('tour.back') }}
-        </button>
+        </Button>
         <DialogHeader class="text-left">
           <DialogTitle class="text-xl leading-tight tracking-tight">{{ $t('tour.sample.title') }}</DialogTitle>
           <DialogDescription class="leading-relaxed">
@@ -87,9 +92,9 @@
           <Button v-if="!hasData" :disabled="loadingSample" @click="loadSample()">
             {{ loadingSample ? $t('tour.sample.loading') : $t('tour.sample.load') }}
           </Button>
-          <a :href="sampleUrl" download="qx-plus-sample-data.json" class="link inline-flex items-center gap-1.5">
+          <Button as="a" variant="link" :href="sampleUrl" download="qx-plus-sample-data.json" class="h-auto p-0 font-normal text-muted-foreground hover:text-foreground gap-1.5">
             <Download class="h-4 w-4" aria-hidden="true" />{{ $t('tour.sample.download') }}
-          </a>
+          </Button>
         </div>
       </template>
 
@@ -107,7 +112,7 @@
               </p>
             </div>
           </div>
-          <DialogDescription class="mt-4 text-[15px] leading-relaxed">{{ $t('tour.connected_text', { broker: broker.name }) }}</DialogDescription>
+          <DialogDescription class="mt-4 text-sm leading-relaxed">{{ $t('tour.connected_text', { broker: broker.name }) }}</DialogDescription>
         </DialogHeader>
 
         <!-- The sum first, as the one big number; the rows below are what the user checks against the bank. -->
@@ -142,14 +147,14 @@
 
         <div class="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
           <Button @click="finish()">{{ $t('tour.show_portfolio') }}</Button>
-          <button type="button" class="link" @click="connectAnother()">{{ $t('tour.connect_another') }}</button>
+          <Button type="button" variant="link" class="h-auto p-0 font-normal text-muted-foreground hover:text-foreground" @click="connectAnother()">{{ $t('tour.connect_another') }}</Button>
         </div>
       </template>
 
       <template v-else-if="broker">
-        <button v-if="!started" type="button" class="link mb-4 inline-flex items-center gap-1 justify-self-start" @click="view = 'pick'">
+        <Button v-if="!started" type="button" variant="link" class="h-auto p-0 font-normal text-muted-foreground hover:text-foreground mb-4 inline-flex items-center gap-1 justify-self-start" @click="view = 'pick'">
           <ArrowLeft class="h-4 w-4" aria-hidden="true" />{{ $t('tour.back') }}
-        </button>
+        </Button>
         <DialogHeader class="text-left">
           <DialogTitle class="text-xl leading-tight tracking-tight">{{ $t('tour.connect_title', { broker: broker.name }) }}</DialogTitle>
           <DialogDescription class="leading-relaxed">
@@ -179,7 +184,7 @@
           <Button @click="startBroker()">
             {{ started ? $t('tour.open_again', { broker: broker.name }) : $t('tour.start', { broker: broker.name }) }}
           </Button>
-          <button v-if="started" type="button" class="link" @click="dismiss()">{{ $t('tour.stop_guide') }}</button>
+          <Button v-if="started" type="button" variant="link" class="h-auto p-0 font-normal text-muted-foreground hover:text-foreground" @click="dismiss()">{{ $t('tour.stop_guide') }}</Button>
         </div>
       </template>
 
@@ -220,6 +225,8 @@ const hasData = ref(false);
 const loadingSample = ref(false);
 const sampleError = ref(false);
 const doneBadge = ref<HTMLElement | null>(null);
+// Opened to add another broker (TOUR.mode 'add'): straight to the broker list, no welcome or sample screens.
+const adding = ref(false);
 // Closing by hand means "not now": live updates must not pop it open again in this session.
 let closedByUser = false;
 
@@ -234,7 +241,15 @@ const currentIndex = computed(() => {
 
 const storedRows = ref<any>({});
 const brokerKeys = Object.values(TOUR_BROKERS).flatMap((b:any) => [b.rowsKey, b.idKey]);
-const watchedKeys = ['TOUR', 'TOUR_DISMISSED', 'SAMPLE_DATA', ...TOUR_DATA_KEYS, ...brokerKeys];
+const watchedKeys = ['TOUR', 'TOUR_DISMISSED', 'SAMPLE_DATA', 'ACCOUNTS', ...TOUR_DATA_KEYS, ...brokerKeys];
+
+// Registered accounts per guide key, from the same registry as AccountFilter. Empty for the sample: its accounts are made up.
+const connectedCounts = computed<Record<string, number>>(() => {
+  if (storedRows.value.SAMPLE_DATA) return {};
+  const accounts = Array.isArray(storedRows.value.ACCOUNTS) ? storedRows.value.ACCOUNTS : [];
+  return Object.fromEntries(Object.entries(TOUR_BROKERS).map(([key, b]:any) =>
+    [key, accounts.filter((r:any) => r?.broker === b.name).length]));
+});
 
 const summary = computed(() => {
   if (!broker.value) return tourSummary([], '', null);
@@ -340,7 +355,10 @@ async function refresh() {
   // Unasked opens only on Home: popping up over Settings right after "Clear data" reads as an error.
   const automatic = route.path === '/' && (inProgress || (!hasData.value && !stored.TOUR_DISMISSED && !stored.SAMPLE_DATA));
   const shouldOpen = step === 'choose' || automatic;
-  if (shouldOpen && !open.value) view.value = tour.value?.broker || 'choose';
+  if (shouldOpen && !open.value) {
+    adding.value = step === 'choose' && tour.value?.mode === 'add';
+    view.value = adding.value ? 'pick' : (tour.value?.broker || 'choose');
+  }
   open.value = shouldOpen;
 }
 
@@ -353,7 +371,7 @@ async function onOpenChange(value:boolean) {
 }
 
 async function dismiss() {
-  console.log('WelcomeDialog dismiss');
+  console.log('SetupGuideDialog dismiss');
   closedByUser = true;
   open.value = false;
   await chrome.storage.local.set({ TOUR_DISMISSED: true });
@@ -361,7 +379,7 @@ async function dismiss() {
 }
 
 async function loadSample() {
-  console.log('WelcomeDialog loadSample');
+  console.log('SetupGuideDialog loadSample');
   loadingSample.value = true;
   sampleError.value = false;
   try {
@@ -379,7 +397,7 @@ async function loadSample() {
 
 async function startBroker() {
   const key = view.value;
-  console.log('WelcomeDialog startBroker', key);
+  console.log('SetupGuideDialog startBroker', key);
   const { SAMPLE_DATA } = await chrome.storage.local.get('SAMPLE_DATA');
   // The sample has a fake account for this broker; left in, the real login would raise the "new account" prompt.
   if (SAMPLE_DATA) await resetAll();
@@ -394,11 +412,12 @@ async function finish() {
   await chrome.storage.local.set({ TOUR: { ...tour.value, step: 'done' } });
 }
 
-// Same restart Help uses: a fresh 'choose' keeps the dialog open, here straight on the broker list.
+// Same restart Help uses: a fresh 'choose' keeps the dialog open, here straight on the broker list in add mode.
 async function connectAnother() {
-  console.log('WelcomeDialog connectAnother');
+  console.log('SetupGuideDialog connectAnother');
+  adding.value = true;
   view.value = 'pick';
-  await chrome.storage.local.set({ TOUR: { broker: null, step: 'choose' } });
+  await chrome.storage.local.set({ TOUR: { broker: null, step: 'choose', mode: 'add' } });
 }
 
 watch(() => route.path, () => { void refresh(); });
@@ -446,8 +465,8 @@ onUnmounted(() => chrome.storage.onChanged.removeListener(onStorageChange));
   transition: background-color 150ms, opacity 150ms;
 }
 .choice:hover { background: hsl(var(--accent)); }
-.choice-title { display: block; font-size: 15px; font-weight: 600; line-height: 1.4; }
-.choice-text { display: block; margin-top: 2px; font-size: 14px; line-height: 1.45; color: hsl(var(--muted-foreground)); }
+.choice-title { display: block; font-size: 1rem; font-weight: 600; line-height: 1.4; }
+.choice-text { display: block; margin-top: 2px; font-size: 0.875rem; line-height: 1.45; color: hsl(var(--muted-foreground)); }
 .choice-icon {
   display: flex;
   align-items: center;
@@ -466,19 +485,11 @@ onUnmounted(() => chrome.storage.onChanged.removeListener(onStorageChange));
 .choice-primary:hover { background: hsl(var(--primary)); opacity: 0.92; }
 .choice-primary .choice-text { color: hsl(var(--primary-foreground) / 0.75); }
 .choice-primary .choice-icon { background: hsl(var(--primary-foreground) / 0.12); }
-.choice:focus-visible, .link:focus-visible {
+.choice:focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
 
-.link {
-  font-size: 14px;
-  color: hsl(var(--muted-foreground));
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  border-radius: 4px;
-}
-.link:hover { color: hsl(var(--foreground)); }
 
 /* Background is SYNC_COLOR_DONE inline: the bank page's "Synced" green, so both ends of the guide agree. */
 .done-badge {
@@ -507,7 +518,7 @@ onUnmounted(() => chrome.storage.onChanged.removeListener(onStorageChange));
   background: hsl(var(--muted) / 0.6);
   border-bottom: 1px solid hsl(var(--border));
 }
-.receipt-total span { font-size: 15px; font-weight: 600; color: hsl(var(--foreground)); }
+.receipt-total span { font-size: 1rem; font-weight: 600; color: hsl(var(--foreground)); }
 .receipt-total strong {
   font-size: 28px;
   font-weight: 600;

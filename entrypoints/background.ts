@@ -1,4 +1,17 @@
+import { versionAfterUpdate, versionApplyUpdate, versionOnConnect, versionReopenDashboard, versionRetryUpdate } from '~/utils/version-utils';
+
 export default defineBackground(() => {
+  // Registered at top level so the service worker wakes for it; without a listener a downloaded
+  // update waits for a browser restart while the dashboard keeps the extension busy.
+  // Safari has no onUpdateAvailable (the App Store updates it); a throw here would skip every listener below.
+  browser.runtime.onUpdateAvailable?.addListener((details) => {
+    versionApplyUpdate(details?.version);
+  });
+  browser.runtime.onConnect.addListener(versionOnConnect);
+  // A deferred update installs once the last tab using the extension closes.
+  browser.tabs.onRemoved.addListener(() => { versionRetryUpdate(); });
+  versionReopenDashboard();
+
   const action = browser.action || browser.browserAction;
   if (action && action.onClicked) {
     action.onClicked.addListener(() => {
@@ -21,7 +34,8 @@ export default defineBackground(() => {
   });
 
   browser.runtime.onInstalled.addListener(async ({ reason }) => {
-    // New installs only: the dashboard's welcome dialog takes it from there.
+    if (reason === 'update') return versionAfterUpdate();
+    // New installs only: the dashboard's setup guide dialog takes it from there.
     if (reason !== 'install') return;
     await browser.tabs.create({ url: browser.runtime.getURL("/home.html") });
   });

@@ -3,7 +3,7 @@
     as it depends on a specific HTML structure
 */
 
-import { germanToNumer, sleep } from "./helper";
+import { productTypeFromLabel, germanToNumer, sleep } from "./helper";
 
 const broker = "Consorsbank";
 
@@ -364,11 +364,8 @@ function consorsBankGetAllStockData() {
           }else if(key==="WKN"){
             rowData['wkn'] = value;
           }else if(key==="Gattung"){
-            let type = value;
-            if(type==='Aktie'){
-              type = 'stock';
-            }
-            rowData['type'] = type;
+            // Other labels stay as Consorsbank shows them.
+            rowData['type'] = productTypeFromLabel(value, value);
           }else if(key==="Kurs"){
             let bid:any = value;
             bid = bid.split(' ')[0];

@@ -6,6 +6,7 @@ import { computed, ref, watch } from 'vue'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 
 import { 
   Check as CheckIcon, 
@@ -59,45 +60,54 @@ function clearFilters() {
 <template>
   <Popover>
     <PopoverTrigger as-child>
-      <Button variant="icon" size="sm" class="relative h-8 w-8 border-dashed flex items-center justify-center">
-        <Filter class="h-4 w-4" />
+      <!-- "icon" is a size, not a variant -->
+      <Button variant="ghost" size="icon" class="relative h-8 w-8"
+        :class="{ 'text-primary': selectedValues.size > 0 }"
+        :aria-label="title ? `${$t('filter')}: ${title}` : $t('filter')" :title="title">
+        <Filter />
         <template v-if="selectedValues.size > 0">
           <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center 
-                  rounded-full bg-secondary text-secondary-foreground 
-                  text-[10px] font-medium leading-none"
+                  rounded-full bg-primary text-primary-foreground 
+                  text-[10px] font-medium leading-none tabular-nums"
           >
             {{ selectedValues.size }}
           </span>
         </template>
       </Button>
     </PopoverTrigger>
-    <PopoverContent class="w-[220px] p-2" align="start">
-      <div class="flex flex-col gap-1">
-        <button v-for="option in options"
-          :key="option.value" type="button"
-          class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
-          @click="toggleValue(option.value)">
-          <div :class="cn(
-              'mr-1 flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
-              selectedValues.has(option.value)
-                ? 'bg-primary text-primary-foreground'
-                : 'opacity-50 [&_svg]:invisible',
-            )">
-            <CheckIcon class="h-3.5 w-3.5" />
-          </div>
-          <span class="truncate">{{ option.label }}</span>
-          <span v-if="facets?.get(option.value)" class="ml-auto flex h-4 min-w-4 items-center justify-center font-mono text-xs">
-            {{ facets.get(option.value) }}
-          </span>
-        </button>
-
-        <div v-if="selectedValues.size > 0" class="my-1 h-px bg-muted" />
-        <button v-if="selectedValues.size > 0"
-          @click="clearFilters" type="button"
-          class="w-full justify-center rounded px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground">
-          {{  $t('clear_filters') }}
-        </button>
-      </div>
+    <PopoverContent class="w-[220px] p-0" align="start">
+      <!-- multiple + model-value: the listbox's aria-selected must match the checkboxes -->
+      <Command multiple :model-value="Array.from(selectedValues)">
+        <CommandInput :placeholder="title ? `${$t('search')}: ${title}` : $t('search')" />
+        <CommandList>
+          <CommandEmpty>{{ $t('no_results') }}</CommandEmpty>
+          <CommandGroup>
+            <CommandItem v-for="option in options" :key="option.value"
+              :value="option.value" :keywords="option.label"
+              @select="toggleValue(option.value)">
+              <div :class="cn(
+                  'flex h-4 w-4 items-center justify-center rounded-sm border border-primary',
+                  selectedValues.has(option.value)
+                    ? 'bg-primary text-primary-foreground'
+                    : 'opacity-50 [&_svg]:invisible',
+                )">
+                <CheckIcon class="h-3.5 w-3.5" />
+              </div>
+              <span class="truncate">{{ option.label }}</span>
+              <span v-if="facets?.get(option.value)" class="ml-auto flex h-4 min-w-4 items-center justify-center font-mono text-xs tabular-nums">
+                {{ facets.get(option.value) }}
+              </span>
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+        <!-- Outside the list so search never filters it out; inside, a no-match search left a lone divider. -->
+        <div v-if="selectedValues.size > 0" class="border-t p-1">
+          <button type="button" class="w-full rounded-sm px-2 py-1.5 text-center text-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+            @click="clearFilters">
+            {{ $t('clear_filters') }}
+          </button>
+        </div>
+      </Command>
     </PopoverContent>
   </Popover>
 </template>

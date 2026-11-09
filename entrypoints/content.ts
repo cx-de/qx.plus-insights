@@ -8,6 +8,7 @@ import {
   flatexOpenDepotList,
 } from '~/utils/kontoFlatex-utils';
 import { tourTick, tourSyncDone } from '~/utils/tour-utils';
+import { versionAnswerInUse } from '~/utils/version-utils';
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from '~/utils/constants';
 
 export default defineContentScript({
@@ -20,6 +21,8 @@ export default defineContentScript({
     'https://de.scalable.capital/*',
   ],
   async main(ctx) {
+    // Tells the background this tab uses the extension, so a downloaded update waits instead of orphaning it.
+    versionAnswerInUse();
     const updateDuration = BROKER_REFRESH_MS;
 
     const kontoFlatexWebsite = 'konto.flatex.de';
@@ -52,6 +55,7 @@ export default defineContentScript({
       partial:    { bg: SYNC_COLOR_DONE, opacity: '1' },
       error:      { bg: SYNC_COLOR_ERROR, opacity: '1' },
       busy:       { bg: SYNC_COLOR_IDLE, opacity: '1' },
+      demo:       { bg: SYNC_COLOR_IDLE, opacity: '1' },
     };
 
     function syncLabel() {
@@ -63,6 +67,7 @@ export default defineContentScript({
         case 'partial':    return `${t('synced')}${syncDetail ? ' ' + syncDetail : ''}`;
         case 'error':      return t('sync_failed');
         case 'busy':       return t('sync_running');
+        case 'demo':       return t('tour.sample.sync_declined');
         default:           return t('sync_qx');
       }
     }
@@ -121,6 +126,11 @@ export default defineContentScript({
       }
       if (syncState === 'saving') return;
       if (flatexSyncState.inFlight) return finishSync('busy');
+      // Declined: the demo stays and nothing is saved, which is not a failed sync.
+      // The label says it; a title would outlive the reset to idle.
+      if (await contentSampleGate() === 'declined') {
+        return finishSync('demo');
+      }
 
       clearTimeout(syncResetTimer);
       let result:any = null;

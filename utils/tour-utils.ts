@@ -2,7 +2,7 @@ import { createShadowRootUi } from '#imports';
 import { i18n } from '~/entrypoints/home/i18n';
 import { numberToGerman } from './helper';
 
-// One entry per broker the welcome dialog offers; step order is the order the user walks them.
+// One entry per broker the setup guide dialog offers; step order is the order the user walks them.
 // name is the stored row `broker`; url's host also tells the content script which guide this page runs.
 export const TOUR_BROKERS:any = {
   flatex: {

@@ -12,7 +12,7 @@ const arrayKeys = ['local:MAIN_LIST', 'local:LIST_DATA', 'local:ALERTS', 'local:
 // The flatex probe trio stays together: a hash from this device with an account from the file would mislabel positions.
 const privateKeys = ['local:api_key', 'local:api_auth_failed', 'local:api_auth_failed_at', 'local:api_auth_fail_count',
   'local:flatexProbedToken', 'local:flatexProbedTokenHash', 'local:flatexProbedAccount', 'local:flatexProbeFailedAt', 'local:flatexUserSync',
-  'local:VERSION_CHECK', 'local:api_rate_limit', 'local:UPDATE_SNOOZE', 'local:ACCOUNT_SNOOZE', 'local:FLATEX_SYNC_LOCK'];
+  'local:VERSION_CHECK', 'local:api_rate_limit', 'local:UPDATE_SNOOZE', 'local:VERSION_CHECK_FAIL', 'local:UPDATE_READY', 'local:REOPEN_DASHBOARD', 'local:ACCOUNT_SNOOZE', 'local:FLATEX_SYNC_LOCK'];
 const privateSettings = ['telegram_bot_token', 'telegram_channel_id'];
 
 const isCash = (row: any) => String(row?.stock_name ?? '').trim().toLowerCase() === 'cash';
@@ -211,7 +211,11 @@ export async function importAll(file: File) {
         console.error(`importAll key "${key}" error:`, err);
       }
     }
-    for (const [key, value] of keepLocal) if (value) localStorage.setItem(key as string, value);
+    // An unset choice stays unset, so the sample's own theme does not override the OS default.
+    for (const [key, value] of keepLocal) {
+      if (value) localStorage.setItem(key as string, value);
+      else localStorage.removeItem(key as string);
+    }
   }
 
   // Restored rows may predate account_id; clearing the flag lets accountMigrate
@@ -220,18 +224,31 @@ export async function importAll(file: File) {
     await storage.removeItem('local:ACCOUNTS_SCHEMA');
   }
 
-  // Sample file from Settings or the welcome dialog alike: a real login must not save rows under its fake account ids.
+  // Sample file from Settings or the setup guide dialog alike: a real login must not save rows under its fake account ids.
   if (isSample) await accountClearCurrentIds();
 
   return { valid: true, summary: backupSummary(entries) };
 }
 
+// Extension storage only, so content scripts can call it: their localStorage is the broker page's, not ours.
+export async function storageClearKeepPrivate() {
+  console.log('storageClearKeepPrivate');
+  const kept = await storage.getItems(privateKeys as any);
+  const currentSettings: any = await storage.getItem('local:settings');
+  // Telegram credentials sit inside settings, not in privateKeys; carry them over as importAll does.
+  const credentials = Object.fromEntries(privateSettings.filter(field => currentSettings?.[field] !== undefined)
+    .map(field => [field, currentSettings[field]]));
+  await storage.clear('local');
+  await storage.setItems([
+    ...kept.filter((item: any) => item.value !== null && item.value !== undefined),
+    ...(Object.keys(credentials).length ? [{ key: 'local:settings' as const, value: credentials }] : []),
+  ]);
+}
+
 // Back to a fresh install, minus the API key and the user's language and theme; removes loaded sample data.
 export async function resetAll() {
   console.log('resetAll');
-  const kept = await storage.getItems(privateKeys as any);
-  await storage.clear('local');
-  await storage.setItems(kept.filter((item: any) => item.value !== null && item.value !== undefined));
+  await storageClearKeepPrivate();
   const keepLocal = ['theme', 'lang'].map(key => [key, localStorage.getItem(key)]);
   localStorage.clear();
   for (const [key, value] of keepLocal) if (value) localStorage.setItem(key as string, value);

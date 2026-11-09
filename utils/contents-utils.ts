@@ -1,6 +1,8 @@
+import { storage } from '#imports';
 import { i18n } from '~/entrypoints/home/i18n';
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR } from './constants';
 import { tourSyncDone } from './tour-utils';
+import { storageClearKeepPrivate } from '@/lib/storage-utils';
 
 // Values shown in the extra row under each position. "" leaves a cell empty so the row lines up with the broker's own columns.
 export const EXTRA_ROW_COLUMNS = ["type", "", "cap", "future_total_value", "profit_loss_target", "profit_loss_target_pa", "underlying_price"];
@@ -11,6 +13,16 @@ export const EXTRA_ROW_HEADERS = ["Derivatetyp (Basiswert / Lieferung / Quanto /
 // flatex's depot table has room for more cells, so its extra row shows a longer list.
 export const FLATEX_EXTRA_ROW_COLUMNS = ["type", "valuation_date", "cap", "future_total_value", "na", "profit_loss_target", "profit_loss_target_pa", "underlying_price"];
 
+// Gate for every Sync click while demo data is loaded. A click is consent, but wiping the demo still asks once.
+// 'replaced' leaves an empty registry, so the sync that follows adopts the real account without a prompt.
+export async function contentSampleGate(): Promise<'none' | 'replaced' | 'declined'> {
+  if (!await storage.getItem('local:SAMPLE_DATA')) return 'none';
+  const result = window.confirm(i18n.global.t('tour.sample.replace_confirm')) ? 'replaced' : 'declined';
+  if (result === 'replaced') await storageClearKeepPrivate();
+  console.log('contentSampleGate', result);
+  return result;
+}
+
 // Brand-coloured "Sync QX+" button behaviour: run the save, flash the result for a second, then reset.
 // save resolves true when the depot is stored, 'partial' when only part is (green, but the guide waits), false when nothing is.
 export function attachSyncFeedback(button: HTMLElement, save: () => Promise<boolean | 'partial'>) {
@@ -18,6 +30,12 @@ export function attachSyncFeedback(button: HTMLElement, save: () => Promise<bool
   button.textContent = idleText;
   button.style.backgroundColor = SYNC_COLOR_IDLE;
   button.addEventListener('click', async () => {
+    if (await contentSampleGate() === 'declined') {
+      // Not an error: the save is held back on purpose while the demo is loaded.
+      button.textContent = i18n.global.t('tour.sample.sync_declined');
+      setTimeout(() => { button.textContent = idleText; }, 2000);
+      return;
+    }
     try {
       const result = await save();
       // A skipped save used to flash "Synced" too, which told users a failed sync had worked.
@@ -53,7 +71,8 @@ function updateColumnValue(data:any, col:any){
     }else if(col==="profit_loss_target_pa"){
       colVal = numberToGerman(data[col], false, 2)+' %';
     }else if(col==="underlying_price"){
-      colVal = numberToGerman(data[col]);
+      // 4 decimals, as the dashboard List shows it: FX underlyings move in the 4th place.
+      colVal = numberToGerman(data[col], false, 4);
     }else{
       colVal = data[col];
     }

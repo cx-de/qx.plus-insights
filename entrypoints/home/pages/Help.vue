@@ -1,17 +1,12 @@
 <template>
   <div>
 
-    <Card class="border-0 w-full max-w-lg shadow-lg rounded-lg p-6 bg-card text-card-foreground transition-all">
-      <!-- header was commented out, leaving the page with no heading at all -->
-      <CardHeader class="px-0 pt-0">
-        <h1 class="text-2xl font-semibold leading-none tracking-tight">
-          {{  $t('help_and_support') }}
-        </h1>
-        <CardDescription>
-          {{  $t('need_assistance_we_are_here_to_help') }}
-        </CardDescription>
+    <Card class="w-full max-w-lg">
+      <CardHeader class="p-4 pb-0 sm:p-5 sm:pb-0">
+        <h1 class="text-2xl font-semibold leading-none tracking-tight">{{ $t('help_and_support') }}</h1>
+        <CardDescription>{{ $t('need_assistance_we_are_here_to_help') }}</CardDescription>
       </CardHeader>
-      <CardContent class="px-0 pb-0 text-sm text-muted-foreground">
+      <CardContent class="p-4 sm:p-5 text-sm text-muted-foreground">
         <dl class="space-y-4">
           <div class="flex justify-between gap-4">
             <dt class="font-medium text-foreground">{{ $t('version') }}</dt>
@@ -64,7 +59,7 @@ import { Button } from '@/components/ui/button';
 
 const { t } = useI18n();
 
-// WelcomeDialog in App.vue watches TOUR and opens on 'choose'.
+// SetupGuideDialog in App.vue watches TOUR and opens on 'choose'.
 async function restartTour() {
   await chrome.storage.local.remove('TOUR_DISMISSED');
   await chrome.storage.local.set({ TOUR: { broker: null, step: 'choose' } });

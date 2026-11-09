@@ -23,6 +23,9 @@
   --color-warning: hsl(var(--warning));
   --color-warning-foreground: hsl(var(--warning-foreground));
 
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
 
@@ -78,10 +81,27 @@
     --secondary-foreground: 222.2 47.4% 11.2%;
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 100% 50%;
+    /* AA (4.5:1) as text on white */
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
     --warning: 26 90% 37%;
     --warning-foreground: 0 0% 98%;
+    --success: 142 72% 29%;
+    --success-foreground: 0 0% 98%;
+    /* Slice and line colours, hex because Chart.js reads them raw (chartPalette) */
+    --chart-1: #3b5b84;
+    --chart-2: #a03f78;
+    --chart-3: #6f9a22;
+    --chart-4: #ca9b4f;
+    --chart-5: #5b8db8;
+    --chart-6: #c76a9e;
+    --chart-7: #4d7a0a;
+    --chart-8: #a77321;
+    --chart-9: #2a8a8a;
+    --chart-10: #8a5a9e;
+    --chart-11: #b5543c;
+    --chart-12: #5e6b7a;
+    --chart-cash: #dc2626;
     --ring: 215 20.2% 65.1%;
     --radius: 0.5rem;
   }
@@ -103,10 +123,28 @@
     --primary-foreground: 222.2 47.4% 1.2%;
     --secondary: 222.2 47.4% 11.2%;
     --secondary-foreground: 210 40% 98%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
+    /* readable as text on the dark ground */
+    --destructive: 0 78% 56%;
+    /* dark text: white on this red is below AA */
+    --destructive-foreground: 0 0% 9%;
     --warning: 43 96% 56%;
     --warning-foreground: 0 0% 9%;
+    --success: 142 69% 58%;
+    --success-foreground: 0 0% 9%;
+    /* Lighter steps of the same hues, so every slice shows on the dark card */
+    --chart-1: #7096c8;
+    --chart-2: #d377ad;
+    --chart-3: #a5cc5a;
+    --chart-4: #dcb26c;
+    --chart-5: #94bce0;
+    --chart-6: #e5a2c8;
+    --chart-7: #86b83a;
+    --chart-8: #c9954a;
+    --chart-9: #5cc2c2;
+    --chart-10: #b48bc8;
+    --chart-11: #e08a72;
+    --chart-12: #9aa7b6;
+    --chart-cash: #f87171;
     /* was equal to --border, which made keyboard focus invisible in dark mode */
     --ring: 212.7 26.8% 83.9%;
   }

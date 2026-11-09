@@ -1,7 +1,7 @@
 <template>
   <HoverCard>
     <HoverCardTrigger as-child>
-      <span class="cursor-pointer underline">
+      <span class="cursor-pointer underline underline-offset-4 decoration-current/40 hover:decoration-current">
         {{ wkn }}
       </span>
     </HoverCardTrigger>
@@ -14,17 +14,17 @@
           <div class="dc-line">
             <template v-if="info.isin">
               <span>{{ info.isin }}</span>
-              <button type="button" class="dc-copy" :aria-label="`Copy ISIN ${info.isin}`" @click.stop="copyValue('isin', info.isin)">
-                <Check v-if="copiedField === 'isin'" class="w-3.5 h-3.5 text-green-600" />
+              <Button type="button" variant="ghost" size="icon" class="h-6 w-6 text-muted-foreground [&_svg]:size-3.5" :aria-label="$t('copy_value', { name: `ISIN ${info.isin}` })" @click.stop="copyValue('isin', info.isin)">
+                <Check v-if="copiedField === 'isin'" class="w-3.5 h-3.5 text-success" />
                 <Copy v-else class="w-3.5 h-3.5" />
-              </button>
+              </Button>
             </template>
             <span v-if="info.wkn" class="dc-seg">
               <span>{{ info.wkn }}</span>
-              <button type="button" class="dc-copy" :aria-label="`Copy WKN ${info.wkn}`" @click.stop="copyValue('wkn', info.wkn)">
-                <Check v-if="copiedField === 'wkn'" class="w-3.5 h-3.5 text-green-600" />
+              <Button type="button" variant="ghost" size="icon" class="h-6 w-6 text-muted-foreground [&_svg]:size-3.5" :aria-label="$t('copy_value', { name: `WKN ${info.wkn}` })" @click.stop="copyValue('wkn', info.wkn)">
+                <Check v-if="copiedField === 'wkn'" class="w-3.5 h-3.5 text-success" />
                 <Copy v-else class="w-3.5 h-3.5" />
-              </button>
+              </Button>
             </span>
             <span v-if="info.issuer" class="dc-seg"><span class="dc-lbl">{{ $t('issuer') }}</span> <span>{{ info.issuer }}</span></span>
           </div>
@@ -34,10 +34,10 @@
             <template v-if="info.underlying_isin">
               <span class="dc-pipe">|</span>
               <b class="dc-under">{{ info.underlying_isin }}</b>
-              <button type="button" class="dc-copy" :aria-label="`Copy underlying ISIN ${info.underlying_isin}`" @click.stop="copyValue('underlying_isin', info.underlying_isin)">
-                <Check v-if="copiedField === 'underlying_isin'" class="w-3.5 h-3.5 text-green-600" />
+              <Button type="button" variant="ghost" size="icon" class="h-6 w-6 text-muted-foreground [&_svg]:size-3.5" :aria-label="$t('copy_value', { name: `${$t('underlying')} ISIN ${info.underlying_isin}` })" @click.stop="copyValue('underlying_isin', info.underlying_isin)">
+                <Check v-if="copiedField === 'underlying_isin'" class="w-3.5 h-3.5 text-success" />
                 <Copy v-else class="w-3.5 h-3.5" />
-              </button>
+              </Button>
             </template>
             <span class="dc-seg">
               <span class="dc-lbl">{{ $t('dc_ratio') }}</span> <b>{{ info.ratio ? numberToGerman(info.ratio, !(info.ratio % 1), 4) : '–' }}</b>
@@ -68,20 +68,20 @@
                           <td class="dc-k">{{ $t(column) }}</td>
                           <td class="dc-v">
                             <template v-if="column === 'underlying_price'">
-                              {{ info[column] ? numberToGerman(getComparableUnderlyingPrice(info)) : '' }}
+                              {{ info[column] ? numberToGerman(getComparableUnderlyingPrice(info), false, 4) : '' }}
                             </template>
                             <template v-else-if="column === 'wkn' || column === 'isin'">
                               <span class="inline-flex items-center gap-1">
                                 {{ info[column] }}
-                                <button v-if="info[column]" type="button" @click.stop="copyValue(column, info[column])"
-                                  class="dc-copy">
-                                  <Check v-if="copiedField === column" class="w-3.5 h-3.5 text-green-600" />
+                                <Button v-if="info[column]" type="button" @click.stop="copyValue(column, info[column])"
+                                  variant="ghost" size="icon" class="h-6 w-6 text-muted-foreground [&_svg]:size-3.5" :aria-label="$t('copy_value', { name: `${column.toUpperCase()} ${info[column]}` })">
+                                  <Check v-if="copiedField === column" class="w-3.5 h-3.5 text-success" />
                                   <Copy v-else class="w-3.5 h-3.5" />
-                                </button>
+                                </Button>
                               </span>
                             </template>
                             <template v-else-if="priceColumns.includes(column)">
-                              {{ info[column] ? numberToGerman(info[column], false, percentColumns.includes(column) ? 2 : undefined) : '' }}
+                              {{ info[column] ? (['buy_price', 'bid', 'ask'].includes(column) ? unitPriceToGerman(info[column], info.type) : numberToGerman(info[column])) : '' }}
                             </template>
                             <template v-else-if="column === 'type' ">
                               {{ info[column] ? $t(info[column]) : '' }}
@@ -136,8 +136,8 @@
             </template>
           </span>
           <span v-if="chartData" class="dc-toggle" role="group" :aria-label="$t('dc_view_mode')">
-            <button type="button" :class="{ active: view === 'chart' }" :aria-pressed="view === 'chart'" @click.stop="setView('chart')">{{ $t('dc_chart') }}</button>
-            <button type="button" :class="{ active: view === 'table' }" :aria-pressed="view === 'table'" @click.stop="setView('table')">{{ $t('dc_table') }}</button>
+            <Button type="button" size="xs" :variant="view === 'chart' ? 'default' : 'ghost'" :aria-pressed="view === 'chart'" @click.stop="setView('chart')">{{ $t('dc_chart') }}</Button>
+            <Button type="button" size="xs" :variant="view === 'table' ? 'default' : 'ghost'" :aria-pressed="view === 'table'" @click.stop="setView('table')">{{ $t('dc_table') }}</Button>
           </span>
         </div>
       </div>
@@ -146,13 +146,14 @@
 </template>
 
 <script setup lang="ts">
+import { Button } from '@/components/ui/button';
 import {
   HoverCard,
   HoverCardContent,
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 
-import { numberToGerman, formatTimestamp, getComparableUnderlyingPrice } from '~/utils/helper';
+import { numberToGerman, unitPriceToGerman, formatTimestamp, getComparableUnderlyingPrice } from '~/utils/helper';
 import { buildDerivativeData, renderDerivativeChart } from '~/utils/derivative-chart-utils';
 import { Copy, Check } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n';
@@ -211,8 +212,6 @@ const priceColumns = ref([
     'cap_strike',
     'implied_volatility',
 ]);
-const percentColumns = ['profit_loss_percentage', 'profit_loss_target_pa', 'position_percentage', 'position_target_percentage',
-  'sideways_return_pa', 'yield_pa_since_purchase', 'implied_volatility'];
 
 const VIEW_KEY = 'stock_info_card_view';
 const readStoredView = () => {
@@ -362,12 +361,6 @@ watch(() => (cardEl.value ? [svgEl.value, chartData.value, chartLabels.value] : 
 .dc-seg { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; padding-left: 12px; border-left: 1.25px solid var(--dc-line); }
 .dc-lbl { font-weight: 400; color: var(--dc-muted); }
 .dc-pipe { margin: 0 2px; color: var(--dc-line); font-weight: 400; }
-.dc-copy {
-  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px;
-  color: var(--dc-muted); background: none; border: none; cursor: pointer;
-}
-.dc-copy:hover { color: var(--dc-txt); background: var(--dc-band); }
-.dc-copy:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 1px; }
 .dc-body { display: grid; }
 .dc-body > * { grid-area: 1 / 1; min-width: 0; }
 /* visibility, not display:none: the hidden view must keep its size in the grid */
@@ -400,8 +393,5 @@ watch(() => (cardEl.value ? [svgEl.value, chartData.value, chartLabels.value] : 
 }
 @keyframes dc-pulse { 50% { opacity: .4; } }
 @media (prefers-reduced-motion: reduce) { .dc-dot { animation: none; } }
-.dc-toggle { margin-left: auto; display: inline-flex; flex: none; border: 1px solid var(--dc-line); border-radius: calc(var(--radius) - 2px); overflow: hidden; }
-.dc-toggle button { font-size: 12px; line-height: 16px; padding: 3px 10px; color: var(--dc-muted); background: transparent; border: none; cursor: pointer; }
-.dc-toggle button.active { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
-.dc-toggle button:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: -2px; }
+.dc-toggle { margin-left: auto; display: inline-flex; flex: none; gap: 2px; padding: 2px; border: 1px solid var(--dc-line); border-radius: var(--radius); }
 </style>

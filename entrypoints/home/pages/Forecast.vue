@@ -1,25 +1,21 @@
 <template>
   <div>
-    <div class="mx-auto grid flex-1 auto-rows-max gap-4">
-      
-      <div class="w-full overflow-auto shadow-lg rounded-lg">
+    <h1 class="sr-only">{{ $t('forecast') }}</h1>
 
-        <Card class="border-0 shadow-none rounded-lg block w-full p-6 bg-card text-card-foreground transition-all">
+    <!-- grid-cols-1 (minmax(0,1fr)): an auto column grows to the wide table and scrolls the page -->
+    <div class="mx-auto grid grid-cols-1 flex-1 auto-rows-max gap-4">
+
+      <div class="w-full min-w-0">
+
+        <Card class="block w-full min-w-0 p-4 sm:p-5">
           <CardContent class="p-0">
             <div class="w-full lg:w-auto flex items-center justify-center">
               
-              <!-- w-full: inside the centering flex parent the skeleton collapsed to zero width -->
-              <div v-if="isLoading" class="w-full">
-                <div class="w-full flex items-center justify-center">
-                  <!-- Fixed 1200x700 overflowed the popup at anything but full width. -->
-                  <Skeleton class="w-full min-h-[320px] rounded-md" :class="chartHeightClass" />  
-                </div>
-              </div>
-              
               <!-- Flex column: the canvas has maintainAspectRatio:false so it fills its
                    parent, and as a sibling of the toolbar it overflowed this fixed box.
-                   Height comes from chartHeightClass, which accounts for the API-key banner. -->
-              <div v-else class="relative w-full flex flex-col min-h-[320px]" :class="chartHeightClass">
+                   Height comes from chartHeightClass, which accounts for the API-key banner.
+                   The toolbar stays outside the loading switch so Scenarios and Export are reachable while it loads. -->
+              <div class="relative w-full flex flex-col min-h-[320px]" :class="chartHeightClass">
                 <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
                   <div class="flex flex-wrap items-center gap-3">
                     <AccountFilter @change="loadForecast()" />
@@ -34,7 +30,22 @@
                       </Button>
                     </div>
                   </div>
-                  <div class="flex gap-2">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <!-- In the toolbar, not fixed to the edge, so they never cover chart lines -->
+                    <template v-if="selectedType === 'forecast'">
+                      <Button variant="outline" size="sm" @click="isScenarioSheet = true">
+                        <SlidersHorizontal />
+                        {{ $t('scenarios.title') }}
+                        <!-- exclusions change every scenario line, so show them with the sheet closed -->
+                        <span v-if="excludedWkns.length" class="min-w-5 h-5 px-1 rounded-full bg-primary text-primary-foreground text-xs leading-5 tabular-nums"
+                          :title="$t('scenarios.exclude_summary', excludedWkns.length)">{{ excludedWkns.length }}</span>
+                      </Button>
+                      <Button variant="outline" size="sm" @click="openForecastTableData()">
+                        <Table2 />
+                        {{ $t('forecast_export.title') }}
+                      </Button>
+                      <span class="mx-1 hidden h-6 w-px bg-border sm:block" aria-hidden="true"></span>
+                    </template>
                     <Button v-for="option in options" :key="option.value" size="sm"
                       :variant="selectedType !== option.value ? 'secondary' : 'default' "
                       :aria-pressed="selectedType === option.value"
@@ -45,7 +56,8 @@
                 </div>
                 <!-- min-h-0 so flex-1 may shrink below the canvas's intrinsic size. -->
                 <!-- One panel per account when separate: on a shared axis a 1k account flattened to 0 under 1M ones. -->
-                <div class="relative flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto">
+                <Skeleton v-if="isLoading" class="flex-1 min-h-0 w-full rounded-md" />
+                <div v-else class="relative flex-1 min-h-0 flex flex-col gap-2 overflow-y-auto">
                   <!-- The bottom panel's 70px basis is its date axis, so every plot area gets the same height. -->
                   <div v-for="(panel, i) in chartPanels" :key="panel.key ?? 'all'"
                     class="flex flex-col"
@@ -71,16 +83,6 @@
 
         
          <template v-if="selectedType === 'forecast'">
-            <!-- Scenarios  -->
-            <Button @click="isScenarioSheet = true"
-              :aria-label="$t('scenarios.title')" :title="$t('scenarios.title')"
-              class="fixed top-[20%] right-0 z-50 shadow-lg rounded-l-full rounded-tr-none rounded-br-none p-2">
-              <SlidersHorizontal class="w-4 h-4" />
-              <!-- exclusions change every scenario line, so they must be noticeable with the sheet closed -->
-              <span v-if="excludedWkns.length" class="absolute -top-1 -left-1 min-w-4 h-4 px-1 rounded-full bg-background text-foreground border text-[10px] leading-[14px] tabular-nums"
-                :title="$t('scenarios.exclude_summary', excludedWkns.length)">{{ excludedWkns.length }}</span>
-            </Button>
-
             <Sheet v-model:open="isScenarioSheet">
               <!-- light overlay: the chart behind must stay readable so scenario edits show their effect -->
               <SheetContent side="right" overlay-class="bg-black/20" class="w-full sm:max-w-md p-6 flex flex-col">
@@ -187,7 +189,7 @@
                               <!-- diverging bar: length is relative to the largest scenario so the fan reads like the chart -->
                               <span class="relative w-16 h-1.5 rounded-full bg-muted" aria-hidden="true">
                                 <span class="absolute left-1/2 top-[-3px] w-px h-3 bg-border"></span>
-                                <span :class="['absolute top-0 h-full', Number(scenario.market) >= 0 ? 'left-1/2 rounded-r-full bg-emerald-500' : 'right-1/2 rounded-l-full bg-rose-500']"
+                                <span :class="['absolute top-0 h-full', Number(scenario.market) >= 0 ? 'left-1/2 rounded-r-full bg-success' : 'right-1/2 rounded-l-full bg-destructive']"
                                   :style="{ width: `${marketBarWidth(scenario.market)}%` }"></span>
                               </span>
                             </div>
@@ -303,7 +305,7 @@
                         <span>{{ $t('scenarios.virtual_puts.premium') }} <strong class="font-semibold">{{ virtualPutPreview.premium ? `${formatChartNumber(virtualPutPreview.premium, 2)} €` : '–' }}</strong></span>
                         <span class="text-muted-foreground">{{ virtualPutDistanceText }}</span>
                         <span v-if="virtualPutPreview.iv" class="w-full text-muted-foreground">{{ $t('scenarios.virtual_puts.iv_preview', { value: formatChartNumber(virtualPutPreview.iv, 2) }) }}</span>
-                        <span v-if="virtualPutIvWarning" class="w-full font-medium text-amber-700 dark:text-amber-400">{{ virtualPutIvWarning }}</span>
+                        <span v-if="virtualPutIvWarning" class="w-full font-medium text-warning">{{ virtualPutIvWarning }}</span>
                       </div>
 
                       <div class="flex justify-end gap-2 border-t pt-3">
@@ -378,11 +380,12 @@
                           @keydown.enter.prevent="addExcludedFromInput" @keydown.esc="excludeSearch = ''; isExcludeListOpen = false" />
                         <!-- opens downward: the search sits at the top of its own tab, with room below -->
                         <ul v-if="isExcludeListOpen && excludeSuggestions.length" id="exclude-suggestions" role="listbox"
-                          class="absolute z-10 top-full mt-1 w-full max-h-56 overflow-y-auto rounded-md border bg-popover shadow-md">
+                          class="absolute z-10 top-full mt-1 w-full max-h-56 overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md">
                           <li v-for="(position, i) in excludeSuggestions" :key="position.wkn" role="option" :aria-selected="i === activeSuggestion">
-                            <!-- mousedown: a click would lose the race against the input's blur -->
+                            <!-- mousedown: a click would lose the race against the input's blur. Styled as a CommandItem;
+                                 kept hand-built because Enter also adds a typed WKN that is not in the list. -->
                             <button type="button" tabindex="-1"
-                              :class="['flex w-full items-center gap-2 px-2 py-1.5 text-sm text-left hover:bg-muted', i === activeSuggestion ? 'bg-muted' : '']"
+                              :class="['flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-left outline-hidden', i === activeSuggestion ? 'bg-accent text-accent-foreground' : '']"
                               @mouseenter="activeSuggestion = i" @mousedown.prevent="addExcludedWkn(position)">
                               <span class="flex-1 min-w-0 truncate" :title="position.name">{{ position.name }}</span>
                               <span class="text-xs text-muted-foreground tabular-nums">{{ position.wkn }}</span>
@@ -428,13 +431,6 @@
               </SheetContent>
             </Sheet>
         
-              <!-- Export  -->
-              <Button @click="openForecastTableData()"
-                :aria-label="$t('forecast_export.title')" :title="$t('forecast_export.title')"
-                class="fixed top-[30%] right-0 z-50 shadow-lg rounded-l-full rounded-tr-none rounded-br-none p-2">
-                <Table2 class="w-4 h-4" />
-              </Button>
-              
               <Sheet v-model:open="isExportSheet">
                 <SheetContent side="right" class="w-[90%] sm:max-w-[90%] p-6">
                   <SheetHeader>
@@ -452,10 +448,12 @@
                           required :min="defaultExportDate" />
                       </div>
                       <Button @click="loadForecastData()" :disabled="isTableLoading">
-                        <Calculator class="w-4 h-4 mr-2" /> {{ $t('calculate') }}
+                        <Loader2 v-if="isTableLoading" class="animate-spin motion-reduce:animate-none" />
+                        <Calculator v-else /> {{ $t('calculate') }}
                       </Button>
                       <Button @click="exportForecast()" variant="outline" :disabled="isExporting">
-                        <Download class="w-4 h-4 mr-2" /> {{ $t('export') }}
+                        <Loader2 v-if="isExporting" class="animate-spin motion-reduce:animate-none" />
+                        <Download v-else /> {{ $t('export') }}
                       </Button>
                     </div>
 
@@ -464,7 +462,8 @@
                         <TableHeader>
                           <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
                             <TableHead v-for="header in headerGroup.headers" :key="header.id"
-                            class="sticky top-0 z-30 bg-primary text-primary-foreground">
+                            class="sticky top-0 z-30 bg-muted text-foreground"
+                            :class="{ 'text-right': isNumericExportColumn(header.column.id) }">
                               <FlexRender v-if="!header.isPlaceholder" :render="header.column.columnDef.header" :props="header.getContext()" />
                             </TableHead>
                           </TableRow>
@@ -473,7 +472,8 @@
                           <template v-if="table.getRowModel().rows?.length">
                             <template v-for="row in table.getRowModel().rows" :key="row.id">
                               <TableRow class="">
-                                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id"
+                                  :class="{ 'text-right tabular-nums': isNumericExportColumn(cell.column.id) }">
                                   <template v-if="cell.column.id === 'type'">
                                     {{ $t(row.original.type) }}
                                   </template>
@@ -492,7 +492,8 @@
                              
                             </template>
                             <TableRow class="sticky bottom-0 bg-muted! font-semibold z-20 shadow-[0_-2px_4px_rgba(0,0,0,0.1)]">
-                              <TableCell v-for="col in table.getAllLeafColumns()" :key="col.id">
+                              <TableCell v-for="col in table.getAllLeafColumns()" :key="col.id"
+                                :class="{ 'text-right tabular-nums': isNumericExportColumn(col.id) }">
                                 <template v-if="col.id === 'type'">
                                   {{  $t('total') }}
                                 </template>
@@ -531,7 +532,7 @@
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{{ $t('cancel') }}</AlertDialogCancel>
-                <AlertDialogAction class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="runConfirm()">
+                <AlertDialogAction :class="buttonVariants({ variant: 'destructive' })" @click="runConfirm()">
                   {{ $t('delete') }}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -557,7 +558,9 @@ import { downloadXlsx } from "~/utils/export-utils";
 import {useI18n} from "vue-i18n";
 import { storage } from '#imports'
 import { Line } from 'vue-chartjs'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { chartPalette, chartTokenColor, chartOnThemeChange } from '~/utils/chart-colors-utils';
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import DateRangePicker  from '@/components/DateRangePicker.vue'
@@ -621,7 +624,7 @@ ChartJS.register(
   Legend
 )
 
-import { Pencil, Trash, Trash2, Eye, EyeOff, Download, SlidersHorizontal, Table2, Calculator, CircleSlash, ShieldCheck, Plus } from 'lucide-vue-next';
+import { Pencil, Trash, Trash2, Eye, EyeOff, Download, SlidersHorizontal, Table2, Calculator, CircleSlash, ShieldCheck, Plus, Loader2 } from 'lucide-vue-next';
 
 const { t,locale } = useI18n();
 document.title = t('forecast');
@@ -639,20 +642,15 @@ const runConfirm = async () => {
 };
 const notifyError = (title: string) => toast({ title, variant: 'destructive' });
 
-// Chart.js defaults (#666 text, dark grid) had poor contrast on the dark card
-const themeColor = (name: string, alpha = 1) => {
-  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value ? `hsl(${value} / ${alpha})` : undefined;
-};
-const axisTextColor = themeColor('--muted-foreground');
-const gridColor = themeColor('--border');
-const customColors = [
-  '#3B5B84', '#A03F78', '#98BD4A', '#CA9B4F',
-  '#294D7B', '#952968', '#86AF30', '#BB8733',
-  '#1D406D', '#841A58', '#749C1F', '#A77321',
-  '#113461', '#760C4A', '#638B0E', '#94610E',
-  '#072954', '#66003C', '#517800', '#804F00'
-];
+// Axis and grid colours from the theme; Chart.js defaults have poor contrast on the dark card.
+// let: applyChartTheme re-reads them when the theme flips.
+const themeColor = chartTokenColor;
+let axisTextColor = themeColor('--muted-foreground');
+let gridColor = themeColor('--border');
+let customColors = chartPalette();
+// Gain/loss lines from the theme tokens; a 0 % scenario is neither, so it gets the neutral axis colour.
+const scenarioColor = (market: number) => market > 0 ? themeColor('--success')
+  : market < 0 ? themeColor('--destructive') : axisTextColor;
 
 const options = [
   { label: t('history'), value: 'history' },
@@ -758,7 +756,8 @@ for (let i = 0; i < 12; i++) {
 
 
 const datapoints = ref<any[]>([]);
-const defaultDataSets = [
+// A function, so each call takes the current theme colours.
+const defaultDataSets = () => [
   {
     label: 'Portfolio Forecast',
     data: [],
@@ -772,7 +771,7 @@ const defaultDataSets = [
 
 const chartData = ref<any>({
   labels: allDates,
-  datasets: defaultDataSets
+  datasets: defaultDataSets()
 });
 
 
@@ -1373,7 +1372,7 @@ const recalculateDatapoints = async() => {
   datapoints.value = [];
   // An early return below would otherwise leave the previous view's panels on screen.
   chartPanels.value = [];
-  chartData.value.datasets = defaultDataSets;
+  chartData.value.datasets = defaultDataSets();
 
 
   if(selectedType.value==='history'){
@@ -1533,7 +1532,7 @@ const recalculateDatapoints = async() => {
         const anchoredData = adjustedData.map((value:any, i:any) =>
           anchorBase[i] + value - scenarioTotalForDate(group.rows, neutralScenario, datesForForecast[i])
             - excludedForecastGrowth(group.rows, datesForForecast[i]));
-        const formattedEndDate = end.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+        const formattedEndDate = end.toLocaleString(locale.value === 'de' ? 'de-DE' : 'en-GB', { month: 'short', year: 'numeric' });
         chartData.value.datasets.push({
           label: `${t('scenario')} ${index + 1} (${market > 0 ? '+' : ''}${formatChartNumber(market, 2)}%) ${t('until')} ${formattedEndDate}`,
 
@@ -1541,8 +1540,8 @@ const recalculateDatapoints = async() => {
           scenario: scenario,
           fill: false,
           tension: 0.4,
-          borderColor: market > 0 ? '#16a34a' : '#ef4444',
-          backgroundColor: market > 0 ? '#16a34a' : '#ef4444',
+          borderColor: scenarioColor(market),
+          backgroundColor: scenarioColor(market),
           cubicInterpolationMode: 'monotone',
           accountKey: group.key,
           endLabel: `${market > 0 ? '+' : ''}${formatChartNumber(market, 2)}%`,
@@ -1563,8 +1562,8 @@ const recalculateDatapoints = async() => {
             fill: false,
             tension: 0.4,
             borderDash: [6, 4],
-            borderColor: market > 0 ? '#16a34a' : '#ef4444',
-            backgroundColor: market > 0 ? '#16a34a' : '#ef4444',
+            borderColor: scenarioColor(market),
+            backgroundColor: scenarioColor(market),
             cubicInterpolationMode: 'monotone',
             accountKey: group.key,
             endLabel: `${market > 0 ? '+' : ''}${formatChartNumber(market, 2)}% + ${t('scenarios.virtual_puts.short')}`,
@@ -2065,7 +2064,7 @@ const formatMarket = (value:any) => {
 
 const marketTone = (value:any) => {
   const n = Number(value);
-  return n > 0 ? 'text-emerald-600 dark:text-emerald-400' : n < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground';
+  return n > 0 ? 'text-success' : n < 0 ? 'text-destructive' : 'text-muted-foreground';
 };
 
 const maxAbsMarket = computed(() => Math.max(0, ...scenarios.value.map((s:any) => Math.abs(Number(s.market) || 0))));
@@ -2463,8 +2462,10 @@ const forecastTableNonPriceFields = [
   'stock_name','wkn','isin'
 ];
 
-// header is bg-primary, so the hover must tint with its own foreground to stay readable
-const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label), 'hover:bg-primary-foreground/10 hover:text-primary-foreground');
+// Text columns read left; everything else is a number and lines up on the right.
+const isNumericExportColumn = (id: string) => id !== 'type' && !forecastTableNonPriceFields.includes(id);
+
+const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label), 'hover:bg-accent hover:text-accent-foreground');
 
 const isTableLoading = ref(false);
 const isExporting = ref(false);
@@ -2510,7 +2511,7 @@ const exportForecast = async() =>{
   isExporting.value = true;
   try {
     const { rows } = await prepareForecastData();
-    downloadXlsx(rows, "Forecast-Scenario", `Forecast_Scenario_${exportDate.value}.xlsx`);
+    await downloadXlsx(rows, "Forecast-Scenario", `Forecast_Scenario_${exportDate.value}.xlsx`);
   } catch (err) {
     // the user is told, instead of a click that does nothing
     console.error('exportForecast error:', err);
@@ -2563,6 +2564,34 @@ const onCombineChange = async () => {
 
 // The dialog can add or remove an account while this page stays mounted.
 watch(accountsVersion, loadForecast);
+
+// Colours are baked into chartOptions and the datasets, so a theme switch rebuilds both.
+const applyChartTheme = () => {
+  axisTextColor = themeColor('--muted-foreground');
+  gridColor = themeColor('--border');
+  customColors = chartPalette();
+  chartOptions.plugins.legend.labels.color = axisTextColor;
+  chartOptions.scales.x.title.color = axisTextColor;
+  chartOptions.scales.x.grid.color = gridColor;
+  chartOptions.scales.x.ticks.color = axisTextColor;
+  chartOptions.scales.y.grid.color = gridColor;
+  chartOptions.scales.y.ticks.color = axisTextColor;
+  chartOptions.scales.y.title.color = axisTextColor;
+  if (!isLoading.value) recalculateDatapoints();
+  // A load in flight builds its lines with the old colours; recolour once it settles.
+  else themeChangedWhileLoading = true;
+};
+let themeChangedWhileLoading = false;
+watch(isLoading, (loading) => {
+  if (loading) return;
+  // Export opens before the first load ends; its table was built from the still-empty list.
+  if (isExportSheet.value) void loadForecastData();
+  if (!themeChangedWhileLoading) return;
+  themeChangedWhileLoading = false;
+  recalculateDatapoints();
+});
+const stopThemeWatch = chartOnThemeChange(applyChartTheme);
+onUnmounted(stopThemeWatch);
 
 onMounted(loadForecast);
 </script>

@@ -1,25 +1,30 @@
 <template>
   <div>
+    <h1 class="sr-only">{{ $t('home') }}</h1>
 
     <!-- Hidden while every child renders nothing (one account, no prices yet): min-h-8 left an empty band -->
     <div class="hidden has-[>*>*]:flex flex-wrap justify-between items-center gap-4 mt-2 min-h-8">
 
-      <div class="flex items-center gap-4">
+      <div class="flex flex-wrap items-center gap-4">
         <AccountFilter @change="updateBroker()" />
         <CombineSwitch :rows="listData" @change="updateBroker()" />
+        <Button variant="outline" size="sm" @click="connectBroker()">
+          <Plus aria-hidden="true" />
+          <span class="sm:whitespace-nowrap">{{ $t('tour.add_broker') }}</span>
+        </Button>
       </div>
 
       <div v-if="listUpdatedAt" class="flex items-center gap-3">
         <span class="text-xs tabular-nums"
-          :class="apiAuthFailed ? 'text-destructive dark:text-red-400' : 'text-muted-foreground'">
+          :class="apiAuthFailed ? 'text-destructive' : 'text-muted-foreground'">
           {{ $t('update_at') }}: {{ formatTimestamp(listUpdatedAt) }}
           <template v-if="apiAuthFailed">({{ $t('stale') }})</template>
         </span>
         <Button @click="reloadProductData()" variant="outline" size="sm"
-          class="flex items-center h-8" :disabled="isPriceLoading">
-          <RefreshCcw class="h-3.5 w-3.5"
+          :disabled="isPriceLoading">
+          <RefreshCcw class="motion-reduce:animate-none"
             :class="{ 'animate-spin opacity-50': isPriceLoading }" />
-          <span class="ml-2 sm:whitespace-nowrap">
+          <span class="sm:whitespace-nowrap">
             {{ isPriceLoading ? $t('loading') : $t('reload') }}
           </span>
         </Button>
@@ -29,7 +34,7 @@
 
     <!-- Hero strip -->
     <div class="mt-3 rounded-lg border bg-card text-card-foreground shadow-xs">
-      <div class="flex flex-wrap items-center justify-between gap-4 px-6 py-3">
+      <div class="flex flex-wrap items-center justify-between gap-4 p-4">
         <div>
           <div class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             {{ $t('total_amount') }}
@@ -41,9 +46,9 @@
             <span
               v-if="changeYesterdayKnown"
               :class="changeYesterday > 0
-                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400'
+                ? 'bg-success/10 text-success'
                 : changeYesterday < 0
-                  ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400'
+                  ? 'bg-destructive/10 text-destructive'
                   : 'bg-muted text-muted-foreground'"
               class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-semibold tabular-nums"
               :title="$t('change_since_yesterday')">
@@ -66,12 +71,12 @@
               </span>
               <!-- Bare arrows and a '*' gave no hint what each count meant -->
               <span class="flex items-center gap-1.5 text-xs tabular-nums">
-                <span class="flex items-center text-emerald-600 dark:text-emerald-400"
+                <span class="flex items-center text-success"
                   :title="$t('gainers')" :aria-label="`${$t('gainers')}: ${allGainers.length}`">
                   <ArrowUp class="h-3 w-3 mr-0.5" aria-hidden="true" />{{ numberToGerman(allGainers.length, true) }}
                 </span>
                 <span class="text-muted-foreground" aria-hidden="true">/</span>
-                <span class="flex items-center text-rose-600 dark:text-rose-400"
+                <span class="flex items-center text-destructive"
                   :title="$t('losers')" :aria-label="`${$t('losers')}: ${allLosers.length}`">
                   <ArrowDown class="h-3 w-3 mr-0.5" aria-hidden="true" />{{ numberToGerman(allLosers.length, true) }}
                 </span>
@@ -88,7 +93,7 @@
             <div class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               {{ $t('number_of_brokers') }}
             </div>
-            <div class="mt-1 text-lg font-medium tabular-nums text-muted-foreground" id="numberOfBrokers">
+            <div class="mt-1 text-lg font-bold tabular-nums text-foreground" id="numberOfBrokers">
               {{ numberOfBrokers }}
             </div>
           </div>
@@ -103,7 +108,7 @@
         :data="typeChartData" :options="typeChartOptions" :loading="isLoadingAssetChart" :has-data="hasChartData(typeChartData)" />
       <ChartCard ref="countryChartRef" :title="$t('by_country')" :icon="Globe" accent="245 158 11"
         :data="countryChartData" :options="countryChartOptions" :loading="isLoadingAssetChart" :has-data="hasChartData(countryChartData)" />
-      <ChartCard ref="issuerChartRef" :title="$t('by_issuer')" :icon="Building2" accent="139 92 246"
+      <ChartCard ref="issuerChartRef" :title="$t('by_issuer')" :icon="Building2" accent="100 116 139"
         :data="issuerChartData" :options="issuerChartOptions" :loading="isLoadingAssetChart" :has-data="hasChartData(issuerChartData)" />
       <ChartCard ref="currencyChartRef" :title="$t('by_currency')" :icon="Coins" accent="244 63 94"
         :data="currencyChartData" :options="currencyChartOptions" :loading="isLoadingAssetChart" :has-data="hasChartData(currencyChartData)" />
@@ -114,16 +119,16 @@
     <div class="flex flex-col lg:flex-row gap-4 mt-3 lg:min-h-[400px]">
 
       <div class="w-full lg:flex-1 lg:min-w-0">
-        <Card class="shadow-xs border rounded-lg h-full">
-          <CardContent class="p-3 space-y-1 h-full flex flex-col">
+        <Card class="h-full">
+          <CardContent class="p-4 space-y-1 h-full flex flex-col">
             <Tabs default-value="gainers" class="flex h-full flex-col">
               <div class="flex items-center py-2">
               <h2 class="text-xs font-medium uppercase tracking-wider text-muted-foreground">{{  $t('top_movers') }}</h2>
               <TabsList class="ml-auto">
-                <TabsTrigger value="gainers" class="text-muted-foreground data-[state=active]:text-emerald-600 dark:data-[state=active]:text-emerald-400 data-[state=active]:font-semibold">
+                <TabsTrigger value="gainers" class="text-muted-foreground data-[state=active]:text-success data-[state=active]:font-semibold">
                 {{  $t('gainers') }}
                 </TabsTrigger>
-                <TabsTrigger value="losers" class="text-muted-foreground data-[state=active]:text-rose-600 dark:data-[state=active]:text-rose-400 data-[state=active]:font-semibold">
+                <TabsTrigger value="losers" class="text-muted-foreground data-[state=active]:text-destructive data-[state=active]:font-semibold">
                   {{  $t('losers') }}
                 </TabsTrigger>
               </TabsList>
@@ -146,8 +151,8 @@
       </div>
 
       <div class="w-full lg:w-2/5 lg:min-w-0">
-        <Card class="shadow-xs border rounded-lg h-full">
-          <CardContent class="p-3 h-full flex flex-col">
+        <Card class="h-full">
+          <CardContent class="p-4 h-full flex flex-col">
             <div class="flex items-center gap-2 py-2">
               <Globe class="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
               <h2 class="text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -181,6 +186,7 @@ import { useToast } from '@/components/ui/toast/use-toast'
 
 import { apiAuthFailed, getApiKey, getLatestData, numberToGerman, formatMonthYear, todayIso } from '~/utils/helper';
 import { reloadPriceData, abortPriceRequests } from '~/utils/price-data-utils'
+import { chartPalette, chartTokenColor, chartCashColor, chartOnThemeChange } from '~/utils/chart-colors-utils';
 
 import { Skeleton } from '@/components/ui/skeleton'
 import {useI18n} from "vue-i18n";
@@ -206,6 +212,7 @@ import {
   Coins,
   CalendarDays,
   Minus,
+  Plus,
  } from 'lucide-vue-next';
 
 import { Chart as ChartJS, Title, Tooltip, Legend, ArcElement, registerables } from 'chart.js';
@@ -239,11 +246,9 @@ const centerTextPlugin = {
 
     ctx.save();
 
-    const isDark = typeof document !== 'undefined'
-      && document.documentElement.classList.contains('dark');
-    const labelColor = isDark ? '#a1a1aa' : '#71717a';   // zinc-400 / zinc-500
-    const valueColor = isDark ? '#fafafa' : '#0f172a';   // zinc-50 / slate-900
-    const amountColor = isDark ? '#d4d4d8' : '#3f3f46';  // zinc-300 / zinc-700
+    const labelColor = chartTokenColor('--muted-foreground');
+    const valueColor = chartTokenColor('--foreground');
+    const amountColor = chartTokenColor('--foreground', 0.8);
 
     const fontStack = `ui-sans-serif, system-ui, -apple-system, "Segoe UI", "Inter", sans-serif`;
 
@@ -342,32 +347,13 @@ const { t } = useI18n();
 const { toast } = useToast();
 document.title = t('home');
 const listData = ref<any[]>([]);
-const customColors = [
-  '#3B5B84',
-  '#A03F78', 
-  '#98BD4A', 
-  '#CA9B4F', 
-
-  '#294D7B', 
-  '#952968', 
-  '#86AF30', 
-  '#BB8733', 
-
-  '#1D406D', 
-  '#841A58', 
-  '#749C1F', 
-  '#A77321', 
-
-  '#113461', 
-  '#760C4A', 
-  '#638B0E', 
-  '#94610E', 
-
-  '#072954',
-  '#66003C',
-  '#517800',
-  '#804F00'
-];
+// Read per draw from the theme tokens, so a theme switch recolours the slices.
+const sliceColorsOf = (sorted: any[], nameOf: (item: any) => any) => {
+  const palette = chartPalette();
+  const cash = chartCashColor();
+  return sorted.map((item, idx) => isCash(nameOf(item)) ? cash : palette[idx % palette.length]);
+};
+const capitalColors = () => [chartTokenColor('--success'), chartTokenColor('--destructive')];
 
 // Defensive normalizer for the "Cash" pseudo-position. Broker scrapers
 // have historically emitted variants like "Cash", "cash", or "Cash "
@@ -624,9 +610,7 @@ const updateChartData = async () => {
       {
         label: t('positions'),
         data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) => 
-          isCash(item.name) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
+        backgroundColor: sliceColorsOf(sorted, i => i.name),
         borderWidth: 0
       }
     ];
@@ -637,15 +621,13 @@ const updateChartData = async () => {
       {
         label: 'Capital Structure',
         data: [own, loan],
-        backgroundColor: ['#4caf50', '#f44336'],
+        backgroundColor: capitalColors(),
         borderWidth: 0
       },
       {
         label: t('positions'),
         data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) =>
-          isCash(item.name) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
+        backgroundColor: sliceColorsOf(sorted, i => i.name),
         borderWidth: 0
       }
     ];
@@ -683,8 +665,7 @@ function createBreakdownChart({
     datasets: [{ label: initialLabel, data: [], backgroundColor: [], borderWidth: 0 }],
   });
 
-  const sliceColors = (sorted:any) => sorted.map((item:any, idx:number) =>
-    isCash(item.label) ? '#fe4d4d' : customColors[idx % customColors.length]);
+  const sliceColors = (sorted:any) => sliceColorsOf(sorted, i => i.label);
 
   const update = () => {
     console.log(`update${name}ChartData =====`);
@@ -732,7 +713,7 @@ function createBreakdownChart({
           {
             label: 'Capital Structure',
             data: [totalAmount.value ?? 0, loanCapital.value ?? 0],
-            backgroundColor: ['#4caf50', '#f44336'],
+            backgroundColor: capitalColors(),
             borderWidth: 0,
           },
           positionsRing,
@@ -917,9 +898,7 @@ const updateCountryChartData = () => {
       {
         label: 'Country Distribution',
         data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) => 
-          isCash(item.country) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
+        backgroundColor: sliceColorsOf(sorted, i => i.country),
         borderWidth: 0
       }
     ];
@@ -931,15 +910,13 @@ const updateCountryChartData = () => {
       {
         label: 'Capital Structure',
         data: [own, loan],
-        backgroundColor: ['#4caf50', '#f44336'],
+        backgroundColor: capitalColors(),
         borderWidth: 0
       },
       {
         label: 'Country Distribution',
         data: sorted.map(i => i.y),
-        backgroundColor: sorted.map((item, idx) =>
-          isCash(item.country) ? '#fe4d4d' : customColors[idx % customColors.length]
-        ),
+        backgroundColor: sliceColorsOf(sorted, i => i.country),
         borderWidth: 0
       }
     ];
@@ -1304,6 +1281,11 @@ watch(accountsVersion, async () => {
   await updateBroker();
 });
 
+// SetupGuideDialog in App.vue watches TOUR; mode 'add' opens it on the broker list without the first-run sample screens.
+const connectBroker = async () => {
+  await chrome.storage.local.set({ TOUR: { broker: null, step: 'choose', mode: 'add' } });
+}
+
 const loadCount = ref(0);
 const isPriceLoading = ref(false);
 const reloadProductData = async() =>{
@@ -1333,7 +1315,13 @@ import countriesData from '~/assets/countries.json';
 const countryChart = ref<any>(null);
 const worldChartData = shallowRef<any>(null);
 
-const isDarkTheme = () => document.documentElement.classList.contains('dark');
+// Outline fill and stroke from the foreground token, so the map follows the theme like the donuts.
+// chartjs-chart-geo reads the outline from outline* keys; its defaults (no fill, width 0) override
+// plain backgroundColor/borderWidth, which left the land undrawn.
+const mapOutlineColors = () => ({
+  outlineBackgroundColor: chartTokenColor('--foreground', 0.1),
+  outlineBorderColor: chartTokenColor('--foreground', 0.35),
+});
 
 const loadCountryChart = async () =>{
   const worldData = countriesData;
@@ -1395,17 +1383,15 @@ const loadCountryChart = async () =>{
           label: "World",
           outline: countries,
           showOutline: true,
-          // white outlines vanished on the light card; pick contrast from the active theme
-          backgroundColor: isDarkTheme() ? "rgba(255,255,255,0.05)" : "rgba(15,23,42,0.03)",
-          borderColor: isDarkTheme() ? "rgba(255,255,255,0.4)" : "rgba(15,23,42,0.25)",
-          borderWidth: 1,
+          ...mapOutlineColors(),
+          outlineBorderWidth: 1,
         },
         {
           // bubble dataset
           label: "Values",
           data: countriesPoints || [],
-          backgroundColor: "rgba(0,180,255,0.6)",
-          borderColor: "#00b4ff",
+          backgroundColor: `${chartPalette()[0]}99`,
+          borderColor: chartPalette()[0],
         },
       ],
     },
@@ -1474,7 +1460,44 @@ onBeforeUnmount(() => {
   abortPriceRequests();
 });
 
+// Recolour on theme flip. vue-chartjs copies datasets and syncs only when the array changes,
+// so pass new dataset objects. Labels are the slice names (Cash included), matching the first draw.
+const recolorDonut = (data: any) => {
+  const sets = data.value?.datasets || [];
+  if (!sets.length) return;
+  const labels = (data.value.labels || []).map((label: any) => ({ label }));
+  const last = sets.length - 1;
+  data.value = {
+    ...data.value,
+    datasets: sets.map((set: any, i: number) =>
+      i === last ? { ...set, backgroundColor: sliceColorsOf(labels, l => l.label) }
+        : i === 0 ? { ...set, backgroundColor: capitalColors() }
+        : set),
+  };
+};
+const recolorMap = () => {
+  const map = worldChartData.value;
+  if (!map) return;
+  const [outline, bubbles] = map.data.datasets;
+  Object.assign(outline, mapOutlineColors());
+  const accent = chartPalette()[0];
+  bubbles.backgroundColor = `${accent}99`;
+  bubbles.borderColor = accent;
+  map.update();
+};
+const stopThemeWatch = chartOnThemeChange(() => {
+  if (isLeaving) return;
+  // before the data check: the map exists with an empty portfolio too
+  recolorMap();
+  if (!listData.value.length) return;
+  [chartData, typeChartData, countryChartData, issuerChartData, currencyChartData, valuationDateChartData]
+    .forEach(recolorDonut);
+  // The type chart ignores data swaps without an explicit redraw, same as after updateTypeChartData.
+  nextTick(() => typeChartRef.value?.chart?.update());
+});
+
 onUnmounted(() => {
+  stopThemeWatch();
   clearInterval(priceInterval);
   worldChartData.value?.destroy();
   worldChartData.value = null;
@@ -1482,9 +1505,5 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-
 .price_cell { transition: color 0.5s ease, background-color 0.5s ease; }
-.up {  background-color: #00915a; }
-.down {  background-color: #e4200e; }
-
 </style>

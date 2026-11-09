@@ -157,12 +157,9 @@ function smartBrokerGetAllStockData(){
 
       const cols = stock.querySelectorAll(":scope > div > div");
       
-      let type = cols[0]?.querySelectorAll("p")[1]?.textContent.trim() || "";
-      if(type=='Aktien'){
-        type = 'stock';
-      }else if(type=='ETFs'){
-        type = 'certificate';
-      }
+      // Other labels stay as SmartBroker+ shows them.
+      const typeLabel = cols[0]?.querySelectorAll("p")[1]?.textContent.trim() || "";
+      const type = productTypeFromLabel(typeLabel, typeLabel);
 
       const stock_name = cols[0]?.querySelector("p")?.textContent.trim() || "";
       const wkn = cols[0]?.querySelectorAll("p")[2]?.textContent.trim() || "";

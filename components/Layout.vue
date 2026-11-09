@@ -108,7 +108,6 @@
   const { t } = useI18n();
   
   
-  applyTheme();
   const darkScheme = matchMedia('(prefers-color-scheme: dark)');
   // Re-reads the stored choice, so only 'system' reacts to the OS switch.
   const onSchemeChange = () => applyTheme();

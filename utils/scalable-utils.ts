@@ -157,12 +157,13 @@ export function scalableReadPosition(doc:any) {
   const assetClass = scalableDetailCell(doc, 'Anlageklasse') || scalableDetailCell(doc, 'Asset class');
   // Funds report "Aktien" as asset class too; only a plain share is priced by ISIN as 'stock'.
   const isFund = !!doc.querySelector('[data-testid="fund-details"]');
+  const type = isFund ? 'fund' : productTypeFromLabel(assetClass) || 'certificate';
   return {
     isin: scalableDetailCell(doc, 'ISIN') || null,
     stocks_owned,
     total_entry_value,
     wkn: scalableDetailCell(doc, 'WKN') || null,
-    type: !isFund && /^(Aktien|Stocks|Equities)$/i.test(assetClass) ? 'stock' : 'certificate',
+    type,
     purchase_date: sortedDates[0] || null,
     dates: sortedDates,
   };
@@ -467,7 +468,7 @@ function scalableSetSync(state:any, detail = '') {
   if (!syncButton) return;
   // Idle shows how many positions wait for a Sync, so a stale buy-in is visible without the console.
   const idle = positionsNeedingSync ? `${t('sync_qx')} (${positionsNeedingSync})` : t('sync_qx');
-  const labels:any = { idle, busy: `${t('syncing')} ${detail}`.trim(), done: t('synced'), error: t('sync_failed') };
+  const labels:any = { idle, busy: `${t('syncing')} ${detail}`.trim(), done: t('synced'), error: t('sync_failed'), demo: t('tour.sample.sync_declined') };
   syncButton.textContent = labels[state];
   syncButton.style.backgroundColor = state === 'done' ? SYNC_COLOR_DONE : state === 'error' ? SYNC_COLOR_ERROR : SYNC_COLOR_IDLE;
   syncButton.style.opacity = state === 'busy' ? '0.7' : '1';
@@ -505,6 +506,13 @@ function scalableShowOverlay(show:boolean) {
 
 async function scalableRunSync() {
   if (syncInFlight) return;
+  // Declined: the demo stays and nothing is saved, which is not a failed sync.
+  if (await contentSampleGate() === 'declined') {
+    clearTimeout(syncResetTimer);
+    scalableSetSync('demo');
+    syncResetTimer = setTimeout(() => scalableSetSync('idle'), 2000);
+    return;
+  }
   syncInFlight = true;
   syncCancelled = false;
   clearTimeout(syncResetTimer);

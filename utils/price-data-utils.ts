@@ -10,7 +10,8 @@ import {
   fetchFeed,
   isMarketClosed,
   saveDailyTotal,
-  getComparableUnderlyingPrice
+  getComparableUnderlyingPrice,
+  fetchApiUsage
 } from './helper';
 
 // Global state for price data management
@@ -103,6 +104,82 @@ export const getPeerPrices = async (peerMembers: string[]) => {
 const isStale = (stampedAt:any, updateMinutes:number, now:number) =>
   !stampedAt || now >= new Date(stampedAt).getTime() + updateMinutes * 60_000 * 0.9;
 
+// Held rows only: a switch needs units to sell. Each unique peer is one metered position per interval.
+export const getPeerSwitchData = async (forceUpdate = false) => {
+  // isMarketClosed also covers a missing or rejected key.
+  if (isMarketClosed() || isApiRateLimited()) return;
+
+  const mainListData:any[] = await storage.getItem('local:MAIN_LIST') || [];
+  const updateMinutes = await getPriceUpdateDuration();
+  const now = Date.now();
+  const currentDatetime = new Date().toISOString();
+
+  const isHeldWithPeers = (item:any) => !!Number(item.stocks_owned) && Array.isArray(item.peer_members) && item.peer_members.length > 1;
+  const dueRows = mainListData.filter(item => isHeldWithPeers(item) && (forceUpdate || isStale(item.peerSwitchUpdatedAt, updateMinutes, now)));
+  // A sold position keeps no stale suggestion.
+  const clearRows = mainListData.filter(item => item.peer_switch && !isHeldWithPeers(item));
+  if (!dueRows.length && !clearRows.length) return;
+
+  // A peer that is itself in the list was just priced by getPriceData: reuse it, don't pay twice.
+  const listPrices = new Map<string, any>();
+  mainListData.forEach(item => {
+    if (item.wkn && Number(item.ask) > 0) listPrices.set(item.wkn, { wkn: item.wkn, bid: item.bid, ask: item.ask, ratio: item.ratio, currency: item.currency, timestamp: item.timestamp });
+  });
+  // /price may carry no ratio or currency; product details saved from the hover card fill them in.
+  const peerProducts:any[] = await storage.getItem('local:PEER_PRODUCTS') || [];
+  const details = new Map<string, any>((Array.isArray(peerProducts) ? peerProducts : []).map(p => [p.wkn, p]));
+  const toFetch = [...new Set(dueRows.flatMap(item => item.peer_members as string[]))].filter(wkn => wkn && !listPrices.has(wkn));
+
+  // Runs after the daily products/peers pass, which can nearly fill the feed window: a 429 here
+  // would latch and stop every price refresh. /usage is never metered; no answer means no budget.
+  if (toFetch.length) {
+    const feedWindow:any = (await fetchApiUsage(apiKey.value) as any)?.window;
+    const left = Number(feedWindow?.limit) > 0 ? feedWindow.limit - (Number(feedWindow.used) || 0) : (feedWindow ? Infinity : 0);
+    if (left < toFetch.length) return;
+  }
+
+  const controller = new AbortController();
+  globalPriceState.controllers.push(controller);
+  const fetched = new Map<string, any>();
+  let failed = false;
+  try {
+    for (const chunk of chunkArray(toFetch, globalPriceState.chunkSize)) {
+      if (apiAuthFailed.value || isApiRateLimited()) { failed = true; break; }
+      const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(chunk.join(','))}`;
+      const apiData = await fetchChunk(url, controller.signal);
+      if (apiData === ABORTED) { failed = true; break; }
+      if (!apiData) { failed = true; continue; }
+      if (apiData.status === 1) (apiData.data || []).forEach((p:any) => fetched.set(p.wkn, p));
+    }
+  } catch (err) {
+    if ((err as any)?.name !== 'AbortError') console.error('getPeerSwitchData failed to fetch peer prices:', err);
+    failed = true;
+  } finally {
+    const idx = globalPriceState.controllers.indexOf(controller);
+    if (idx !== -1) globalPriceState.controllers.splice(idx, 1);
+  }
+
+  const priceOf = (wkn:string) => {
+    const price = fetched.get(wkn) ?? listPrices.get(wkn);
+    if (!price) return undefined;
+    const detail = details.get(wkn);
+    return { ...price, ratio: price.ratio ?? detail?.ratio, currency: price.currency ?? detail?.currency };
+  };
+  const dueKeys = new Set(dueRows.map(item => accountPositionKey(item)));
+  const after = mainListData.map(item => {
+    if (clearRows.includes(item)) return { ...item, peer_switch: null };
+    if (!dueKeys.has(accountPositionKey(item))) return item;
+    const peerPrices = (item.peer_members as string[]).map(priceOf).filter(Boolean);
+    // A partial answer could hide the best peer; keep the last suggestion and retry next tick.
+    if (failed && peerPrices.length < item.peer_members.length) return item;
+    // The hover card reads the same bundle, so opening it this interval costs nothing.
+    peerPriceCache.set(item.peer_members.join(','), { at: now, data: peerPrices });
+    const best = peerSwitchBest(item, peerPrices);
+    return { ...item, peer_switch: best ? { ...best, at: currentDatetime } : null, peerSwitchUpdatedAt: currentDatetime };
+  });
+  await mainListWriteChanges(mainListData, after);
+};
+
 
 export const reloadPriceData = async () => {
   if (isMarketClosed()) return;
@@ -116,6 +193,9 @@ export const reloadPriceData = async () => {
     await getCurrencyRate();
     if (run !== priceRunId) return;
     await calculateLatestMainListData(true);
+    if (run !== priceRunId) return;
+    // After the recalculation: it needs the fresh own bid.
+    await getPeerSwitchData();
     // Re-read after the passes: comparing the pre-fetch array with itself never flashed anything.
     const mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
 

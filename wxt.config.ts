@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import { defineConfig } from 'wxt';
 import tailwindcss from '@tailwindcss/vite';
 import pkg from './package.json'
@@ -11,12 +10,6 @@ export default defineConfig({
     plugins: [tailwindcss()],
   }),
   manifestVersion: 3,
-  hooks: {
-    // Ship the demo backup inside every browser zip; examples/ stays its single source
-    'build:publicAssets': (wxt, files) => {
-      files.push({ absoluteSrc: resolve(wxt.config.root, 'examples/sample_backup.json'), relativeDest: 'sample_backup.json' });
-    },
-  },
   // packageVersion, not version: WXT 0.21 changed what {{version}} resolves to
   zip: {
     artifactTemplate: 'qx-plus-insights-{{packageVersion}}-{{browser}}.zip',
@@ -25,7 +18,7 @@ export default defineConfig({
     includeSources: [
       'assets/**', 'components/**', 'entrypoints/**', 'lib/**', 'public/**', 'utils/**',
       'components.json', 'package.json', 'package-lock.json', 'tsconfig.json', 'wxt.config.ts',
-      'README.md', 'LICENSE', 'SECURITY.md', 'PRIVACY.md', 'examples/**',
+      'README.md', 'LICENSE', 'SECURITY.md', 'PRIVACY.md', 'examples/**', 'scripts/**',
     ],
   },
   manifest: ({ browser }) => ({
@@ -34,7 +27,7 @@ export default defineConfig({
     description:
       'Mehr Durchblick an der Börse: Mit zusätzlichen Insights und Details behalten Sie jederzeit die volle Kontrolle über Ihre Depots.',
     permissions: ['storage', 'unlimitedStorage'],
-    ...(browser !== 'firefox' && { minimum_chrome_version: '116' }),
+    ...(browser !== 'firefox' && browser !== 'safari' && { minimum_chrome_version: '116' }),
     // Derived from API_BASE_URL so the code can never call a host the manifest doesn't allow
     host_permissions: [`${new URL(API_BASE_URL).origin}/*`],
     // Telegram alerts are opt-in, so the third-party host is asked for only when the user saves a bot
@@ -43,7 +36,7 @@ export default defineConfig({
       extension_pages: "script-src 'self'; object-src 'self';"
     },
     action: {
-      default_title: 'QX+ insights',
+      default_title: 'QX+ Insights',
     },
     ...(browser === 'firefox' && {
       // Permanent AMO identity: changing it orphans every installed copy

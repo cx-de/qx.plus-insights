@@ -16,7 +16,7 @@
     Public API is small on purpose: everything not consumed by another file is
     module-private, because WXT turns every export into a project-wide global.
 */
-import { germanToNumer, parseGermanDateOnly, todayIso, sleep } from "./helper";
+import { productTypeFromLabel, germanToNumer, parseGermanDateOnly, todayIso, sleep } from "./helper";
 
 const broker = "Flatex";
 
@@ -478,12 +478,9 @@ function getAllStockData(accountId:any) {
     const wkn = secondRowOfAllStocks[x]!.textContent.split('(')[1]?.split(')')[0]?.trim();
     
     //Type
-    let type = typetRowOfAllStocks[x]!.querySelector(".C0 .PaperKindName")!.textContent.trim();
-    if(type=='Aktie'){
-      type = 'stock';
-    }else if(type=='Zertifikat'){
-      type = 'certificate';
-    }
+    // Other labels (e.g. "Optionsschein") stay as flatex shows them.
+    const paperKind = typetRowOfAllStocks[x]!.querySelector(".C0 .PaperKindName")!.textContent.trim();
+    const type = productTypeFromLabel(paperKind, paperKind);
 
     let stocks_owned:any = row.querySelector(".C2")!.textContent.trim().split(' ')[0];
     stocks_owned = germanToNumer(stocks_owned);

@@ -1,9 +1,11 @@
 <template>
   <div>
-    <div class="mx-auto grid flex-1 auto-rows-max gap-4">
-      <div class="w-full overflow-auto shadow-lg rounded-lg">
-      
-        <Card class="border-0 shadow-none rounded-lg block w-full p-6 pt-3 bg-card text-card-foreground transition-all">
+    <h1 class="sr-only">{{ $t('list') }}</h1>
+    <!-- grid-cols-1 (minmax(0,1fr)): an auto column grows to the wide table and scrolls the page -->
+    <div class="mx-auto grid grid-cols-1 flex-1 auto-rows-max gap-4">
+      <div class="w-full min-w-0">
+
+        <Card class="block w-full min-w-0 p-4 sm:p-5">
           <!-- Card p-6 + CardHeader p-6 + toolbar p-2 stacked ~60px above the filter row. -->
           <CardHeader class="pt-0 pb-0">
             <div class="flex flex-wrap items-center justify-start gap-5 mb-2">
@@ -12,9 +14,9 @@
                 
                 <!-- one row, labels sr-only: the stacked label/field layout ate ~180px above the table -->
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border bg-muted/60 px-3 py-2">
-                  <span class="inline-flex h-7 items-center rounded-full bg-primary px-3 text-xs font-semibold text-primary-foreground">
+                  <Badge class="h-7 px-3">
                     {{ Object.keys(rowSelection).length }} {{ $t('selected') }}
-                  </span>
+                  </Badge>
 
                   <div class="hidden h-6 w-px bg-border sm:block" aria-hidden="true"></div>
 
@@ -57,7 +59,7 @@
 
                   <Button size="sm" variant="ghost" class="h-8" :class="{ 'sm:ml-auto': Object.keys(rowSelection).length > 1 || isCashRow(currentRow) }"
                     @click="rowSelection = {}">
-                    <X class="mr-1 h-4 w-4" />
+                    <X />
                     {{ $t('clear_selection') }}
                   </Button>
                 </div>
@@ -81,9 +83,9 @@
                 <CombineSwitch :rows="accountViewFilter(mainListData)" @change="onCombineChange()" />
 
                 <!-- Cached rows are already on screen, so say they are about to change. -->
-                <span v-if="isRefreshing && !isLoading"
+                <span v-if="isRefreshing && !isLoading" role="status"
                   class="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <RefreshCcw class="h-3.5 w-3.5 animate-spin" />
+                  <RefreshCcw class="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />
                   {{ $t('fetching_latest_data') }}
                 </span>
                 </div>
@@ -93,9 +95,9 @@
                 
                 <DropdownMenu @update:open="onColumnMenuOpen">
                   <DropdownMenuTrigger as-child>
-                      <Button variant="outline" class="flex items-center">
-                        <ListFilter class="h-3.5 w-3.5" />
-                        <span class="sm:whitespace-nowrap ml-2">
+                      <Button variant="outline">
+                        <ListFilter />
+                        <span class="sm:whitespace-nowrap">
                           {{ $t('view') }}
                         </span>
                       </Button>
@@ -115,7 +117,7 @@
                           </DropdownMenuLabel>
                           <div v-for="colId in section.ids" :key="colId" class="group flex items-center">
                             <DropdownMenuCheckboxItem
-                              class="capitalize flex-1"
+                              class="flex-1"
                               :model-value="columnOrder.includes(colId)"
                               @update:model-value="(value) => toggleColumn(colId, value)">
                               {{ t(colId) }}
@@ -123,7 +125,7 @@
                             <Button size="icon" variant="ghost" class="h-7 w-7 shrink-0"
                               :class="stickyColumns.includes(colId)
                                 ? 'text-primary'
-                                : 'text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100'"
+                                : 'text-muted-foreground opacity-40 group-hover:opacity-100 focus-visible:opacity-100'"
                               :disabled="!columnOrder.includes(colId)"
                               :title="$t(stickyColumns.includes(colId) ? 'unpin_column' : 'pin_column')"
                               :aria-label="$t(stickyColumns.includes(colId) ? 'unpin_column' : 'pin_column')"
@@ -145,8 +147,8 @@
                 <DropdownMenu>
                   <DropdownMenuTrigger as-child>
                     <Button variant="outline">
-                      <Download class="h-3.5 w-3.5" />
-                      <span class="sm:whitespace-nowrap ml-2">
+                      <Download />
+                      <span class="sm:whitespace-nowrap">
                         {{ $t('export') }}
                       </span>
                     </Button>
@@ -170,17 +172,17 @@
                 <Button @click="reloadPriceData(true)" variant="outline" 
                   class="flex items-center" :disabled="isPriceLoading">
                   <!-- Not disabled while refreshing: a click must reach reloadPriceData to get the "already running" toast. -->
-                  <RefreshCcw class="h-3.5 w-3.5"
+                  <RefreshCcw class="motion-reduce:animate-none"
                     :class="{ 'animate-spin opacity-50': isPriceLoading || isRefreshing }"  />
-                  <span class="sm:whitespace-nowrap ml-2">
+                  <span class="sm:whitespace-nowrap">
                     {{ isPriceLoading ? $t('loading') : $t('reload') }}
                   </span>
                 </Button>
 
                 <Button @click="isOpenAlertList=true" variant="outline" 
                   class="flex items-center">
-                  <AlarmClockPlus class="h-3.5 w-3.5" />
-                  <span class="sm:whitespace-nowrap ml-2">
+                  <AlarmClockPlus />
+                  <span class="sm:whitespace-nowrap">
                     {{ $t('alerts') }}
                   </span>
                 </Button>
@@ -213,7 +215,8 @@
                                 header.column.getIsSorted() ? 'bg-accent text-accent-foreground' : '',
                                 !nonDraggableColumns.includes(header.column.id) ? 'cursor-move drag-handle' : '',
                                 cellClass(header.column.id, 'z-20')
-                              ]" :style="stickyStyle(header.column.id)" :data-col="header.column.id" draggable="true">
+                              ]" :style="stickyStyle(header.column.id)" :data-col="header.column.id" draggable="true"
+                              :aria-sort="header.column.getIsSorted() === 'asc' ? 'ascending' : header.column.getIsSorted() === 'desc' ? 'descending' : undefined">
                               <div :class="{'w-80': header.id === 'stock_name',}">
                                 <FlexRender
                                   v-if="!header.isPlaceholder"
@@ -230,14 +233,14 @@
                       <TableBody>
                         <template v-if="displayRows.length">
                           <template v-for="row in displayRows" :key="row.id">
-                           
-                            <TableRow v-if="row.depth==0" 
+
+                            <TableRow v-if="row.depth==0"
                             :class="{ 'group-row' : row.original?.isGroup,
                               'row-selected': row.getIsSelected() }">
-                              
+
                               <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id"
                                 :class="cellClass(cell.column.id)" :style="stickyStyle(cell.column.id)">
-                                
+
                                 <span :data-wkn="row.original.wkn" :data-position="accountPositionKey(row.original)" :data-field="cell.column.id"
                                 class="price_cell">
                                 
@@ -247,7 +250,7 @@
                                       <Button @click="askConfirm($t('confirm_remove_group'), () => removeGroup(row.original.id))"
                                         class="mr-2 h-8 w-8" size="icon" variant="ghost"
                                         :title="$t('delete_group')" :aria-label="$t('delete_group')">
-                                        <Trash class="h-4 w-4 text-red-600 dark:text-red-400" />
+                                        <Trash class="h-4 w-4 text-destructive" />
                                       </Button>
                                     </template>
 
@@ -302,11 +305,11 @@
                                    </template>
 
                                   <template v-else-if="cell.column.id === 'position_percentage'">
-                                    {{  formatGermanNumber(getScopedGroupTotals(row.original.id)['position_percentage'])+'%' }}
+                                    {{  formatGermanNumber(getScopedGroupTotals(row.original.id)['position_percentage']) }}
                                   </template>
 
                                  <template v-else-if="cell.column.id === 'position_target_percentage'">
-                                   {{  formatGermanNumber(getScopedGroupTotals(row.original.id)['position_target_percentage'])+'%' }}
+                                   {{  formatGermanNumber(getScopedGroupTotals(row.original.id)['position_target_percentage']) }}
                                  </template>
                                  <template v-else-if="cell.column.id === 'profit_loss_target_per_day'">
                                    {{  formatGermanNumber(getScopedGroupTotals(row.original.id)['profit_loss_target_per_day']) }}
@@ -344,15 +347,15 @@
                                   <!-- Combined rows are display-only; per-account inputs and alerts live on the split view. -->
                                   <template v-else-if="row.original.isCombined && cell.column.id === 'stock_name'">
                                     {{ row.original.stock_name }}
-                                    <span class="ml-1 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-800 dark:bg-blue-900 dark:text-blue-100 whitespace-nowrap">
+                                    <Badge variant="secondary" class="ml-1 font-normal">
                                       {{ $t('accounts_selected', { count: row.original.combined_count }) }}
-                                    </span>
+                                    </Badge>
                                   </template>
                                   <template v-else-if="row.original.isCombined && ['select', 'notes', 'position_target_percentage', 'actions'].includes(cell.column.id)">&nbsp;</template>
 
                                   <template v-else-if="cell.column.id === 'isin'">
                                     <a v-if="isinLink" :href="formattedISINLink(row.original.isin)" target="_blank"
-                                        class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                        class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                         <StockInfoCard :wkn="row.original.isin" 
                                           :info="row.original" 
                                           :columns="columnOrder" />
@@ -366,7 +369,7 @@
 
                                   <template v-else-if="cell.column.id === 'wkn'">
                                     <a v-if="wknLink" :href="formattedWKNLink(row.original.wkn)" target="_blank"
-                                        class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                        class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                       <StockInfoCard :wkn="row.original.wkn" 
                                         :info="row.original" 
                                         :columns="columnOrder" />
@@ -387,7 +390,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'buy_price'">
-                                    {{  numberToGerman(row.original.buy_price)  }}
+                                    {{  unitPriceToGerman(row.original.buy_price, row.original.type)  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'purchase_date'">
@@ -401,7 +404,7 @@
                                   <template v-else-if="cell.column.id === 'yield_pa_since_purchase'">
                                     <span :title="getTitleForHL('yield_pa_since_purchase', row.original.yield_pa_since_purchase)" :class="[getClassForHL('yield_pa_since_purchase', row.original.yield_pa_since_purchase),
                                       getClassForAlert('yield_pa_since_purchase', row.original)]">
-                                      {{  row.original.yield_pa_since_purchase != null ? numberToGerman(row.original.yield_pa_since_purchase,false,2)+'%' : '' }}
+                                      {{  row.original.yield_pa_since_purchase != null ? numberToGerman(row.original.yield_pa_since_purchase,false,2) : '' }}
                                     </span>
                                   </template>
 
@@ -426,18 +429,18 @@
                                   <template v-else-if="cell.column.id === 'bid'">
                                     <span :class="getClassForAlert('bid',row.original)"
                                       :data-symbol="row.original.wkn" data-field="bid" class="price_cell">
-                                      {{  row.original.bid ? numberToGerman(row.original.bid) : ''  }}
+                                      {{  row.original.bid ? unitPriceToGerman(row.original.bid, row.original.type) : ''  }}
                                       </span>
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'ask'">
                                     <span :data-symbol="row.original.wkn" data-field="ask" class="price_cell">
-                                    {{  row.original.ask ? numberToGerman(row.original.ask) : ''  }}
+                                    {{  row.original.ask ? unitPriceToGerman(row.original.ask, row.original.type) : ''  }}
                                     </span>
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'cap_strike'">
-                                    {{  row.original.cap_strike ? (numberToGerman(row.original.cap_strike) || '') +' '+ (row.original.currency || '') : ''  }}
+                                    {{  row.original.cap_strike ? (numberToGerman(row.original.cap_strike, false, 4) || '') +' '+ (row.original.currency || '') : ''  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'cap_disco_os'">
@@ -445,7 +448,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'barrier_knockout'">
-                                    {{  row.original.barrier_knockout ? (numberToGerman(row.original.barrier_knockout) || '') : ''  }}
+                                    {{  row.original.barrier_knockout ? (numberToGerman(row.original.barrier_knockout, false, 4) || '') : ''  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'bonus_level'">
@@ -453,11 +456,11 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'profit_loss_target'">
-                                    {{  row.original.profit_loss_target ? numberToGerman(row.original.profit_loss_target) :  numberToGerman(0) }}
+                                    {{  row.original.profit_loss_target ? numberToGerman(row.original.profit_loss_target) : '' }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'profit_loss_target_pa'">
-                                    {{  row.original.profit_loss_target_pa ? numberToGerman(row.original.profit_loss_target_pa, false, 2)+'%' : ''  }}
+                                    {{  row.original.profit_loss_target_pa ? numberToGerman(row.original.profit_loss_target_pa, false, 2) : ''  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'profit_loss_target_per_day'">
@@ -482,7 +485,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'position_percentage'">
-                                    {{ numberToGerman(scopedPositionPercentage(row.original), false, 2)+'%'  }}
+                                    {{ numberToGerman(scopedPositionPercentage(row.original), false, 2)  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'position_target_percentage'">
@@ -505,7 +508,7 @@
                                   <template v-else-if="cell.column.id === 'underlying_isin'">
                                     <template v-if="row.original.underlying_isin">
                                       <a v-if="isinLink" :href="formattedISINLink(row.original.underlying_isin)" target="_blank"
-                                          class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                          class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                           <StockInfoCard :wkn="row.original.underlying_isin" 
                                             :info="row.original" :columns="columnOrder" />
                                       </a>
@@ -549,17 +552,20 @@
                                   <template v-else-if="cell.column.id === 'sideways_return_pa'">
                                     <span :title="getTitleForHL('sideways_return_pa', row.original.sideways_return_pa)" :class="[getClassForHL('sideways_return_pa', row.original.sideways_return_pa),
                                       getClassForAlert('sideways_return_pa', row.original)]">
-                                      {{  row.original.sideways_return_pa ? numberToGerman(row.original.sideways_return_pa, false, 2)+'%' : '' }}
+                                      {{  row.original.sideways_return_pa ? numberToGerman(row.original.sideways_return_pa, false, 2) : '' }}
                                     </span>
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'peer_members'">
-                                    <PeerProductsCard v-if="row.original.peer_members" 
-                                      :wkn="row.original.wkn" :peer_members="row.original.peer_members" />
+                                    <!-- Peers exist only for derivatives: shares, ETFs and funds get no subscription notice. -->
+                                    <PeerLockedLink v-if="peerLocked && isDerivativeType(row.original.type)" />
+                                    <PeerProductsCard v-else-if="!peerLocked && row.original.peer_members"
+                                      :wkn="row.original.wkn" :peer_members="row.original.peer_members"
+                                      :peer_switch="row.original.peer_switch" :stocks_owned="row.original.stocks_owned" />
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'implied_volatility'">
-                                    <span>{{ row.original.implied_volatility ? numberToGerman(row.original.implied_volatility, false, 2)+'%' : '' }}</span>
+                                    <span>{{ row.original.implied_volatility ? numberToGerman(row.original.implied_volatility, false, 2) : '' }}</span>
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'actions'">
@@ -593,7 +599,7 @@
                                   <Button @click="removeItemFromGroup(row.original.id,item.original.id)" class="mr-2 h-8 w-8"
                                     size="icon" variant="ghost"
                                     :title="$t('delete_from_group')" :aria-label="$t('delete_from_group')">
-                                    <X class="h-4 w-4 text-red-600 dark:text-red-400" />
+                                    <X class="h-4 w-4 text-destructive" />
                                   </Button>
                                 </template>
 
@@ -609,9 +615,13 @@
                                   <template v-else>&nbsp;</template>
                                 </template>
 
+                                <template v-else-if="column.id === 'peer_members' && peerLocked">
+                                  <PeerLockedLink v-if="isDerivativeType(item.original.type)" />
+                                </template>
+
                                 <!-- v-else-if: a plain v-if restarted the chain, so the select cell also fell through to FlexRender -->
                                 <template v-else-if="column.id === 'isin'">
-                                  <a v-if="isinLink" :href="formattedISINLink(item.original.isin)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                  <a v-if="isinLink" :href="formattedISINLink(item.original.isin)" target="_blank" class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                     <StockInfoCard :wkn="item.original.isin" 
                                       :info="item.original"  :columns="columnOrder" />
                                   </a>
@@ -622,7 +632,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'wkn'">
-                                  <a v-if="wknLink" :href="formattedWKNLink(item.original.wkn)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                  <a v-if="wknLink" :href="formattedWKNLink(item.original.wkn)" target="_blank" class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                     <StockInfoCard :wkn="item.original.wkn"
                                       :info="item.original" :columns="columnOrder" />
                                   </a>
@@ -634,7 +644,7 @@
 
                                 <template v-else-if="column.id === 'underlying_isin'">
                                   <template v-if="item.original.underlying_isin">
-                                    <a v-if="isinLink" :href="formattedISINLink(item.original.underlying_isin)" target="_blank" class="rounded-sm text-blue-600 dark:text-blue-400 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
+                                    <a v-if="isinLink" :href="formattedISINLink(item.original.underlying_isin)" target="_blank" class="rounded-sm text-primary underline-offset-4 hover:underline focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring">
                                       <StockInfoCard :wkn="item.original.underlying_isin" 
                                         :info="item.original" :columns="columnOrder" />
                                     </a>
@@ -662,7 +672,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'buy_price'">
-                                  {{  numberToGerman(item.original.buy_price)  }}
+                                  {{  unitPriceToGerman(item.original.buy_price, item.original.type)  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'purchase_date'">
@@ -674,7 +684,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'yield_pa_since_purchase'">
-                                  {{  item.original.yield_pa_since_purchase != null ? numberToGerman(item.original.yield_pa_since_purchase,false,2)+'%' : '' }}
+                                  {{  item.original.yield_pa_since_purchase != null ? numberToGerman(item.original.yield_pa_since_purchase,false,2) : '' }}
                                 </template>
 
                                 <template v-else-if="column.id === 'total_entry_value'">
@@ -690,15 +700,15 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'bid'">
-                                  {{  item.original.bid ? numberToGerman(item.original.bid) : ''  }}
+                                  {{  item.original.bid ? unitPriceToGerman(item.original.bid, item.original.type) : ''  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'ask'">
-                                  {{  item.original.ask ? numberToGerman(item.original.ask) : ''  }}
+                                  {{  item.original.ask ? unitPriceToGerman(item.original.ask, item.original.type) : ''  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'cap_strike'">
-                                  {{  item.original.cap_strike ? (numberToGerman(item.original.cap_strike) || '') +' '+ (item.original.currency || '') : ''  }}
+                                  {{  item.original.cap_strike ? (numberToGerman(item.original.cap_strike, false, 4) || '') +' '+ (item.original.currency || '') : ''  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'cap_disco_os'">
@@ -710,7 +720,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'profit_loss_target_pa'">
-                                  {{  item.original.profit_loss_target_pa ? numberToGerman(item.original.profit_loss_target_pa, false, 2)+'%' : ''  }}
+                                  {{  item.original.profit_loss_target_pa ? numberToGerman(item.original.profit_loss_target_pa, false, 2) : ''  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'profit_loss_target_per_day'">
@@ -722,7 +732,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'position_percentage'">
-                                  {{ numberToGerman(scopedPositionPercentage(item.original), false, 2)+'%'  }}
+                                  {{ numberToGerman(scopedPositionPercentage(item.original), false, 2)  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'position_target_percentage'">
@@ -758,7 +768,7 @@
                                  </template>
 
                                 <template v-else-if="column.id === 'sideways_return_pa'">
-                                    {{ numberToGerman(item.original.sideways_return_pa, false, 2)+'%' }}
+                                    {{ numberToGerman(item.original.sideways_return_pa, false, 2) }}
                                 </template>
 
                                 <template v-else-if="column.id === 'timestamp'">
@@ -766,7 +776,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'barrier_knockout'">
-                                    {{ numberToGerman(item.original.barrier_knockout) }}
+                                    {{ numberToGerman(item.original.barrier_knockout, false, 4) }}
                                 </template>
                                 
                                 <template v-else-if="column.id === 'bonus_level'">
@@ -869,7 +879,7 @@
           <DialogContent class="max-w-2xl">
             <div class="space-y-6">
               <DialogHeader>
-                <DialogTitle class="text-xl font-semibold">
+                <DialogTitle>
                   {{ selectedItem?.stock_name }}
                 </DialogTitle>
               </DialogHeader>
@@ -881,7 +891,7 @@
                 <Input id="alert_name" v-model="alertForm.alert_name"  
                   :placeholder="$t('alert_name')" class="w-full" />
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <!-- Field -->
                 <div class="flex flex-col">
                   <Label for="field" class="mb-1">
@@ -899,7 +909,7 @@
                     </SelectContent>
                   </Select>
                   <span v-if="alertForm.field" class="mt-1 text-xs text-muted-foreground">
-                    {{ numberToGerman(selectedItem?.[alertForm.field]) }}
+                    {{ alertValueText(selectedItem?.[alertForm.field], alertForm.field, selectedItem?.type) }}
                   </span>
                 </div>
               
@@ -931,7 +941,7 @@
               </div>
               
       
-              <DialogFooter class="mt-6">
+              <DialogFooter>
                 <Button variant="outline" @click="closeModal">
                   {{  $t('cancel') }}
                 </Button>
@@ -955,14 +965,14 @@
           <DialogContent class="max-w-5xl">
             <div class="space-y-6 ">
               <DialogHeader>
-                <DialogTitle class="text-xl font-semibold">
+                <DialogTitle>
                   {{ $t('alerts') }}
                 </DialogTitle>
               </DialogHeader>
               
               <div class="max-w-full overflow-x-auto">
                 <div class="min-w-[720px] max-h-[60vh] overflow-y-auto rounded-md border">
-                  <Table>
+                  <Table class="alerts-table">
                     <TableHeader>
                       <TableRow class="bg-muted sticky top-0 z-10">
                         <TableHead>{{ $t('alert_name') }}</TableHead>
@@ -984,7 +994,7 @@
                         <TableCell>{{ alert.wkn }}</TableCell>
                         <TableCell>{{ $t(alert.field) }}</TableCell>
                         <TableCell>{{ conditionLabel(alert.condition) }}</TableCell>
-                        <TableCell>{{ numberToGerman(alert.alert_value) }}</TableCell>
+                        <TableCell>{{ alertValueText(alert.alert_value, alert.field, alertRowType(alert)) }}</TableCell>
                         <TableCell>{{ alert.status==1 ? $t('completed') : $t('active') }}</TableCell>
                         <TableCell>
                           <Button @click="openEditAlert(alert.id)" size="icon" variant="ghost" class="mr-1 h-8 w-8"
@@ -993,7 +1003,7 @@
                           </Button>
                           <Button @click="confirmDeleteAlert(alert.id)" variant="ghost" size="icon" class="h-8 w-8"
                             :aria-label="$t('delete')" :title="$t('delete')">
-                            <Trash class="w-4 h-4 text-red-600 dark:text-red-400" />
+                            <Trash class="w-4 h-4 text-destructive" />
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -1015,17 +1025,17 @@
 
          <!-- final alert dialog -->
          <Dialog v-model:open="alertDialog">
-          <DialogContent class="max-w-sm text-center">
+          <DialogContent class="max-w-sm">
             <DialogHeader>
               <DialogTitle>{{ $t('alert_triggered') }}</DialogTitle>
             </DialogHeader>
-            <div class="py-4 text-left" v-if="triggeredAlert">
+            <div class="space-y-1 py-2 text-sm" v-if="triggeredAlert">
               <p><strong>{{ $t('alert_name') }}</strong>: {{ triggeredAlert.alertName }}</p>
               <p v-if="triggeredAlert.contextKey === 'stock_name'"><strong>{{ $t('stock_name') }}</strong>: {{ triggeredAlert.stockName }}</p>
               <p v-else-if="triggeredAlert.contextKey === 'group_name'"><strong>{{ $t('group_name') }}</strong>: {{ triggeredAlert.stockName }}</p>
               <p v-else><strong>{{ $t('total') }}</strong></p>
-              <p><strong>{{ $t(triggeredAlert.field) }}</strong> {{ conditionLabel(triggeredAlert.condition) }} <strong>{{ numberToGerman(triggeredAlert.alertValue) }}</strong></p>
-              <p><strong>{{ $t('current') }}</strong>: {{ numberToGerman(triggeredAlert.currentValue) }}</p>
+              <p><strong>{{ $t(triggeredAlert.field) }}</strong> {{ conditionLabel(triggeredAlert.condition) }} <strong>{{ alertValueText(triggeredAlert.alertValue, triggeredAlert.field, triggeredAlert.instrumentType) }}</strong></p>
+              <p><strong>{{ $t('current') }}</strong>: {{ alertValueText(triggeredAlert.currentValue, triggeredAlert.field, triggeredAlert.instrumentType) }}</p>
             </div>
             <DialogFooter>
               <Button @click="alertDialog = false">{{ $t('close') }}</Button>
@@ -1040,7 +1050,7 @@
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel>{{ $t('cancel') }}</AlertDialogCancel>
-              <AlertDialogAction class="bg-destructive text-destructive-foreground hover:bg-destructive/90" @click="runConfirm()">
+              <AlertDialogAction :class="buttonVariants({ variant: 'destructive' })" @click="runConfirm()">
                 {{ $t('delete') }}
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -1061,6 +1071,7 @@ import StockInfoCard from '~/components/StockInfoCard.vue'
 import AccountFilter from '~/components/AccountFilter.vue'
 import CombineSwitch from '~/components/CombineSwitch.vue'
 import PeerProductsCard from '~/components/PeerProductsCard.vue'
+import PeerLockedLink from '~/components/PeerLockedLink.vue'
 import DataTableFacetedFilter from '~/components/DataTableFacetedFilter.vue'
 import { VueDraggableNext } from 'vue-draggable-next'
 
@@ -1090,7 +1101,8 @@ import {
 
 import { valueUpdater } from '~/lib/utils'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Button } from '@/components/ui/button'
+import { Button, buttonVariants } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -1102,7 +1114,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso, currencyRateText } from '~/utils/helper';
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso, currencyRateText, isDerivativeType } from '~/utils/helper';
 
 import { 
   getPriceData,
@@ -1112,6 +1124,7 @@ import {
   abortPriceRequests,
   mainListSetField,
   mainListWriteChanges,
+  getPeerSwitchData,
 } from '~/utils/price-data-utils'
 
 import {
@@ -1126,7 +1139,7 @@ import { toast } from '@/components/ui/toast';
 import { downloadCsv, downloadXlsx, fileTimestamp } from '~/utils/export-utils';
 
 import { sortableHeader } from '~/utils/table-utils';
-import { ListFilter, Trash, X, Search, Download, RefreshCcw, AlarmClockPlus, Pen, File, FileSpreadsheet, Pencil, Save, ChevronRight, Pin } from 'lucide-vue-next';
+import { ListFilter, Trash, X, Search, Download, RefreshCcw, AlarmClockPlus, Pen, File, FileSpreadsheet, Pencil, Save, ChevronRight, Pin, Lock } from 'lucide-vue-next';
 
 const { t } = useI18n();
 document.title = t('list');
@@ -1389,6 +1402,7 @@ const allColumns:any = {
         getSortingHeader(column, "broker"),
         h(DataTableFacetedFilter, {
           column,
+          title: t("broker"),
           options: brokerOptions.value.map(item => ({
             label: item, value: item,
           })),
@@ -1409,6 +1423,7 @@ const allColumns:any = {
         getSortingHeader(column, "type"),
         h(DataTableFacetedFilter, {
           column,
+          title: t("type"),
           options: typeOptions.value.map(type => ({
             label: t(type), value: type,
           })),
@@ -1426,6 +1441,7 @@ const allColumns:any = {
         getSortingHeader(column, "stocks_owned"),
         h(DataTableFacetedFilter, {
           column,
+          title: t("stocks_owned"),
           options: [{ label: t('hide_zero_stocks_owned'), value: 'hideZero' }],
         }),
       ]),
@@ -1448,6 +1464,7 @@ const allColumns:any = {
         getSortingHeader(column, "issuer"),
         h(DataTableFacetedFilter, {
           column,
+          title: t("issuer"),
           options: issuerOptions.value.map(item => ({
             label: item, value: item,
           })),
@@ -1467,8 +1484,12 @@ const allColumns:any = {
   underlying_price: { accessorKey: 'underlying_price', id: 'underlying_price', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'underlying_price')  },
   underlying_timestamp: { accessorKey: 'underlying_timestamp', id: 'underlying_timestamp', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'timestamp_underlying')  },
   
-  settlement: { accessorKey: 'settlement', id: 'settlement', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'settlement')  },
-  quanto2: { accessorKey: 'quanto2', id: 'quanto2', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'quanto')  },
+  // Feed sends cash/physical/unknown; unknown stays empty.
+  settlement: { accessorKey: 'settlement', id: 'settlement', cell: (info:any) => {
+    const v = String(info.getValue() ?? '').trim().toLowerCase();
+    return v === 'physical' ? t('dc_physical') : v === 'cash' ? t('dc_cash') : '';
+  }, header: ({ column }:any) => getSortingHeader(column, 'settlement')  },
+  quanto2: { accessorKey: 'quanto2', id: 'quanto2', cell: (info:any) => info.getValue() ? t(info.getValue()) : '', header: ({ column }:any) => getSortingHeader(column, 'quanto')  },
   ratio: { accessorKey: 'ratio', id: 'ratio', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'ratio') },
   
   cap_strike: { accessorKey: 'cap_strike', id: 'cap_strike', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'cap_strike')  },
@@ -1495,7 +1516,7 @@ const allColumns:any = {
   theta: { accessorKey: 'theta', id: 'theta', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'theta') },
   vega: { accessorKey: 'vega', id: 'vega', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'vega')  },
 
-  peer_members: { accessorKey: 'peer_members', id: 'peer_members', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'peer_members')  },
+  peer_members: { accessorKey: 'peer_members', id: 'peer_members', cell: (info:any) => info.getValue(), header: ({ column }:any) => peerLocked.value ? lockedHeader('peer_members') : getSortingHeader(column, 'peer_members')  },
   implied_volatility: { accessorKey: 'implied_volatility', id: 'implied_volatility', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'implied_volatility')  },
   
 }
@@ -2099,6 +2120,9 @@ const orderedRows = (rows:any) => {
 // Children are drawn by visibleSubRows; keeping them out of this keyed loop avoids duplicate keys when a group holds a position twice.
 const displayRows = computed(() => orderedRows(table.getRowModel().rows.filter((r:any) => r.depth === 0)));
 
+// No key or a rejected key: peer data needs the feed, so the column shows one label instead.
+const peerLocked = computed(() => apiKeyLoaded.value && (!apiKey.value || apiAuthFailed.value));
+
 // The stored percentage is against the whole portfolio, so recompute it while filtered.
 const scopedPositionPercentage = (row:any) => {
   if (accountViewIsAll()) return row?.position_percentage;
@@ -2164,6 +2188,11 @@ const filteredTotal = computed(() => sumTotals(filteredLeafRows.value));
 
 // No hover override: gray-300 hover with black text broke dark mode; ghost variant already has a themed hover
 const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label));
+// Sorting a column with no data does nothing, so a locked column gets a lock in place of the sort button.
+const lockedHeader = (label:string) => h('span', {
+  class: 'inline-flex h-9 items-center gap-2 px-4 text-sm font-medium',
+  title: t('peer_members_needs_subscription'),
+}, [t(label), h(Lock, { class: 'h-4 w-4', 'aria-hidden': 'true' })]);
 
 
 const controllers: AbortController[] = [];
@@ -2458,6 +2487,7 @@ const rowsToExport = () => {
 const exportCellValue = (row:any, col:any) => {
   const value = getNestedValue(row, col.accessorKey || col.id);
   if (col.accessorKey === 'peer_members') return value != null ? value.join(',') : '';
+  if (col.accessorKey === 'quanto2') return value ? t(value) : '';
   if (amountFields.includes(col.accessorKey)) return value != null ? Number(parseFloat(value).toFixed(2)) : '';
   return value;
 };
@@ -2474,7 +2504,7 @@ const exportCSV = () => {
   downloadCsv(header + body, `list_${fileTimestamp()}.csv`);
 }
 
-const exportXlsx = () => {
+const exportXlsx = async () => {
   const activeColumns = columns.value.filter(col => !['select', 'id', 'actions'].includes(col.id));
 
   const exportData = rowsToExport().map(row => {
@@ -2485,7 +2515,13 @@ const exportXlsx = () => {
     return newRow;
   });
 
-  downloadXlsx(exportData, 'Sheet1', `list_${fileTimestamp()}.xlsx`);
+  // SheetJS loads on demand; a failed chunk load must not end as a click that does nothing.
+  try {
+    await downloadXlsx(exportData, 'Sheet1', `list_${fileTimestamp()}.xlsx`);
+  } catch (err) {
+    console.error('exportXlsx error:', err);
+    notifyError('forecast_export_failed');
+  }
 };
 
 const wknLink = ref('');
@@ -2640,6 +2676,10 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
     }
     // First pass ran before cap/strike/underlying arrived; without this, new positions show a wrong Zielwert until the next price interval.
     await calculateLatestMainListData(true);
+    if (isLeaving) return;
+    // After the recalculation: the switch compares against the fresh own bid.
+    await getPeerSwitchData();
+    if (isLeaving) return;
     mainListData.value = await storage.getItem('local:MAIN_LIST') || [];
 
     calculateTotals();
@@ -2789,6 +2829,18 @@ function getTitleForHL(field:any, currentValue:any) {
   return hl ? t(hl === 'high' ? 'column_highest' : 'column_lowest') : undefined;
 }
 
+const UNIT_PRICE_FIELDS = ['buy_price', 'bid', 'ask'];
+// Alert values on unit-price fields use the same precision as the table cell.
+const alertValueText = (value:any, field:string, instrumentType?:string) =>
+  UNIT_PRICE_FIELDS.includes(field) ? unitPriceToGerman(value, instrumentType)
+    // Same 4 decimals as the underlying cell: FX underlyings move in the 4th place.
+    : field === 'underlying_price' ? numberToGerman(value, false, 4) : numberToGerman(value);
+
+// alert.type is the alert scope (stock/group/total); the instrument type lives on the position row.
+const alertRowType = (alert:any) => alert.type === 'stock'
+  ? mainListData.value.find((i:any) => i.wkn === alert.type_id && i.stock_name === alert.stock_name && alertMatchesRow(alert, i))?.type
+  : undefined;
+
 // Alerts written before the multi-account key carry no account, so they keep
 // matching on wkn alone rather than going silent.
 function alertMatchesRow(alert:any, item:any) {
@@ -2840,7 +2892,7 @@ function getClassForAlert(field:any, row:any) {
   const classes:any[] = [];
   if (topColor) classes.push('alert_top', topColor);
   if (bottomColor) classes.push('alert_bottom', bottomColor);
-  if (matchingAlerts.length > 1) classes.push('alert_bg','bg-green-200');
+  if (matchingAlerts.length > 1) classes.push('alert_bg','bg-success/20');
 
   return classes.join(' ');
 }
@@ -3082,6 +3134,7 @@ type TriggeredAlert = {
   condition: string
   alertValue: number
   currentValue: number
+  instrumentType?: string
 }
 const triggeredAlert = ref<TriggeredAlert | null>(null)
 
@@ -3133,6 +3186,7 @@ async function checkAlerts() {
           condition: alert.condition,
           alertValue: Number(alert.alert_value),
           currentValue: fieldValue,
+          instrumentType: alertType === 'stock' ? item.type : undefined,
         };
 
         alertDialog.value = true
@@ -3153,8 +3207,8 @@ async function checkAlerts() {
         let message = `🚨${t('alert')}\n\n` +
           `<strong>${t('alert_name')}</strong>: ${escapeHtml(a.alertName)}\n` +
           contextLine +
-          `<strong>${t(a.field)}</strong> ${escapeHtml(a.condition)} <strong>${numberToGerman(a.alertValue)}</strong>\n` +
-          `<strong>${t('current')}</strong>: ${numberToGerman(a.currentValue)}`;
+          `<strong>${t(a.field)}</strong> ${escapeHtml(a.condition)} <strong>${alertValueText(a.alertValue, a.field, a.instrumentType)}</strong>\n` +
+          `<strong>${t('current')}</strong>: ${alertValueText(a.currentValue, a.field, a.instrumentType)}`;
         
         if(telegramBotToken.value && telegramChannelId.value){
           await sendTelegramMessage(telegramBotToken.value,telegramChannelId.value,message)
@@ -3318,15 +3372,15 @@ th,td {
 .high{
   display: block;
   padding: 6px;
-  border-left: 2px solid #059669;
-  border-right: 2px solid #059669;
+  border-left: 2px solid hsl(var(--success));
+  border-right: 2px solid hsl(var(--success));
 }
 
 .low{
   display: block;
   padding: 6px;
-  border-left: 2px solid #e11d48;
-  border-right: 2px solid #e11d48;
+  border-left: 2px solid hsl(var(--destructive));
+  border-right: 2px solid hsl(var(--destructive));
 }
 
 td:has(.high),
@@ -3359,17 +3413,17 @@ td:has(.alert_bottom) {
 }
 
 .border-top-red {
-  border-top-color: red !important;
+  border-top-color: hsl(var(--destructive)) !important;
 }
 .border-top-green {
-  border-top-color: green !important;
+  border-top-color: hsl(var(--success)) !important;
 }
 .border-bottom-red {
-  border-bottom-color: red !important;
+  border-bottom-color: hsl(var(--destructive)) !important;
 }
 
 .border-bottom-green {
-  border-bottom-color: green !important;
+  border-bottom-color: hsl(var(--success)) !important;
 }
 
 
@@ -3377,8 +3431,13 @@ td:has(.alert_bottom) {
   transition: color 0.5s ease, background-color 0.5s ease;
 }
 
-.up {  background-color: #00915a; }
-.down {  background-color: #e4200e; }
+/* tints, not solid fills, so dark cell text stays readable during the flash */
+.up {  background-color: hsl(var(--success) / 0.25); }
+.down {  background-color: hsl(var(--destructive) / 0.25); }
+
+/* the main table's right-aligned th,td rule above also reaches this dialog's text columns */
+.alerts-table th,
+.alerts-table td { text-align: left; }
 
 .sticky_column {
   position: sticky;
@@ -3398,22 +3457,22 @@ td:has(.alert_bottom) {
   box-shadow: inset 0 -1px 0 hsl(var(--foreground) / 0.15), inset -1px 0 0 hsl(var(--foreground) / 0.15), 6px 0 8px -4px rgb(0 0 0 / 0.12);
 }
 
-/* solid indigo band + closing rule: pale tints read as just another zebra stripe */
+/* solid navy band + closing rule: a pale tint reads as another zebra stripe; hue of --chart-1 */
 :global(:root) {
-  --grp-bg: #4f46e5; --grp-bg-hover: #4338ca; --grp-fg: #ffffff; --grp-danger: #fecaca;
-  --grp-child-bg: #e0e7ff; --grp-child-bg-hover: #c7d2fe; --grp-child-fg: #1e1b4b; --grp-child-bar: #4f46e5; --grp-child-line: #c7d2fe;
+  --grp-bg: #1e3a5f; --grp-bg-hover: #172e4b; --grp-fg: #ffffff; --grp-danger: #fecaca;
+  --grp-child-bg: #e3ebf5; --grp-child-bg-hover: #d0deee; --grp-child-fg: #0f1f33; --grp-child-bar: #1e3a5f; --grp-child-line: #c9d7e8;
 }
 /* vars, not :global(.dark) rules: the scoped [data-v] attribute out-ranked those and dark mode kept the light tints */
 :global(.dark) {
-  --grp-bg: #4338ca; --grp-bg-hover: #3730a3; --grp-fg: #ffffff; --grp-danger: #fca5a5;
-  --grp-child-bg: #1e1b4b; --grp-child-bg-hover: #272463; --grp-child-fg: #e0e7ff; --grp-child-bar: #818cf8; --grp-child-line: #312e81;
+  --grp-bg: #2c4a70; --grp-bg-hover: #253f60; --grp-fg: #ffffff; --grp-danger: #fca5a5;
+  --grp-child-bg: #14223a; --grp-child-bg-hover: #1b2c48; --grp-child-fg: #dbe6f3; --grp-child-bar: #7096c8; --grp-child-line: #233652;
 }
 .group-row,
 .group-row > td { background-color: var(--grp-bg) !important; color: var(--grp-fg); font-weight: 700; }
 .group-row:hover,
 .group-row:hover > td { background-color: var(--grp-bg-hover) !important; }
-/* red-600 trash icon disappears on the indigo band */
-.group-row .text-red-600 { color: var(--grp-danger) !important; }
+/* the destructive trash icon disappears on the navy band */
+.group-row .text-destructive { color: var(--grp-danger) !important; }
 /* ghost hover's pale accent swallowed the light icons; :not keeps the rename Save button primary */
 .group-row button:not(.bg-primary):hover { background-color: rgb(255 255 255 / 0.15) !important; color: inherit !important; }
 

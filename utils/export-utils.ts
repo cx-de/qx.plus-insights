@@ -1,12 +1,12 @@
-import * as XLSX from 'xlsx';
-
 // "2026-10-09_14_05": sortable and safe in every OS file name.
 export function fileTimestamp() {
   return new Date().toISOString().slice(0, 16).replace(/[:T]/g, '_');
 }
 
 // Writes rows (plain objects, keys become the header row) to an .xlsx download.
-export function downloadXlsx(rows: any[], sheetName: string, fileName: string) {
+// SheetJS is large, so it loads on first export instead of with the List/Forecast pages.
+export async function downloadXlsx(rows: any[], sheetName: string, fileName: string) {
+  const XLSX = await import('xlsx');
   const worksheet = XLSX.utils.json_to_sheet(rows);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
