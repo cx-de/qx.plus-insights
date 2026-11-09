@@ -155,9 +155,10 @@ describe('calculateLatestMainListData', () => {
     expect(fresh.yield_pa_since_purchase).toBeUndefined();
   });
 
-  it('gives a discountCall the call-side cap_strike', async () => {
+  it('shows a discountCall strike as cap_strike and yields on the call-side payout', async () => {
     const [row] = await run([{ broker: 'flatex', account_id: 'A', wkn: 'C', type: 'discountCall', currency: 'EUR', underlying_currency: 'EUR', strike: '100', cap: '120', underlying_price: '110', bid: '9', stocks_owned: 1 }]);
-    expect(row.cap_strike).toBe(10);
+    expect(row.cap_strike).toBe(100);
+    expect(row.sideways_return).toBeCloseTo((10 / 9 - 1) * 100);
   });
 
   // Guards the old shared discountCall branch, which gave cap - strike = -20 here.
@@ -165,8 +166,9 @@ describe('calculateLatestMainListData', () => {
     ['90', 10],
     ['50', 20],
     ['110', 0],
-  ])('gives a discountPut at underlying %s the put-side cap_strike %d', async (underlying_price, expected) => {
+  ])('yields a discountPut at underlying %s on the put-side payout %d', async (underlying_price, payout) => {
     const [row] = await run([{ broker: 'flatex', account_id: 'A', wkn: 'P', type: 'discountPut', currency: 'EUR', underlying_currency: 'EUR', strike: '100', cap: '80', underlying_price, bid: '9', stocks_owned: 1 }]);
-    expect(row.cap_strike).toBe(expected);
+    expect(row.cap_strike).toBe(100);
+    expect(row.sideways_return).toBeCloseTo(payout ? (payout / 9 - 1) * 100 : 0);
   });
 });

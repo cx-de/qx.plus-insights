@@ -440,7 +440,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'cap_strike'">
-                                    {{  row.original.cap_strike ? (numberToGerman(row.original.cap_strike, false, 4) || '') +' '+ (row.original.currency || '') : ''  }}
+                                    {{  row.original.cap_strike ? (numberToGerman(row.original.cap_strike) || '') +' '+ (row.original.currency || '') : ''  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'cap_disco_os'">
@@ -448,7 +448,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'barrier_knockout'">
-                                    {{  row.original.barrier_knockout ? (numberToGerman(row.original.barrier_knockout, false, 4) || '') : ''  }}
+                                    {{  row.original.barrier_knockout ? (numberToGerman(row.original.barrier_knockout) || '') : ''  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'bonus_level'">
@@ -521,7 +521,7 @@
 
                                   <template v-else-if="cell.column.id === 'underlying_price'">
                                     <span :data-symbol="row.original.wkn" data-field="underlying_price" class="price_cell">
-                                      {{  row.original.underlying_price ? numberToGerman(getComparableUnderlyingPrice(row.original),false,4) : '' }}
+                                      {{  row.original.underlying_price ? numberToGerman(getComparableUnderlyingPrice(row.original)) : '' }}
                                     </span>
                                   </template>
 
@@ -530,7 +530,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'ratio'">
-                                    {{  row.original.ratio ? numberToGerman(row.original.ratio,false,4) : ''  }}
+                                    {{  row.original.ratio ? numberToGerman(row.original.ratio) : ''  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'timestamp'">
@@ -539,14 +539,6 @@
 
                                   <template v-else-if="cell.column.id === 'valuation_date'">
                                     {{  formatDate(row.original.valuation_date)}}
-                                  </template>
-
-                                  <!-- (cap / bid x ratio -1 ) *100 -->
-                                  <template v-else-if="cell.column.id === 'sideways_return'">
-                                    <span :title="getTitleForHL('sideways_return', row.original.sideways_return)" :class="[getClassForHL('sideways_return', row.original.sideways_return),
-                                      getClassForAlert('sideways_return', row.original)]">
-                                      {{ numberToGerman(row.original.sideways_return)  }}
-                                    </span>
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'sideways_return_pa'">
@@ -708,7 +700,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'cap_strike'">
-                                  {{  item.original.cap_strike ? (numberToGerman(item.original.cap_strike, false, 4) || '') +' '+ (item.original.currency || '') : ''  }}
+                                  {{  item.original.cap_strike ? (numberToGerman(item.original.cap_strike) || '') +' '+ (item.original.currency || '') : ''  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'cap_disco_os'">
@@ -752,7 +744,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'underlying_price'">
-                                  {{  item.original.underlying_price ? numberToGerman(getComparableUnderlyingPrice(item.original),false,4) : '' }}
+                                  {{  item.original.underlying_price ? numberToGerman(getComparableUnderlyingPrice(item.original)) : '' }}
                                 </template>
 
                                 <template v-else-if="column.id === 'underlying_timestamp'">
@@ -760,12 +752,8 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'ratio'">
-                                  {{  item.original.ratio ? numberToGerman(item.original.ratio,false,4) : ''  }}
+                                  {{  item.original.ratio ? numberToGerman(item.original.ratio) : ''  }}
                                 </template>
-
-                                <template v-else-if="column.id === 'sideways_return'">
-                                    {{ numberToGerman(item.original.sideways_return) }}
-                                 </template>
 
                                 <template v-else-if="column.id === 'sideways_return_pa'">
                                     {{ numberToGerman(item.original.sideways_return_pa, false, 2) }}
@@ -776,7 +764,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'barrier_knockout'">
-                                    {{ numberToGerman(item.original.barrier_knockout, false, 4) }}
+                                    {{ numberToGerman(item.original.barrier_knockout) }}
                                 </template>
                                 
                                 <template v-else-if="column.id === 'bonus_level'">
@@ -836,6 +824,12 @@
                               <template v-if="TOTAL_COLUMNS.includes(header.id)">
                                 {{  numberToGerman(filteredTotal[header.id]) }}
                               </template>
+                              <template v-else-if="WEIGHTED_COLUMNS.includes(header.id)">
+                                <span :title="$t('weighted_avg_hint')">Ø {{ numberToGerman(filteredTotal[header.id]) }} %</span>
+                              </template>
+                              <template v-else-if="header.id === 'peer_members' && showPeerTotal(filteredTotal)">
+                                <Badge variant="success" :title="$t('peer_switch_total_hint')" class="font-medium tabular-nums">+{{ numberToGerman(filteredTotal.peer_members, false, 2) }} €</Badge>
+                              </template>
                               <template v-else-if="header.id === footerLabelColumn">
                                 {{  $t('filtered_total') }} <span class="filtered-count">{{ filteredLeafRows.length }}</span>
                               </template>
@@ -851,6 +845,12 @@
                               <!-- one v-if chain: separate v-ifs let the trailing v-else add a stray &nbsp; to every cell -->
                               <template v-if="TOTAL_COLUMNS.includes(header.id)">
                                 {{  numberToGerman(listTotal[header.id]) }}
+                              </template>
+                              <template v-else-if="WEIGHTED_COLUMNS.includes(header.id)">
+                                <span :title="$t('weighted_avg_hint')">Ø {{ numberToGerman(listTotal[header.id]) }} %</span>
+                              </template>
+                              <template v-else-if="header.id === 'peer_members' && showPeerTotal(listTotal)">
+                                <Badge variant="success" :title="$t('peer_switch_total_hint')" class="font-medium tabular-nums">+{{ numberToGerman(listTotal.peer_members, false, 2) }} €</Badge>
                               </template>
 
                              <template v-else-if="header.id === 'actions'">
@@ -1134,7 +1134,7 @@ import {
 
 import {useI18n} from "vue-i18n";
 // Not lodash: its CommonJS build is not tree-shaken and ships Function("return this"), which AMO flags as eval.
-import { useDebounceFn as debounce } from '@vueuse/core';
+import { useDebounceFn as debounce, useNow } from '@vueuse/core';
 import { toast } from '@/components/ui/toast';
 import { downloadCsv, downloadXlsx, fileTimestamp } from '~/utils/export-utils';
 
@@ -1503,7 +1503,6 @@ const allColumns:any = {
   currency_rate: { accessorKey: 'currency_rate', id: 'currency_rate', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'currency_rate') },
 
   valuation_date: { accessorKey: 'valuation_date', id: 'valuation_date', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'valuation_date') },
-  sideways_return: { accessorKey: 'sideways_return', id: 'sideways_return', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'sideways_return')  },
   sideways_return_pa: { accessorKey: 'sideways_return_pa', id: 'sideways_return_pa', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'sideways_return_pa') },
   pe_ratio: { accessorKey: 'pe_ratio', id: 'pe_ratio', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'pe_ratio')  },
   dividend_yield: { accessorKey: 'dividend_yield', id: 'dividend_yield', cell: (info:any) => info.getValue(), header: ({ column }:any) => getSortingHeader(column, 'dividend_yield')  },
@@ -1533,7 +1532,8 @@ const setSorting = (sortingUpdater:any) => {
 }
 
 const defaultColumnOrder = Object.keys(allColumns).filter(colId => allColumns[colId].defaultVisible !== false);
-const storedOrder = safeJsonGet<string[]>('columnOrder', defaultColumnOrder);
+// Removed columns must not linger as headerless cells from an older saved order.
+const storedOrder = safeJsonGet<string[]>('columnOrder', defaultColumnOrder).filter(id => id === 'select' || id in allColumns);
 
 const stickyColumns = ref(safeJsonGet<string[]>('stickyColumns', ['wkn']));
 
@@ -2141,6 +2141,10 @@ const TOTAL_COLUMNS = [
   'profit_loss_target_per_day',
   'profit_loss_percentage', //keep this last for manual process
 ];
+const WEIGHTED_COLUMNS = ['distance_to_the_cap', 'sideways_return_pa'];
+// Ticks like the row badges, else the total outlives them at 22:00 since price refresh stops then
+const peerClock = useNow({ interval: 60_000 });
+const showPeerTotal = (total:any) => (peerClock.value, !peerLocked.value && !isMarketClosed() && parseFloat(total?.peer_members) > 0);
 
 function sumTotals(rows:any) {
   const totals:any = {};
@@ -2155,6 +2159,23 @@ function sumTotals(rows:any) {
   // Guarded: a filter matching only cash or zero-cost rows would otherwise show NaN or Infinity
   totals.profit_loss_percentage = totals.total_entry_value
     ? ((totals.total_value / totals.total_entry_value) - 1) * 100 : 0;
+
+  // Weighted by total_value, not position_percentage: that one is portfolio-wide and wrong under a filter
+  let weightSum = 0, distSum = 0, sidewaysSum = 0;
+  for (const row of rows) {
+    if (!isDerivativeType(row.type) || row.stock_name === 'Cash') continue;
+    const weight = parseFloat(row.total_value);
+    if (!(weight > 0)) continue;
+    weightSum += weight;
+    distSum += (parseFloat(row.distance_to_the_cap) || 0) * weight;
+    sidewaysSum += (parseFloat(row.sideways_return_pa) || 0) * weight;
+  }
+  totals.distance_to_the_cap = weightSum ? distSum / weightSum : 0;
+  totals.sideways_return_pa = weightSum ? sidewaysSum / weightSum : 0;
+
+  // Same formula as the per-row badge in PeerProductsCard
+  totals.peer_members = rows.reduce((sum:number, row:any) =>
+    sum + (row.peer_switch?.gainPerPiece || 0) * (Number(row.stocks_owned) || 0), 0);
 
   //convert to german
   for (const key in totals) {
@@ -2328,7 +2349,7 @@ const reloadPriceData = async(forceUpdate=false) =>{
 
     const priceFields = [
       'bid','ask',
-      'sideways_return','sideways_return_pa',
+      'sideways_return_pa',
       'yield_pa_since_purchase',
       'profit_loss_price','profit_loss_percentage',
       'profit_loss_target_per_day','total_value',
@@ -2470,7 +2491,6 @@ const amountFields = [
   'position_percentage',
   'position_target_percentage',
   'currency_rate',
-  'sideways_return',
   'sideways_return_pa',
   'yield_pa_since_purchase',
   'market_cap',
@@ -2784,7 +2804,7 @@ const formattedISINLink = (isin:any) =>{
 
 const hlFields = [
   'yield_pa_since_purchase', 'profit_loss_price', 'profit_loss_percentage',
-  'total_value', 'future_total_value', 'sideways_return', 'sideways_return_pa',
+  'total_value', 'future_total_value', 'sideways_return_pa',
 ];
 
 // From displayed rows, not MAIN_LIST: an account filter or combined view otherwise marks a row that isn't on screen.
@@ -2832,9 +2852,7 @@ function getTitleForHL(field:any, currentValue:any) {
 const UNIT_PRICE_FIELDS = ['buy_price', 'bid', 'ask'];
 // Alert values on unit-price fields use the same precision as the table cell.
 const alertValueText = (value:any, field:string, instrumentType?:string) =>
-  UNIT_PRICE_FIELDS.includes(field) ? unitPriceToGerman(value, instrumentType)
-    // Same 4 decimals as the underlying cell: FX underlyings move in the 4th place.
-    : field === 'underlying_price' ? numberToGerman(value, false, 4) : numberToGerman(value);
+  UNIT_PRICE_FIELDS.includes(field) ? unitPriceToGerman(value, instrumentType) : numberToGerman(value);
 
 // alert.type is the alert scope (stock/group/total); the instrument type lives on the position row.
 const alertRowType = (alert:any) => alert.type === 'stock'
@@ -2935,7 +2953,6 @@ function setAlertFields(){
       { value: 'bid', label: t('bid_price') },
       { value: 'profit_loss_price', label: t('profit_loss_price') },
       { value: 'profit_loss_percentage', label: t('profit_loss_percentage') },
-      { value: 'sideways_return', label: t('sideways_return') },
       { value: 'sideways_return_pa', label: t('sideways_return_pa') },
       { value: 'underlying_price', label: t('underlying_price') },
       { value: 'yield_pa_since_purchase', label: t('yield_pa_since_purchase') },

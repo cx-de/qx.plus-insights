@@ -61,7 +61,7 @@ function updateColumnValue(data:any, col:any){
   if(data[col] !== undefined){
     if(col=="type"){
       //$type ($underlying_isin / $settlement / $quanto / $ratio)
-      colVal = `${i18n.global.t(data[col])} (${data['underlying_isin'] ? data['underlying_isin'] : '-' } / ${data['settlement'] ? data['settlement'] : '-'} / ${data['quanto'] ? data['quanto'] : '-'} / ${ data['ratio'] ? numberToGerman(data['ratio'],false,4) : '-'})`;
+      colVal = `${i18n.global.t(data[col])} (${data['underlying_isin'] ? data['underlying_isin'] : '-' } / ${data['settlement'] ? data['settlement'] : '-'} / ${data['quanto'] ? data['quanto'] : '-'} / ${ data['ratio'] ? numberToGerman(data['ratio']) : '-'})`;
     }else if(col=="cap"){
       colVal = numberToGerman(data[col])+ ' '+ (data['currency'] || '');
     }else if(col==="future_total_value"){
@@ -71,8 +71,7 @@ function updateColumnValue(data:any, col:any){
     }else if(col==="profit_loss_target_pa"){
       colVal = numberToGerman(data[col], false, 2)+' %';
     }else if(col==="underlying_price"){
-      // 4 decimals, as the dashboard List shows it: FX underlyings move in the 4th place.
-      colVal = numberToGerman(data[col], false, 4);
+      colVal = numberToGerman(data[col]);
     }else{
       colVal = data[col];
     }

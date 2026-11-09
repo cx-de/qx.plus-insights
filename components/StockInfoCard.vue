@@ -40,7 +40,7 @@
               </Button>
             </template>
             <span class="dc-seg">
-              <span class="dc-lbl">{{ $t('dc_ratio') }}</span> <b>{{ info.ratio ? numberToGerman(info.ratio, !(info.ratio % 1), 4) : '–' }}</b>
+              <span class="dc-lbl">{{ $t('dc_ratio') }}</span> <b>{{ info.ratio ? numberToGerman(info.ratio, !(info.ratio % 1)) : '–' }}</b>
               <span class="dc-pipe">|</span>
               <span class="dc-lbl">Quanto</span> <b>{{ info.quanto2 ? $t(info.quanto2) : '–' }}</b>
               <span class="dc-pipe">|</span>
@@ -68,7 +68,7 @@
                           <td class="dc-k">{{ $t(column) }}</td>
                           <td class="dc-v">
                             <template v-if="column === 'underlying_price'">
-                              {{ info[column] ? numberToGerman(getComparableUnderlyingPrice(info), false, 4) : '' }}
+                              {{ info[column] ? numberToGerman(getComparableUnderlyingPrice(info)) : '' }}
                             </template>
                             <template v-else-if="column === 'wkn' || column === 'isin'">
                               <span class="inline-flex items-center gap-1">
@@ -90,10 +90,10 @@
                               {{ numberToGerman(info[column],true) }}
                             </template>
                             <template v-else-if="column === 'currency_rate' ">
-                              {{ numberToGerman(info[column],false,4) }}
+                              {{ numberToGerman(info[column]) }}
                             </template>
                             <template v-else-if="column === 'ratio' ">
-                              {{ numberToGerman(info[column],false,4) }}
+                              {{ numberToGerman(info[column]) }}
                             </template>
                             <template v-else-if="column === 'timestamp' ">
                               {{ formatTimestamp(info[column]) }}
@@ -206,7 +206,6 @@ const priceColumns = ref([
     'position_percentage',
     'position_target_percentage',
     'underlying_price',
-    'sideways_return',
     'sideways_return_pa',
     'yield_pa_since_purchase',
     'cap_strike',
@@ -237,10 +236,10 @@ const fxLabel = computed(() => {
   const info: any = props.info;
   const currency = (info.currency || '').trim().toUpperCase();
   if (!currency) return '–';
-  if (currency === 'EUR') return `EUR/EUR ${numberToGerman(1, false, 4)}`;
+  if (currency === 'EUR') return `EUR/EUR ${numberToGerman(1)}`;
   // No rate stored yet: show nothing rather than a made-up 1,0000.
   const rate = parseFloat(info.currency_rate);
-  return rate ? `EUR/${currency} ${numberToGerman(rate, false, 4)}` : `EUR/${currency} –`;
+  return rate ? `EUR/${currency} ${numberToGerman(rate)}` : `EUR/${currency} –`;
 });
 
 const setView = (mode: string) => {

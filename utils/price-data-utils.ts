@@ -201,7 +201,7 @@ export const reloadPriceData = async () => {
 
     const priceFields = [
       'bid', 'ask',
-      'sideways_return', 'sideways_return_pa',
+      'sideways_return_pa',
       'yield_pa_since_purchase',
       'profit_loss_price', 'profit_loss_percentage',
       'profit_loss_target_per_day', 
@@ -308,6 +308,8 @@ export const getPriceData = async (forceUpdate = false) => {
         return {
           ...item,
           ...restExtraData,
+          // Fallback only: the /products currency must win, but stocks/ETFs have no product entry
+          currency: item.currency || currency,
           bid: bid != null ? parseFloat(bid) : (item.bid != null ? item.bid : 0),
           ask: ask != null ? parseFloat(ask) : 0,
           timestamp: timestamp ?? item.timestamp ?? Date.now(),
@@ -584,29 +586,34 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
 
     let bonusLevel = 0;
     let cap_strike = parseFloat(item.strike ? item.strike : item.cap) || 0;
+    // Cap/Strike shows the strike; only the yield uses the capped payout (cap - strike showed as a 500 "strike").
+    let payout = cap_strike;
     switch (item.type) {
       case 'discountPut':
-        // Put pays out below strike; sharing the call branch gave cap - strike, a negative cap_strike.
+        // Put pays out below strike; sharing the call branch gave cap - strike, a negative payout.
         if (comparableUnderlying <= itemCap) {
-          cap_strike = strike - itemCap;
+          payout = strike - itemCap;
         } else if (comparableUnderlying < strike) {
-          cap_strike = strike - comparableUnderlying;
+          payout = strike - comparableUnderlying;
         } else {
-          cap_strike = 0;
+          payout = 0;
         }
+        cap_strike = strike;
         break;
       case 'discountCall':
         if (comparableUnderlying > itemCap) {
-          cap_strike = itemCap - strike;
+          payout = itemCap - strike;
         } else if (comparableUnderlying >= strike) {
-          cap_strike = comparableUnderlying - strike;
+          payout = comparableUnderlying - strike;
         } else {
-          cap_strike = 0;
+          payout = 0;
         }
+        cap_strike = strike;
         break;
       case 'cappedBonusCertificate':
         barrier_knockout = strike;
         cap_strike = itemCap;
+        payout = itemCap;
         bonusLevel = itemCap;
         break;
     }
@@ -639,8 +646,8 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
 
     // cap/strike is in the product currency; convert it to EUR unless the product
     // is EUR or quanto (quanto pays the cap amount 1:1 in EUR)
-    let capInPortfolioCurrency = (item.currency && item.currency !== 'EUR' && !item.quanto) ? cap_strike / FX_rate : cap_strike;
-    let sideways_return =  cap_strike && bid && ratio ? ((capInPortfolioCurrency / bid * ratio) - 1) * 100 : 0;
+    let capInPortfolioCurrency = (item.currency && item.currency !== 'EUR' && !item.quanto) ? payout / FX_rate : payout;
+    let sideways_return =  payout && bid && ratio ?((capInPortfolioCurrency / bid * ratio) - 1) * 100 : 0;
     switch (item.type) {
       case 'openEndTurboShort':
       case 'openEndTurboLong':

@@ -18,7 +18,7 @@ export default defineConfig({
     includeSources: [
       'assets/**', 'components/**', 'entrypoints/**', 'lib/**', 'public/**', 'utils/**',
       'components.json', 'package.json', 'package-lock.json', 'tsconfig.json', 'wxt.config.ts',
-      'README.md', 'LICENSE', 'SECURITY.md', 'PRIVACY.md', 'examples/**', 'scripts/**',
+      'README.md', 'LICENSE', 'SECURITY.md', 'PRIVACY.md', 'examples/**', 'scripts/**', 'vendor/**',
     ],
   },
   manifest: ({ browser }) => ({

@@ -16,13 +16,13 @@ import {
 } from '@/utils/helper';
 
 describe('currencyRateText', () => {
-  it('hides a rate that prints as 1,0000', () => {
+  it('hides a rate that prints as 1,00', () => {
     expect(currencyRateText(1)).toBe('');
     expect(currencyRateText('0.99999')).toBe('');
   });
 
   it('shows a real FX rate', () => {
-    expect(currencyRateText('1.085')).toBe('1,0850');
+    expect(currencyRateText('1.1234')).toBe('1,12');
   });
 
   it('stays blank without a rate', () => {

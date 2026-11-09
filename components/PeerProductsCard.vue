@@ -1,7 +1,7 @@
 <template>
-  <HoverCard v-if="peer_members" :openDelay="100" :closeDelay="closeDelayTime">
+  <HoverCard v-if="peer_members" :openDelay="100" :closeDelay="200">
     <HoverCardTrigger as-child>
-      <span class="cursor-pointer" @mouseenter="getPeersPriceData">
+      <span class="cursor-pointer" @mouseenter="loadPeers">
         <span class="underline underline-offset-4 decoration-muted-foreground/50 hover:decoration-foreground">{{ peer_members.length>0 ? peer_members.filter(item => item !== wkn).join(',') : '' }}</span>
         <Badge v-if="activeSwitch" variant="success" :title="switchHint" class="ml-1 font-medium tabular-nums">
           → {{ activeSwitch.wkn }} +{{ numberToGerman(switchTotal, false, 2) }} €
@@ -9,36 +9,9 @@
       </span>
     </HoverCardTrigger>
     
-    <HoverCardContent class="w-max max-w-[90vw] h-[250px] overflow-y-auto p-4
-      text-sm">
-      
-      <div class="space-between flex items-center">
-        <div class="ml-auto mr-4">
-          <DropdownMenu>
-            <DropdownMenuTrigger as-child>
-              <Button @click="getPeerProductData" variant="outline" size="icon" class="ml-auto"
-                :aria-label="$t('view')" :title="$t('view')">
-                <CirclePlus />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuCheckboxItem
-                v-for="column in table.getAllColumns().filter((column) => column.getCanHide())"
-                :key="column.id"
-                class="capitalize"
-                :model-value="column.getIsVisible()"
-                @click="columnToggle"
-                @update:model-value="(value) => {
-                  column.toggleVisibility(!!value)
-                }">
-                {{ column.id }}
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      
-      <Table class="mt-2">
+    <!-- max-h, not a fixed 250px: the old box cut the list after five rows. -->
+    <HoverCardContent class="w-max max-w-[90vw] max-h-[70vh] overflow-y-auto p-4 text-sm">
+      <Table>
       <TableHeader>
         <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
           <TableHead v-for="header in headerGroup.headers" :key="header.id" 
@@ -92,7 +65,6 @@ import {
   getCoreRowModel,
   getExpandedRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
   useVueTable,
 } from '@tanstack/vue-table'
@@ -106,21 +78,12 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-
 import { sortableHeader } from '~/utils/table-utils';
 import { getPeerPrices } from '~/utils/price-data-utils';
-import { CirclePlus } from 'lucide-vue-next';
 
 import { computed, h, ref } from 'vue'
 import { useNow } from '@vueuse/core'
 import { valueUpdater } from '~/lib/utils'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {useI18n} from "vue-i18n";
 
@@ -176,6 +139,20 @@ const getPeersPriceData = async () => {
     }
 };
 
+// Sequential: the /price pass rebuilds the rows, so running it after /products dropped the ratio.
+const loadPeers = async () => {
+  await getPeersPriceData();
+  await getPeerProductData();
+};
+
+// Numeric, so "174" and "173,47" compare as prices; a peer without a quote sorts last.
+const priceOrLast = (value:any) => { const n = Number.parseFloat(value); return Number.isFinite(n) && n > 0 ? n : Infinity; };
+const priceSort = (a:any, b:any, id:string) => {
+  const x = priceOrLast(a.getValue(id));
+  const y = priceOrLast(b.getValue(id));
+  return x === y ? 0 : x < y ? -1 : 1;
+};
+
 const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label), 'hover:bg-accent hover:text-accent-foreground');
 
 const columns = [
@@ -198,6 +175,8 @@ const columns = [
   },
   {
     accessorKey: 'ask',
+    sortingFn: priceSort,
+    sortUndefined: 'last' as const,
     header: ({ column }:any) => getSortingHeader(column, 'ask'),
     cell: ({ row }:any) => {
       let formatted = "-";
@@ -213,7 +192,7 @@ const columns = [
     header: ({ column }:any) => getSortingHeader(column, 'ratio'),
     cell: ({ row }:any) => {
       const value = row.getValue('ratio');
-      const formatted = (value == null || value === '') ? '-' : numberToGerman(value, false, 4);
+      const formatted = (value == null || value === '') ? '-' : numberToGerman(value);
       return h('div', { class: 'text-right font-medium' }, formatted)
     }
   },
@@ -227,18 +206,9 @@ const columns = [
   },
 ];
 
-const sorting = ref<SortingState>([])
+// Cheapest switch first; the header still re-sorts.
+const sorting = ref<SortingState>([{ id: 'ask', desc: false }])
 const columnFilters = ref<ColumnFiltersState>([])
-const columnVisibility = ref<Record<string, boolean>>({
-  wkn: true,
-  ask: true,
-  bid: true,
-  ratio: false, // default hidden
-})
-
-const columnToggle = () =>{
-  console.log("columnToggle columnVisibility",columnVisibility);
-}
 
 const rowSelection = ref({})
 const expanded = ref<ExpandedState>({})
@@ -248,29 +218,25 @@ const table = useVueTable({
     return products.value
   },
   columns,
+  // No pagination row model: its default page of 10 cut longer peer lists.
   getCoreRowModel: getCoreRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
   getSortedRowModel: getSortedRowModel(),
   getFilteredRowModel: getFilteredRowModel(),
   getExpandedRowModel: getExpandedRowModel(),
   onSortingChange: updaterOrValue => valueUpdater(updaterOrValue, sorting),
   onColumnFiltersChange: updaterOrValue => valueUpdater(updaterOrValue, columnFilters),
-  onColumnVisibilityChange: updaterOrValue => valueUpdater(updaterOrValue, columnVisibility),
   onRowSelectionChange: updaterOrValue => valueUpdater(updaterOrValue, rowSelection),
   onExpandedChange: updaterOrValue => valueUpdater(updaterOrValue, expanded),
   state: {
     get sorting() { return sorting.value },
     get columnFilters() { return columnFilters.value },
-    get columnVisibility() { return columnVisibility.value },
     get rowSelection() { return rowSelection.value },
     get expanded() { return expanded.value },
   },
 })
 
-const closeDelayTime = ref(200);
 const peerProducts = ref<any[]>([]);
 const getPeerProductData = async () => {
-  closeDelayTime.value = 10000;
   peerProducts.value = await storage.getItem('local:PEER_PRODUCTS') || [];
   
   const today = todayIso();
@@ -342,9 +308,12 @@ const getPeerProductData = async () => {
 
     console.log("getPeerProductData peerProducts update", peerProducts.value);
     
-    const clonedData = deepCloneReactiveData(peerProducts.value);
-    console.log("getPeerProductData clonedData",clonedData);
-    await storage.setItem('local:PEER_PRODUCTS',clonedData);
+    // Every hover runs this now, so only write when the feed actually answered.
+    if (allApiData.length) {
+      const clonedData = deepCloneReactiveData(peerProducts.value);
+      console.log("getPeerProductData clonedData",clonedData);
+      await storage.setItem('local:PEER_PRODUCTS',clonedData);
+    }
     
     //merge table products — iterate over the full peer list, not just rows already in products.value,
     //so peers missing from /price still appear (enriched from /products where possible).

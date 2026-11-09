@@ -184,7 +184,7 @@ import ChartCard from '~/components/ChartCard.vue'
 import MoversList from '~/components/MoversList.vue'
 import { useToast } from '@/components/ui/toast/use-toast'
 
-import { apiAuthFailed, getApiKey, getLatestData, numberToGerman, formatMonthYear, todayIso } from '~/utils/helper';
+import { apiAuthFailed, getApiKey, getLatestData, numberToGerman, formatMonthYear, todayIso, isDerivativeType } from '~/utils/helper';
 import { reloadPriceData, abortPriceRequests } from '~/utils/price-data-utils'
 import { chartPalette, chartTokenColor, chartCashColor, chartOnThemeChange } from '~/utils/chart-colors-utils';
 
@@ -942,7 +942,7 @@ const {
 } = createBreakdownChart({
   name: 'Issuer',
   datasetLabel: 'Issuer Distribution',
-  keyOf: (item:any) => item.issuer || 'Unknown',
+  keyOf: (item:any) => isDerivativeType(item.type) ? (item.issuer || 'Unknown') : t('no_issuer'),
 });
 
 const {
