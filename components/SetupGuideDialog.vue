@@ -62,7 +62,7 @@
         </DialogHeader>
 
         <div class="mt-6 flex flex-col gap-2">
-          <button v-for="(broker, key) in TOUR_BROKERS" :key="key" type="button" class="choice" @click="view = String(key)">
+          <button v-for="[key, broker] in sortedBrokers" :key="key" type="button" class="choice" @click="view = String(key)">
             <span class="choice-icon"><Landmark class="h-5 w-5" aria-hidden="true" /></span>
             <span class="choice-title min-w-0 flex-1">{{ broker.name }}</span>
             <!-- Already connected brokers stay pickable (a second account), so this only tells what is there. -->
@@ -211,6 +211,10 @@ const props = defineProps<{ blocked?: boolean }>();
 const open = defineModel<boolean>('open', { default: false });
 const { locale } = useI18n();
 const route = useRoute();
+
+// Case-insensitive, so justTRADE does not sort before every capitalised name.
+const sortedBrokers = Object.entries(TOUR_BROKERS as Record<string, any>)
+  .sort(([, a], [, b]) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
 // Equal shares: the preview shows "all brokers, one total", not anyone's numbers. Shades of one colour keep it in the app theme.
 const previewParts = ACCOUNT_BROKERS.map((name, index) => ({

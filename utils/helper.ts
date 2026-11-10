@@ -279,8 +279,8 @@ const NON_DERIVATIVE_TYPES = ['stock', 'exchangeTradedFund', 'fund', 'bond'];
 // A row without a type is not treated as a derivative.
 export const isDerivativeType = (type?:string) => !!type && !NON_DERIVATIVE_TYPES.includes(type);
 
-// EUR lines carry rate 1; only a real FX rate is worth a cell.
-export const currencyRateText = (rate:any) => numberToGerman(rate, false, 4) === numberToGerman(1, false, 4) ? '' : numberToGerman(rate, false, 4);
+// EUR lines carry rate 1; only a rate that differs at 2 decimals is worth a cell.
+export const currencyRateText = (rate:any) => numberToGerman(rate) === numberToGerman(1) ? '' : numberToGerman(rate);
 
 
 export const sendTelegramMessage = async (token:any, channelId:any, message:any) => {

@@ -2,7 +2,7 @@
   "name": "qx-plus-insights",
   "description": "QX+ Insights browser extension: extra market data and portfolio insights for German online brokers.",
   "private": true,
-  "version": "2.11.8",
+  "version": "2.11.9",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -18,7 +18,7 @@
     "zip:firefox": "wxt zip -b firefox",
     "zip:edge": "wxt zip -b edge",
     "zip:safari": "wxt zip -b safari",
-    "zip:all": "wxt zip && wxt zip -b firefox && wxt zip -b edge && wxt zip -b safari",
+    "zip:all": "wxt zip && wxt zip -b firefox && wxt zip -b edge",
     "safari:xcode": "npm run build:safari && node scripts/safari-xcode.mjs",
     "compile": "vue-tsc --noEmit",
     "test": "vitest run",
@@ -50,7 +50,7 @@
     "vue-draggable-next": "^2.3.0",
     "vue-i18n": "^11.4.18",
     "vue-router": "^4.6.4",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+    "xlsx": "file:vendor/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
