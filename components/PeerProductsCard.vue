@@ -50,7 +50,7 @@
 <script setup lang="ts">
 
 import { storage } from '#imports';
-import { apiBaseUrl, apiKey, apiAuthFailed, isApiRateLimited, fetchFeed, isMarketClosed, numberToGerman, formatTimestamp, chunkArray, deepCloneReactiveData, todayIso } from '~/utils/helper';
+import { apiBaseUrl, apiKey, apiAuthFailed, isApiRateLimited, fetchFeed, isFeedBlocked, daysUntilMarketOpen, numberToGerman, formatRatio, formatTimestamp, chunkArray, deepCloneReactiveData, todayIso } from '~/utils/helper';
 
 import {
   HoverCard,
@@ -95,10 +95,9 @@ const props = defineProps<{
   stocks_owned?: number | string,
 }>()
 
-// Outside service hours the stored suggestion is the last session's prices, not a live offer.
-// useNow ticks the computed, so the badge goes away at 22:00 without a list refresh.
+// Off-hours the suggestion rests on close prices nobody can trade at; useNow hides it at 22:00 without a refresh.
 const now = useNow({ interval: 60_000 });
-const activeSwitch = computed(() => (now.value, props.peer_switch && !isMarketClosed() ? props.peer_switch : null));
+const activeSwitch = computed(() => (props.peer_switch && !isFeedBlocked() && daysUntilMarketOpen(now.value) < 0 ? props.peer_switch : null));
 // From the current quantity: a sync can change it between price intervals.
 const switchTotal = computed(() => (activeSwitch.value?.gainPerPiece || 0) * (Number(props.stocks_owned) || 0));
 
@@ -119,8 +118,7 @@ const switchHint = computed(() => {
 const isLoading = ref(true);
 const products = ref<any[]>([]);
 const getPeersPriceData = async () => {
-  // Only a missing or rejected key stops this — isMarketClosed() would also blank it every weekend.
-  if (!apiKey.value || apiAuthFailed.value) { isLoading.value = false; return; }
+  if (isFeedBlocked()) { isLoading.value = false; return; }
   try {
       const data = await getPeerPrices(props.peer_members);
       if(data){
@@ -141,6 +139,8 @@ const getPeersPriceData = async () => {
 
 // Sequential: the /price pass rebuilds the rows, so running it after /products dropped the ratio.
 const loadPeers = async () => {
+  // Each open starts at Brief ASC again: a header click from the last hover must not stick.
+  sorting.value = [...DEFAULT_SORT];
   await getPeersPriceData();
   await getPeerProductData();
 };
@@ -192,7 +192,7 @@ const columns = [
     header: ({ column }:any) => getSortingHeader(column, 'ratio'),
     cell: ({ row }:any) => {
       const value = row.getValue('ratio');
-      const formatted = (value == null || value === '') ? '-' : numberToGerman(value);
+      const formatted = (value == null || value === '') ? '-' : formatRatio(value);
       return h('div', { class: 'text-right font-medium' }, formatted)
     }
   },
@@ -207,7 +207,8 @@ const columns = [
 ];
 
 // Cheapest switch first; the header still re-sorts.
-const sorting = ref<SortingState>([{ id: 'ask', desc: false }])
+const DEFAULT_SORT: SortingState = [{ id: 'ask', desc: false }];
+const sorting = ref<SortingState>([...DEFAULT_SORT])
 const columnFilters = ref<ColumnFiltersState>([])
 
 const rowSelection = ref({})
@@ -266,7 +267,7 @@ const getPeerProductData = async () => {
   try {
     for (const chunk of wknChunks) {
       const wknParam = chunk.join(',');
-      const url = `${apiBaseUrl}products?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wknParam)}`;
+      const url = `${apiBaseUrl}products?wkn=${encodeURIComponent(wknParam)}`;
       const apiData = await fetchFeed(url);
       if (!apiData) { if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
 

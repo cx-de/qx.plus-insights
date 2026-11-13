@@ -4,6 +4,7 @@ import {
   germanToNumer,
   numberToGerman,
   unitPriceToGerman,
+  formatRatio,
   productTypeFromLabel,
   isDerivativeType,
   parseGermanDateOnly,
@@ -22,7 +23,7 @@ describe('currencyRateText', () => {
   });
 
   it('shows a real FX rate', () => {
-    expect(currencyRateText('1.1234')).toBe('1,12');
+    expect(currencyRateText('1.1234')).toBe('1,1234');
   });
 
   it('stays blank without a rate', () => {
@@ -48,6 +49,21 @@ describe('germanToNumer', () => {
   it('parses German thousands and decimal separators', () => {
     expect(germanToNumer('1.234,56')).toBe(1234.56);
     expect(germanToNumer('0,5')).toBe(0.5);
+  });
+});
+
+describe('formatRatio', () => {
+  it('keeps every significant digit and drops trailing zeros', () => {
+    expect(formatRatio(1)).toBe('1');
+    expect(formatRatio('0.010')).toBe('0,01');
+    expect(formatRatio(0.001)).toBe('0,001');
+    expect(formatRatio(0.0001)).toBe('0,0001');
+    expect(formatRatio('1.104630')).toBe('1,10463');
+    expect(formatRatio(1000)).toBe('1.000');
+  });
+
+  it('returns an empty string for missing values', () => {
+    expect(formatRatio(null)).toBe('');
   });
 });
 

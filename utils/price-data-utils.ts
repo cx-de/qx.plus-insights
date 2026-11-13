@@ -8,7 +8,9 @@ import {
   isApiRateLimited,
   chunkArray,
   fetchFeed,
-  isMarketClosed,
+  isFeedBlocked,
+  daysUntilMarketOpen,
+  fetchedThisClosedPeriod,
   saveDailyTotal,
   getComparableUnderlyingPrice,
   fetchApiUsage
@@ -68,8 +70,7 @@ export const mainListSetField = async (key:string, field:string, value:any) => {
 };
 
 const PAYOUT_LAG_DAYS = 7;
-// Annualizing a few days of gain gives absurd rates (+5% in 2 days is +743.000% p.a.).
-const MIN_HOLD_DAYS_FOR_PA = 30;
+const UNDERLYING_PAYOUT_TYPES = ['put', 'call', 'discountPut', 'discountCall'];
 
 // Read each call: a cached copy kept a changed interval out until the dashboard was reopened.
 const getPriceUpdateDuration = async () => {
@@ -91,8 +92,8 @@ const peerPriceCache = new Map<string, { at: number, data: any[] }>();
 export const getPeerPrices = async (peerMembers: string[]) => {
   const wkns = peerMembers.join(',');
   const cached = peerPriceCache.get(wkns);
-  if (cached && Date.now() - cached.at < await getPriceUpdateDuration() * 60_000) return cached.data;
-  const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wkns)}`;
+  if (cached && (fetchedThisClosedPeriod(cached.at) || Date.now() - cached.at < await getPriceUpdateDuration() * 60_000)) return cached.data;
+  const url = `${apiBaseUrl}price?wkn=${encodeURIComponent(wkns)}`;
   const apiData = await fetchFeed(url);
   if (!apiData || apiData.status != 1) return null;
   const data = apiData.data || [];
@@ -101,13 +102,14 @@ export const getPeerPrices = async (peerMembers: string[]) => {
 };
 
 // 10% slack: a timer tick lands seconds before the stamp expires, which would double the real interval.
-const isStale = (stampedAt:any, updateMinutes:number, now:number) =>
-  !stampedAt || now >= new Date(stampedAt).getTime() + updateMinutes * 60_000 * 0.9;
+// force (Reload) skips the interval, never the once-per-closed-period rule.
+const isStale = (stampedAt:any, updateMinutes:number, now:number, force = false) =>
+  !fetchedThisClosedPeriod(stampedAt, new Date(now)) && (force || !stampedAt || now >= new Date(stampedAt).getTime() + updateMinutes * 60_000 * 0.9);
 
 // Held rows only: a switch needs units to sell. Each unique peer is one metered position per interval.
 export const getPeerSwitchData = async (forceUpdate = false) => {
-  // isMarketClosed also covers a missing or rejected key.
-  if (isMarketClosed() || isApiRateLimited()) return;
+  // isFeedBlocked also covers a missing or rejected key; off-hours the badge is hidden, so its peer prices are not worth paying for.
+  if (isFeedBlocked() || isApiRateLimited() || daysUntilMarketOpen() >= 0) return;
 
   const mainListData:any[] = await storage.getItem('local:MAIN_LIST') || [];
   const updateMinutes = await getPriceUpdateDuration();
@@ -145,7 +147,7 @@ export const getPeerSwitchData = async (forceUpdate = false) => {
   try {
     for (const chunk of chunkArray(toFetch, globalPriceState.chunkSize)) {
       if (apiAuthFailed.value || isApiRateLimited()) { failed = true; break; }
-      const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(chunk.join(','))}`;
+      const url = `${apiBaseUrl}price?wkn=${encodeURIComponent(chunk.join(','))}`;
       const apiData = await fetchChunk(url, controller.signal);
       if (apiData === ABORTED) { failed = true; break; }
       if (!apiData) { failed = true; continue; }
@@ -182,7 +184,7 @@ export const getPeerSwitchData = async (forceUpdate = false) => {
 
 
 export const reloadPriceData = async () => {
-  if (isMarketClosed()) return;
+  if (isFeedBlocked()) return;
   const run = priceRunId;
   const currentData:any = await storage.getItem('local:MAIN_LIST') || [];
   try {
@@ -239,7 +241,7 @@ export const reloadPriceData = async () => {
 };
 
 export const getPriceData = async (forceUpdate = false) => {
-  if (isMarketClosed()) return;
+  if (isFeedBlocked()) return;
   
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
@@ -252,7 +254,7 @@ export const getPriceData = async (forceUpdate = false) => {
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
   
-  const needsUpdate = (item: any) => forceUpdate || isStale(item.priceUpdatedAt, updateMinutes, now);
+  const needsUpdate = (item: any) => isStale(item.priceUpdatedAt, updateMinutes, now, forceUpdate);
 
   let allApiData: any[] = [];
   let failed = false;
@@ -266,7 +268,7 @@ export const getPriceData = async (forceUpdate = false) => {
   try {
     for (const chunk of isinChunks) {
       const isinParam = chunk.join(',');
-      const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&uisin=${encodeURIComponent(isinParam)}`;
+      const url = `${apiBaseUrl}price?uisin=${encodeURIComponent(isinParam)}`;
       const apiData = await fetchChunk(url, controller.signal);
       if (apiData === ABORTED) { failed = true; break; }
       // A dead key kills every remaining chunk, so stop rather than firing the whole queue.
@@ -284,7 +286,7 @@ export const getPriceData = async (forceUpdate = false) => {
       // The isin loop may have latched the key as dead — don't restart the storm here.
       if (apiAuthFailed.value || isApiRateLimited()) break;
       const wknParam = chunk.join(',');
-      const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wknParam)}`;
+      const url = `${apiBaseUrl}price?wkn=${encodeURIComponent(wknParam)}`;
       const apiData = await fetchChunk(url, controller.signal);
       if (apiData === ABORTED) { failed = true; break; }
       if (!apiData) { failed = true; if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
@@ -344,7 +346,7 @@ export const getPriceData = async (forceUpdate = false) => {
 };
 
 export const getUnderlyingPriceData = async (forceUpdate = false) => {
-  if (isMarketClosed()) return;
+  if (isFeedBlocked()) return;
   
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
@@ -355,7 +357,7 @@ export const getUnderlyingPriceData = async (forceUpdate = false) => {
   const currentDatetime = new Date().toISOString();
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
-  const needsUpdate = (item: any) => forceUpdate || isStale(item.underlyingPriceUpdatedAt, updateMinutes, now);
+  const needsUpdate = (item: any) => isStale(item.underlyingPriceUpdatedAt, updateMinutes, now, forceUpdate);
 
   const uisinList = [...new Set(mainListData.filter((item:any) => item.underlying_isin && needsUpdate(item))
     .map((item:any) => item.underlying_isin)
@@ -368,7 +370,7 @@ export const getUnderlyingPriceData = async (forceUpdate = false) => {
   try {
     for (const chunk of uisinChunks) {
       const uisinParam = chunk.join(',');
-      const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&uisin=${encodeURIComponent(uisinParam)}`;
+      const url = `${apiBaseUrl}price?uisin=${encodeURIComponent(uisinParam)}`;
       const apiData = await fetchChunk(url, controller.signal);
       if (apiData === ABORTED) { failed = true; break; }
       if (!apiData) { failed = true; if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
@@ -400,6 +402,8 @@ export const getUnderlyingPriceData = async (forceUpdate = false) => {
            return {...item, ...freshStamp };
         }
       }
+      // Asked but unknown to the feed: stamp it, or it costs a lookup on every tick (all weekend when closed).
+      if (item.underlying_isin && needsUpdate(item)) return { ...item, ...freshStamp };
       return item;
     });
     await mainListWriteChanges(before, mainListData);
@@ -412,7 +416,7 @@ export const getUnderlyingPriceData = async (forceUpdate = false) => {
 };
 
 export const getCurrencyRate = async (forceUpdate = false) => {
-  if (isMarketClosed()) return;
+  if (isFeedBlocked()) return;
   
   const controller = new AbortController();
   globalPriceState.controllers.push(controller);
@@ -423,7 +427,7 @@ export const getCurrencyRate = async (forceUpdate = false) => {
   const currentDatetime = new Date().toISOString();
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
-  const needsUpdate = (item: any) => forceUpdate || isStale(item.currencyRateUpdatedAt, updateMinutes, now);
+  const needsUpdate = (item: any) => isStale(item.currencyRateUpdatedAt, updateMinutes, now, forceUpdate);
 
   const currencyList = [...new Set(mainListData
     .filter((item:any) => item.currency && needsUpdate(item))
@@ -437,7 +441,7 @@ export const getCurrencyRate = async (forceUpdate = false) => {
   try {
     for (const chunk of currencyChunks) {
       const currencyParam = chunk.join(',');
-      const url = `${apiBaseUrl}price?apikey=${encodeURIComponent(apiKey.value)}&currencies=${encodeURIComponent(currencyParam)}`;
+      const url = `${apiBaseUrl}price?currencies=${encodeURIComponent(currencyParam)}`;
       const apiData = await fetchChunk(url, controller.signal);
       if (apiData === ABORTED) { failed = true; break; }
       if (!apiData) { failed = true; if (apiAuthFailed.value || isApiRateLimited()) break; continue; }
@@ -589,6 +593,13 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
     // Cap/Strike shows the strike; only the yield uses the capped payout (cap - strike showed as a 500 "strike").
     let payout = cap_strike;
     switch (item.type) {
+      // Warrants pay intrinsic value, same as calculateFutureTotalValue; the strike itself gave a 1900% "return".
+      case 'put':
+        payout = Math.max(strike - comparableUnderlying, 0);
+        break;
+      case 'call':
+        payout = Math.max(comparableUnderlying - strike, 0);
+        break;
       case 'discountPut':
         // Put pays out below strike; sharing the call branch gave cap - strike, a negative payout.
         if (comparableUnderlying <= itemCap) {
@@ -647,7 +658,9 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
     // cap/strike is in the product currency; convert it to EUR unless the product
     // is EUR or quanto (quanto pays the cap amount 1:1 in EUR)
     let capInPortfolioCurrency = (item.currency && item.currency !== 'EUR' && !item.quanto) ? payout / FX_rate : payout;
-    let sideways_return =  payout && bid && ratio ?((capInPortfolioCurrency / bid * ratio) - 1) * 100 : 0;
+    // Only underlying-driven payouts may be 0 (worthless = -100%); elsewhere 0 means no cap/strike, not a loss.
+    const payoutKnown = payout > 0 || (UNDERLYING_PAYOUT_TYPES.includes(item.type) && comparableUnderlying > 0);
+    let sideways_return = payoutKnown && bid && ratio ? ((capInPortfolioCurrency / bid * ratio) - 1) * 100 : 0;
     switch (item.type) {
       case 'openEndTurboShort':
       case 'openEndTurboLong':
@@ -700,7 +713,8 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
 
     //sideways Return PA
     let sideways_return_pa = 0;
-    if(item.valuation_date && future_total_value>0){
+    // A 0 future value counts only once the underlying quote is in, else every load flashes -100%.
+    if(item.valuation_date && (future_total_value > 0 || (future_total_value === 0 && comparableUnderlying > 0))){
       let startAmount = total_value;
       let endAmount = future_total_value;
       if (startAmount <= 0 || daysUntilPayout <= 0) {
@@ -726,7 +740,8 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
       days_since_purchase = Math.floor(
         (new Date().setHours(0, 0, 0, 0) - new Date(item.purchase_date).setHours(0, 0, 0, 0)) / 86_400_000
       );
-      if (days_since_purchase >= MIN_HOLD_DAYS_FOR_PA && item.total_entry_value > 0 && total_value > 0) {
+      // Day 0 would divide by zero, so a same-day buy has no p.a. yield yet.
+      if (days_since_purchase > 0 && item.total_entry_value > 0 && total_value > 0) {
         yield_pa_since_purchase = (Math.pow(total_value / item.total_entry_value, 365 / days_since_purchase) - 1) * 100;
       }
     }

@@ -55,7 +55,7 @@
       <div v-else-if="usage" class="flex flex-col">
         <div class="flex h-6 items-center justify-between gap-3">
           <span class="text-sm font-medium">{{ $t('settings_page.usage_today_label') }}</span>
-          <!-- Calls outside service hours are rejected, so say whether they work right now -->
+          <!-- Outside market hours the feed returns last values, so say whether prices are live right now -->
           <Badge v-if="serviceStatus" variant="outline" class="gap-1.5 font-normal text-muted-foreground">
             <span class="h-1.5 w-1.5 rounded-full" :class="serviceStatus.open ? 'bg-success' : 'bg-muted-foreground'" aria-hidden="true"></span>
             {{ serviceStatus.label }}
@@ -145,7 +145,7 @@ import { RefreshCw, KeyRound, WifiOff, Clock, CreditCard, Lock, ExternalLink } f
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { fetchApiUsage, numberToGerman, portalUrl } from '~/utils/helper';
+import { fetchApiUsage, numberToGerman, portalUrl, daysUntilMarketOpen, marketOpenDayName, MARKET_OPEN_HOUR, MARKET_CLOSE_HOUR } from '~/utils/helper';
 
 const props = defineProps<{ apiKey: string | null }>();
 const emit = defineEmits<{ (e: 'usage', value: any): void }>();
@@ -260,17 +260,13 @@ const serviceWindow = computed(() => {
   return t('settings_page.usage_service_hours_value', { start: hh(w.start_hour), end: hh(w.end_hour), city });
 });
 
-// Judged in the feed's own time zone, so CET/CEST and the viewer's zone can't skew it
+// Same market clock as the closed-market banner, so Settings never says "Live" on a Saturday.
 const serviceStatus = computed(() => {
-  const w = usage.value?.service_window;
-  if (!w?.timezone) return null;
-  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: '2-digit', hourCycle: 'h23', timeZone: w.timezone }).format(now.value));
-  const open = hour >= w.start_hour && hour < w.end_hour;
+  if (!usage.value) return null;
+  const days = daysUntilMarketOpen(new Date(now.value));
   const hh = (h: number) => `${String(h).padStart(2, '0')}:00`;
-  return {
-    open,
-    label: open ? t('settings_page.usage_live_until', { time: hh(w.end_hour) }) : t('settings_page.usage_closed_until', { time: hh(w.start_hour) }),
-  };
+  if (days < 0) return { open: true, label: t('settings_page.usage_live_until', { time: hh(MARKET_CLOSE_HOUR) }) };
+  return { open: false, label: t('settings_page.usage_closed_until', { time: `${marketOpenDayName(days, locale.value)} ${hh(MARKET_OPEN_HOUR)}` }) };
 });
 
 // Settings passes the saved key, so this fires on mount, after a passing test, and after a save — not per keystroke.

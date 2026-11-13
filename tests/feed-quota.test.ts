@@ -6,7 +6,7 @@ import { getPriceData } from '@/utils/price-data-utils';
 
 // Tuesday 12:00 Berlin (CEST), inside the feed's service hours.
 const NOW = new Date('2026-09-29T10:00:00Z').getTime();
-const FEED_URL = `${apiBaseUrl}price?apikey=secret`;
+const FEED_URL = `${apiBaseUrl}price?wkn=X`;
 
 const row = (extra: any = {}) => ({
   broker: 'flatex', account_id: '90000001', deposite_number: '90000001', type: 'certificate',

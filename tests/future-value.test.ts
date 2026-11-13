@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { calculateFutureTotalValue, isMarketClosed, apiKey, apiAuthFailed } from '@/utils/helper';
+import { calculateFutureTotalValue, isFeedBlocked, daysUntilMarketOpen, marketOpenDayName, fetchedThisClosedPeriod, apiKey, apiAuthFailed } from '@/utils/helper';
 
 const eur = { currency: 'EUR', underlying_currency: 'EUR', ratio: '1' };
 
@@ -138,7 +138,7 @@ describe('calculateFutureTotalValue', () => {
   });
 });
 
-describe('isMarketClosed', () => {
+describe('isFeedBlocked', () => {
   afterEach(() => {
     vi.useRealTimers();
     apiKey.value = '';
@@ -153,45 +153,101 @@ describe('isMarketClosed', () => {
   it('is closed without an API key', () => {
     at(new Date(Date.UTC(2026, 8, 28, 10)));
     apiKey.value = '';
-    expect(isMarketClosed()).toBe(true);
+    expect(isFeedBlocked()).toBe(true);
   });
 
   it('is closed while the key is latched as rejected', () => {
     at(new Date(Date.UTC(2026, 8, 28, 10)));
     apiKey.value = 'key';
     apiAuthFailed.value = true;
-    expect(isMarketClosed()).toBe(true);
-  });
-
-  it('is closed on Saturday and Sunday', () => {
-    apiKey.value = 'key';
-    at(new Date(Date.UTC(2026, 8, 26, 10)));
-    expect(isMarketClosed()).toBe(true);
-    vi.setSystemTime(new Date(Date.UTC(2026, 8, 27, 10)));
-    expect(isMarketClosed()).toBe(true);
+    expect(isFeedBlocked()).toBe(true);
   });
 
   it('is open on a weekday with a valid key', () => {
     apiKey.value = 'key';
     at(new Date(Date.UTC(2026, 8, 28, 10)));
-    expect(isMarketClosed()).toBe(false);
+    expect(isFeedBlocked()).toBe(false);
   });
 
-  it('follows the feed service hours 08:00-22:00 Berlin', () => {
+  it('stays open at night and on weekends', () => {
     apiKey.value = 'key';
+    // Saturday and Sunday
+    at(new Date(Date.UTC(2026, 8, 26, 10)));
+    expect(isFeedBlocked()).toBe(false);
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 27, 10)));
+    expect(isFeedBlocked()).toBe(false);
+    // 23:00 and 03:00 Berlin (CEST) on a weekday
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 28, 21, 0)));
+    expect(isFeedBlocked()).toBe(false);
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 29, 1, 0)));
+    expect(isFeedBlocked()).toBe(false);
+  });
+});
+
+describe('daysUntilMarketOpen', () => {
+  const berlin = (iso: string) => new Date(iso);
+
+  it('is -1 during 08:00-22:00 Berlin on a weekday', () => {
     // CEST (UTC+2)
-    at(new Date(Date.UTC(2026, 8, 28, 5, 59)));
-    expect(isMarketClosed()).toBe(true);
-    vi.setSystemTime(new Date(Date.UTC(2026, 8, 28, 6, 0)));
-    expect(isMarketClosed()).toBe(false);
-    vi.setSystemTime(new Date(Date.UTC(2026, 8, 28, 19, 59)));
-    expect(isMarketClosed()).toBe(false);
-    vi.setSystemTime(new Date(Date.UTC(2026, 8, 28, 20, 0)));
-    expect(isMarketClosed()).toBe(true);
-    // CET (UTC+1), after the October DST switch
-    vi.setSystemTime(new Date(Date.UTC(2026, 10, 2, 6, 59)));
-    expect(isMarketClosed()).toBe(true);
-    vi.setSystemTime(new Date(Date.UTC(2026, 10, 2, 7, 0)));
-    expect(isMarketClosed()).toBe(false);
+    expect(daysUntilMarketOpen(berlin('2026-09-28T06:00:00Z'))).toBe(-1);
+    expect(daysUntilMarketOpen(berlin('2026-09-28T19:59:00Z'))).toBe(-1);
+    // CET (UTC+1)
+    expect(daysUntilMarketOpen(berlin('2026-11-02T07:00:00Z'))).toBe(-1);
+  });
+
+  it('counts days to the next open outside trading hours', () => {
+    // Monday 07:59 Berlin: opens later today
+    expect(daysUntilMarketOpen(berlin('2026-09-28T05:59:00Z'))).toBe(0);
+    // Monday 22:00 Berlin: tomorrow
+    expect(daysUntilMarketOpen(berlin('2026-09-28T20:00:00Z'))).toBe(1);
+    // Friday 23:00, Saturday, Sunday Berlin: Monday
+    expect(daysUntilMarketOpen(berlin('2026-09-25T21:00:00Z'))).toBe(3);
+    expect(daysUntilMarketOpen(berlin('2026-09-26T10:00:00Z'))).toBe(2);
+    expect(daysUntilMarketOpen(berlin('2026-09-27T21:30:00Z'))).toBe(1);
+  });
+});
+
+describe('marketOpenDayName', () => {
+  it('names today, tomorrow and Monday', () => {
+    expect(marketOpenDayName(0, 'en')).toBe('today');
+    expect(marketOpenDayName(1, 'de')).toBe('morgen');
+    expect(marketOpenDayName(2, 'en')).toBe('Monday');
+    expect(marketOpenDayName(3, 'de')).toBe('Montag');
+  });
+});
+
+describe('fetchedThisClosedPeriod', () => {
+  const at = (iso: string) => new Date(iso);
+
+  it('never holds a fetch back while the market is open', () => {
+    // Monday 10:00 and 10:05 Berlin (CEST)
+    expect(fetchedThisClosedPeriod('2026-09-28T08:00:00Z', at('2026-09-28T08:05:00Z'))).toBe(false);
+  });
+
+  it('fetches once after close, then holds until the next open', () => {
+    // Last fetch Friday 21:59 Berlin, before close: refetch at 22:30
+    expect(fetchedThisClosedPeriod('2026-09-25T19:59:00Z', at('2026-09-25T20:30:00Z'))).toBe(false);
+    // Fetched Friday 22:30: Saturday and Sunday reuse it
+    expect(fetchedThisClosedPeriod('2026-09-25T20:30:00Z', at('2026-09-26T10:00:00Z'))).toBe(true);
+    expect(fetchedThisClosedPeriod('2026-09-25T20:30:00Z', at('2026-09-28T05:59:00Z'))).toBe(true);
+    // Monday 08:00: open again
+    expect(fetchedThisClosedPeriod('2026-09-25T20:30:00Z', at('2026-09-28T06:00:00Z'))).toBe(false);
+  });
+
+  it('refetches when the user returns after days away', () => {
+    // Fetched last Saturday, back next Saturday: different closed period
+    expect(fetchedThisClosedPeriod('2026-09-19T10:00:00Z', at('2026-09-26T10:00:00Z'))).toBe(false);
+    expect(fetchedThisClosedPeriod(undefined, at('2026-09-26T10:00:00Z'))).toBe(false);
+  });
+
+  it('separates weekday nights', () => {
+    // Monday 23:00 and Tuesday 06:00 share a period; Tuesday 23:00 is the next one
+    expect(fetchedThisClosedPeriod('2026-09-28T21:00:00Z', at('2026-09-29T04:00:00Z'))).toBe(true);
+    expect(fetchedThisClosedPeriod('2026-09-28T21:00:00Z', at('2026-09-29T21:00:00Z'))).toBe(false);
+  });
+
+  it('keeps one period across the October clock change', () => {
+    // Friday 23:30 CEST to Sunday 23:30 CET
+    expect(fetchedThisClosedPeriod('2026-10-23T21:30:00Z', at('2026-10-25T22:30:00Z'))).toBe(true);
   });
 });

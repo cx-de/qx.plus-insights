@@ -7,14 +7,20 @@
 import { productTypeFromLabel, germanToNumer, sleep } from "./helper";
 import { SYNC_COLOR_IDLE, SYNC_COLOR_DONE, SYNC_COLOR_ERROR, BROKER_REFRESH_MS } from "./constants";
 import { tourSyncDone } from "./tour-utils";
+import { justtradeFingerprint } from "./hash-utils";
 import { i18n } from "~/entrypoints/home/i18n";
 
 const broker = "justTRADE";
 const ISIN_CACHE_KEY = 'JUSTTRADE_ISINS';
 
 let currentAccountId:any = null;
-// Kundennummer proven on this page (/securities `user` or the profile popover); never taken from storage.
+// Kundennummer proven on this page (profile popover, or a known account matching the /securities hash).
 let pageAccountId:any = null;
+// Hashed Kundennummer from the latest /securities payload; the clear id never crosses postMessage.
+let apiUserHash:any = null;
+// Set when a /securities response is seen, before its hashed payload arrives; saves wait so a new login is not filed under the old one.
+let apiPendingAt = 0;
+const API_PENDING_MAX_MS = 5000;
 // Depot rows the last scrape could not match to an ISIN/WKN, shown on the Sync button.
 let unmatchedRows:any = [];
 let syncButton:any = null;
@@ -203,11 +209,39 @@ async function justtradeOpenPopoverForAccount() {
   return null;
 }
 
+// Only accounts already confirmed once can match: a brand-new login still needs the popover via Sync QX+.
+async function justtradeKnownAccountForHash(hash:any) {
+  for (const row of await accountList()) {
+    if (row?.broker !== broker || !row?.account_id) continue;
+    if (await justtradeFingerprint(String(row.account_id)) === hash) return String(row.account_id);
+  }
+  return null;
+}
+
+// Exported for tests. Popover id beats the hash; a hash that no longer fits the page id means another login took over.
+export async function justtradeResolveAccountId(popoverId:any, pageId:any, hash:any) {
+  if (popoverId) return String(popoverId);
+  if (!hash) return pageId;
+  if (pageId && await justtradeFingerprint(String(pageId)) === hash) return pageId;
+  return justtradeKnownAccountForHash(hash);
+}
+
+// Exported for tests. A stale or failed hook stops blocking after API_PENDING_MAX_MS.
+export function justtradeApiPending(pendingAt:number, payloadAt:number, now:number) {
+  return pendingAt > payloadAt && now - pendingAt < API_PENDING_MAX_MS;
+}
+
 async function justtradeSyncUser(interactive = false) {
   console.log("justtradeSyncUser", interactive);
   try {
+    if (justtradeApiPending(apiPendingAt, apiPositions?.at || 0, Date.now())) {
+      currentAccountId = null;
+      return null;
+    }
     const popoverId = justtradeReadAccountFromPopover();
-    if (popoverId) pageAccountId = popoverId;
+    // Popover seen before the new login's payload: the old hash would pull the next tick back to the old account.
+    if (popoverId && apiUserHash && await justtradeFingerprint(String(popoverId)) !== apiUserHash) apiUserHash = null;
+    pageAccountId = await justtradeResolveAccountId(popoverId, pageAccountId, apiUserHash);
     if (!pageAccountId && interactive) pageAccountId = await justtradeOpenPopoverForAccount();
 
     // No stored-id fallback: a second login would otherwise be written into the last account.
@@ -255,9 +289,9 @@ function justtradeIsValidPosition(pos:any) {
   return pos && /^[A-Z]{2}[A-Z0-9]{9}[0-9]$/.test(String(pos.isin || '')) && /^[A-Z0-9]{5,12}$/i.test(String(pos.wkn || ''));
 }
 
-// Exported for tests. A Kundennummer is a short id; anything else posted on the channel must not become an account.
-export function justtradeIsValidUser(user:any) {
-  return /^[A-Za-z0-9-]{3,20}$/.test(String(user ?? ''));
+// Exported for tests. Only a SHA-256 hex digest is accepted; a clear id posted by a page script is ignored.
+export function justtradeIsValidHash(hash:any) {
+  return typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash);
 }
 
 function justtradeListenForApi() {
@@ -266,10 +300,15 @@ function justtradeListenForApi() {
   window.addEventListener('message', (event:any) => {
     // Only our page-world hook, only from this page; anything else on the channel is ignored.
     if (event.source !== window || event.origin !== window.location.origin) return;
-    if (event.data?.source !== 'qx-justtrade' || event.data?.kind !== 'securities') return;
+    if (event.data?.source !== 'qx-justtrade') return;
+    if (event.data?.kind === 'pending') {
+      apiPendingAt = Date.now();
+      return;
+    }
+    if (event.data?.kind !== 'securities') return;
     apiPositions = { positions: Array.isArray(event.data.positions) ? event.data.positions : [], total: event.data.total, at: Date.now() };
-    // Every depot load re-proves the account, so a login switch is caught without Sync.
-    if (justtradeIsValidUser(event.data.user)) pageAccountId = String(event.data.user);
+    // Every depot load carries the session's hash, so justtradeSyncUser catches a login switch without Sync.
+    if (justtradeIsValidHash(event.data.userHash)) apiUserHash = event.data.userHash;
     console.log("justtradeListenForApi securities", apiPositions.positions.length);
   });
   window.postMessage({ source: 'qx-justtrade-ext', kind: 'request' }, window.location.origin);
@@ -289,13 +328,22 @@ async function justtradeApplyApiPositions() {
   for (const pos of apiPositions.positions) {
     for (const name of pos.names || []) nameCounts[name] = (nameCounts[name] || 0) + 1;
   }
+  // The hook sends quantity only hashed, so map it back through the quantities visible in the depot rows.
+  const quantityByHash:any = {};
+  for (const acc of justtradeDepotAccordions()) {
+    const quantity = justtradeRowQuantity(acc);
+    quantityByHash[await justtradeFingerprint(String(Number(quantity) || 0))] = quantity;
+  }
   for (const pos of apiPositions.positions) {
     // Any page script can post to the listener, so only well-formed identifiers reach the cache and the feed API.
     if (!justtradeIsValidPosition(pos)) continue;
     const next = { isin: pos.isin, wkn: pos.wkn, type: justtradeMapType(pos.type) };
+    const quantity = quantityByHash[pos.quantityHash];
     for (const name of pos.names || []) {
+      // A duplicate name whose row is not on screen stays unmatched, which blocks the save as before.
+      if (nameCounts[name] > 1 && quantity === undefined) continue;
       const key = nameCounts[name] > 1
-        ? justtradeIsinKey(currentAccountId, name, pos.quantity)
+        ? justtradeIsinKey(currentAccountId, name, quantity)
         : justtradeIsinKey(currentAccountId, name);
       if (cache[key]?.isin === next.isin && cache[key]?.wkn === next.wkn && cache[key]?.type === next.type) continue;
       cache[key] = next;

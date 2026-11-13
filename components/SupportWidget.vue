@@ -3,7 +3,7 @@
     <!-- Sidebar bottom (mobile: header right); a floating tab on the right covered table values -->
     <button ref="supportButtonRef" type="button" data-support-ignore :title="$t('support')"
       class="fixed right-3 top-1.5 z-40 flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60 sm:bottom-4 sm:left-2.5 sm:right-auto sm:top-auto"
-      :disabled="capturing" @click="openSupport()">
+      :disabled="capturing" @click="openForm">
       <span v-if="countdown" class="h-5 w-5 text-center leading-5 tabular-nums">{{ countdown }}</span>
       <LifeBuoy v-else class="h-5 w-5" />
       <span class="sr-only">{{ $t('support') }}</span>
@@ -27,16 +27,17 @@
           <p class="text-xs text-muted-foreground">{{ $t('support_capture_hint') }}</p>
         </div>
         <div class="flex flex-wrap justify-end gap-2">
-          <Button ref="cancelCaptureRef" type="button" variant="ghost" size="sm" @click="cancelCapture">{{ $t('cancel') }}</Button>
-          <Button type="button" variant="outline" size="sm" @click="skipCapture">{{ $t('support_skip_screenshot') }}</Button>
+          <Button ref="cancelCaptureRef" type="button" variant="outline" size="sm" @click="cancelCapture">{{ $t('cancel') }}</Button>
         </div>
       </div>
     </div>
 
     <Dialog v-model:open="isOpen">
       <!-- Screenshot beside the form on wide screens so Send never drops below the fold; without one, a plain narrow form. -->
-      <DialogContent :class="['flex max-h-[92vh] flex-col gap-0 p-0', showShot && !reference ? 'max-w-6xl' : 'max-w-lg']" data-support-ignore
-        @open-auto-focus.prevent="messageRef?.$el?.focus()">
+      <!-- No zoom/fade around a capture: the card swaps in place under the same backdrop instead of the form flying out and back. -->
+      <DialogContent :class="['flex max-h-[92vh] flex-col gap-0 p-0', showShot && !reference ? 'max-w-6xl' : 'max-w-lg', instantDialog && 'animate-none!']"
+        :overlay-class="instantDialog && 'animate-none!'" data-support-ignore
+        @open-auto-focus.prevent="focusOnOpen">
         <DialogHeader class="shrink-0 border-b px-6 py-4">
           <DialogTitle class="flex items-center gap-2"><LifeBuoy class="h-5 w-5" />{{ $t('support') }}</DialogTitle>
           <!-- Kept for screen readers after sending; visually it would still promise a screenshot that is already sent. -->
@@ -58,8 +59,9 @@
           <Button ref="closeSentRef" class="mt-2 min-w-32" @click="isOpen = false">{{ $t('support_close') }}</Button>
         </div>
 
-        <form v-else class="grid min-h-0 flex-1 overflow-y-auto" :class="showShot && 'md:grid-cols-[minmax(0,1fr)_20rem] md:overflow-hidden'" @submit.prevent="submit">
-          <section v-if="showShot" class="flex min-h-0 flex-col gap-3 bg-muted/40 p-4 md:overflow-y-auto md:p-6">
+        <!-- grid-cols-1 caps the column at the dialog width (an auto column grew to the canvas's 2560px); min-h-0 only from md, where each side scrolls itself. -->
+        <form v-else class="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto" :class="showShot && 'md:grid-cols-[minmax(0,1fr)_20rem] md:overflow-hidden'" @submit.prevent="submit">
+          <section v-if="showShot" class="flex flex-col gap-3 bg-muted/40 p-4 md:min-h-0 md:overflow-y-auto md:p-6">
             <div class="flex flex-wrap items-center gap-2">
               <div class="flex items-center gap-0.5 rounded-lg border bg-background p-1 shadow-xs" role="toolbar" :aria-label="$t('support_annotate_hint')">
                 <button v-for="item in tools" :key="item.key" type="button" :class="[iconButton, tool === item.key ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent hover:text-foreground']"
@@ -80,7 +82,7 @@
                   :disabled="!strokes.length" @click="clearStrokes"><Eraser class="h-4 w-4" /></button>
               </div>
               <Button type="button" size="sm" variant="ghost" class="ml-auto h-8" :title="$t('support_retake_hint')"
-                @click="openSupport(RETAKE_DELAY)"><Camera class="mr-1.5 h-4 w-4" />{{ $t('support_retake') }}</Button>
+                @click="captureScreenshot(RETAKE_DELAY)"><Camera class="mr-1.5 h-4 w-4" />{{ $t('support_retake') }}</Button>
             </div>
             <div class="relative">
               <canvas ref="canvasRef" class="w-full touch-none rounded-md border bg-background shadow-sm"
@@ -95,7 +97,7 @@
           </section>
 
           <!-- Form first below md, so Send is not pushed below a tall screenshot on a phone -->
-          <section class="flex min-h-0 flex-col max-md:order-first" :class="showShot && 'max-md:border-b md:border-l'">
+          <section class="flex flex-col max-md:order-first md:min-h-0" :class="showShot && 'max-md:border-b md:border-l'">
             <div class="grid flex-1 content-start gap-4 p-4 md:overflow-y-auto md:p-6">
               <div class="grid gap-1.5">
                 <Label for="support-message">{{ $t('support_message') }}</Label>
@@ -120,25 +122,19 @@
               </template>
 
               <!-- What leaves the device sits next to Send, not under the canvas. -->
-              <div v-if="screenshot" class="grid gap-2.5 rounded-md border p-3 text-sm">
-                <label class="flex cursor-pointer items-center justify-between gap-3">
-                  {{ $t('support_include_screenshot') }}
-                  <Switch v-model="includeScreenshot" />
+              <div class="grid gap-2.5 rounded-md border p-3 text-sm">
+                <label class="flex cursor-pointer items-start gap-2.5">
+                  <Checkbox id="support-screenshot" class="mt-0.5" :model-value="includeScreenshot" @update:model-value="toggleScreenshot" />
+                  <span>{{ $t('support_attach_screenshot') }}</span>
                 </label>
-                <template v-if="includeScreenshot">
+                <template v-if="showShot">
                   <label class="flex cursor-pointer items-center justify-between gap-3">
                     {{ $t('support_hide_numbers') }}
                     <Switch v-model="hideNumbers" />
                   </label>
                   <p class="text-xs leading-relaxed text-muted-foreground">{{ $t('support_privacy_hint') }}</p>
                 </template>
-                <p v-else class="text-xs text-muted-foreground">{{ $t('support_screenshot_off') }}</p>
-              </div>
-              <div v-else class="grid gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground">
-                <p>{{ $t(screenshotSkipped ? 'support_screenshot_skipped' : 'support_no_screenshot') }}</p>
-                <Button type="button" size="sm" variant="outline" class="justify-self-start" @click="openSupport()">
-                  <Camera class="mr-1.5 h-4 w-4" />{{ $t('support_take_screenshot') }}
-                </Button>
+                <p v-else-if="captureFailed" class="text-xs text-muted-foreground">{{ $t('support_no_screenshot') }}</p>
               </div>
             </div>
 
@@ -167,8 +163,9 @@ import { Label } from '~/components/ui/label';
 import { Textarea } from '~/components/ui/textarea';
 import { Input } from '~/components/ui/input';
 import { Switch } from '~/components/ui/switch';
+import { Checkbox } from '~/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '~/components/ui/dialog';
-import { apiAuthFailed, apiKey, getApiKey, sendSupportMessage, sleep } from '~/utils/helper';
+import { apiAuthFailed, apiKey, buildSupportForm, getApiKey, sendSupportMessage, sleep, supportFormDefaults } from '~/utils/helper';
 
 const { t, locale } = useI18n();
 
@@ -201,8 +198,8 @@ const countdown = ref(0);
 const sending = ref(false);
 const screenshot = ref<HTMLCanvasElement | null>(null);
 const numberMasks = ref<any[]>([]);
-const hideNumbers = ref(true);
-const includeScreenshot = ref(true);
+const hideNumbers = ref(supportFormDefaults().hideNumbers);
+const includeScreenshot = ref(supportFormDefaults().includeScreenshot);
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 const tool = ref('pen');
 const color = ref(colors[0]);
@@ -218,7 +215,7 @@ const errors = ref<any>({});
 const formError = ref('');
 const reference = ref('');
 const captureStep = ref(0);
-const screenshotSkipped = ref(false);
+const captureFailed = ref(false);
 const cancelCaptureRef = ref<any>(null);
 const supportButtonRef = ref<HTMLButtonElement | null>(null);
 const captureIsRetake = ref(false);
@@ -235,7 +232,9 @@ const copyReference = async () => {
   }
 };
 let captureRun = 0;
-let returnToForm = false;
+// Back from a capture, keyboard users land on the checkbox they ticked, not at the top of the form.
+let returnFromCapture = false;
+const instantDialog = ref(false);
 let drawing: any = null;
 // Must match sendSupportMessage: a dead key is not sent, so the user needs name/email to be reachable.
 const hasValidKey = computed(() => !!apiKey.value && !apiAuthFailed.value);
@@ -248,28 +247,71 @@ const showShot = computed(() => !!screenshot.value && includeScreenshot.value);
 const charsNeeded = computed(() => Math.max(0, 10 - message.value.trim().length));
 
 
-const showForm = (capture: any, skipped = false) => {
-  screenshotSkipped.value = skipped;
-  screenshot.value = capture?.canvas || null;
-  numberMasks.value = capture?.masks || [];
+// Unticking or closing discards the image, so no capture outlives the user's choice.
+const dropScreenshot = () => {
+  screenshot.value = null;
+  numberMasks.value = [];
   strokes.value = [];
   pendingText.value = null;
-  includeScreenshot.value = !!screenshot.value;
-  errors.value = {};
-  formError.value = '';
-  reference.value = '';
+  includeScreenshot.value = false;
+};
+
+const showForm = (capture: any) => {
+  screenshot.value = capture.canvas;
+  numberMasks.value = capture.masks;
+  strokes.value = [];
+  pendingText.value = null;
+  hideNumbers.value = supportFormDefaults().hideNumbers;
+  includeScreenshot.value = true;
   isOpen.value = true;
 };
 
-const openSupport = async (delay = 0) => {
-  console.log('openSupport', delay);
+const openForm = async () => {
+  console.log('openForm');
+  dropScreenshot();
+  includeScreenshot.value = supportFormDefaults().includeScreenshot;
+  hideNumbers.value = supportFormDefaults().hideNumbers;
+  captureFailed.value = false;
+  errors.value = {};
+  formError.value = '';
+  reference.value = '';
+  returnFromCapture = false;
+  // Open first: a latched key re-check can wait on the network, and name/email follow the key reactively.
+  isOpen.value = true;
+  try {
+    await getApiKey();
+  } catch (error) {
+    /* the form still works without a key; the user just fills name/email */
+    console.error('openForm error:', error);
+  }
+};
+
+const focusOnOpen = () => {
+  // By id: the Checkbox component's $el is a fragment anchor, not its button.
+  if (returnFromCapture) document.getElementById('support-screenshot')?.focus();
+  else messageRef.value?.$el?.focus();
+  returnFromCapture = false;
+};
+
+const toggleScreenshot = (on: any) => {
+  if (on === true) captureScreenshot();
+  else dropScreenshot();
+};
+
+const captureScreenshot = async (delay = 0) => {
+  console.log('captureScreenshot', delay);
   if (capturing.value) return;
   // A cancelled run cannot stop the renderer, so its late result is recognised by this id and dropped.
   const run = ++captureRun;
   capturing.value = true;
   captureStep.value = 0;
+  captureFailed.value = false;
   captureIsRetake.value = delay > 0;
-  returnToForm = isOpen.value;
+  returnFromCapture = true;
+  instantDialog.value = true;
+  // Let the no-animation class reach the DOM before the close starts its exit animation.
+  await nextTick();
+  if (run !== captureRun) return;
   isOpen.value = false;
   for (let n = delay; n > 0 && run === captureRun; n--) {
     countdown.value = n;
@@ -281,32 +323,31 @@ const openSupport = async (delay = 0) => {
   cancelCaptureRef.value?.$el?.focus();
   // Two frames so the progress card paints before the capture blocks the main thread.
   await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-  try {
-    await getApiKey();
-  } catch (error) {
-    /* the form still works without a key; the user just fills name/email */
-    console.error('openSupport error:', error);
-  }
   if (run !== captureRun) return;
   captureStep.value = 1;
   try {
     const capture: any = await captureViewport(() => { if (run === captureRun) captureStep.value = 2; }, () => run !== captureRun);
-    if (run === captureRun) showForm(capture);
+    if (run !== captureRun) return;
+    if (capture) {
+      showForm(capture);
+    } else {
+      // A failed retake keeps the earlier image; a failed first capture leaves the box unticked.
+      captureFailed.value = true;
+      isOpen.value = true;
+    }
   } finally {
     if (run === captureRun) capturing.value = false;
   }
 };
 
-// Started from the form (retake, take screenshot): cancel goes back to it unchanged; a first open just closes.
+// Back to the form unchanged: a first capture stays unticked, a retake keeps the earlier image.
 const cancelCapture = () => {
   console.log('cancelCapture');
   captureRun++;
   capturing.value = false;
   countdown.value = 0;
-  // The form focuses its message field on open; otherwise focus would fall to <body> with the removed card.
-  if (returnToForm) isOpen.value = true;
-  // After the re-render: the button is still :disabled until capturing=false reaches the DOM.
-  else nextTick(() => supportButtonRef.value?.focus());
+  // Reopening moves focus back into the form; otherwise it would fall to <body> with the removed card.
+  isOpen.value = true;
 };
 
 // Window-level: the backdrop lets clicks through, so focus may have left the card (also cancels a retake countdown).
@@ -317,13 +358,6 @@ const onCaptureKeydown = (e: KeyboardEvent) => {
 };
 onMounted(() => window.addEventListener('keydown', onCaptureKeydown));
 onUnmounted(() => window.removeEventListener('keydown', onCaptureKeydown));
-
-const skipCapture = () => {
-  console.log('skipCapture');
-  captureRun++;
-  capturing.value = false;
-  showForm(null, true);
-};
 
 const isIgnored = (el: Element | null) => !!el?.closest('[data-support-ignore]');
 
@@ -583,7 +617,15 @@ const commitText = () => {
 
 // DialogContent mounts lazily, so the canvas only exists after the dialog opened.
 watch(canvasRef, (canvas) => { if (canvas) redraw(); });
-watch(isOpen, async (open) => { if (open) { await nextTick(); redraw(); } });
+watch(isOpen, async (open) => {
+  // Closed by the user, not hidden for a capture: the image must not survive into the next open.
+  if (!open && !capturing.value) {
+    dropScreenshot();
+    // Reset only on a real close: removing it while open would replay the open animation.
+    instantDialog.value = false;
+  }
+  if (open) { await nextTick(); redraw(); }
+});
 watch(hideNumbers, redraw);
 
 const pointFrom = (e: PointerEvent) => {
@@ -646,20 +688,18 @@ const submit = async () => {
 
   let result: any;
   try {
-    const form = new FormData();
-    form.append('message', message.value.trim());
-    form.append('page_url', window.location.hash || '#/');
-    form.append('client_version', browser.runtime.getManifest().version);
-    form.append('locale', locale.value === 'en' ? 'en' : 'de');
+    const fields: any = {
+      message: message.value.trim(),
+      page_url: window.location.hash || '#/',
+      client_version: browser.runtime.getManifest().version,
+      locale: locale.value === 'en' ? 'en' : 'de',
+    };
     if (askContact.value) {
-      form.append('name', name.value.trim());
-      form.append('email', email.value.trim());
+      fields.name = name.value.trim();
+      fields.email = email.value.trim();
     }
-    if (includeScreenshot.value && canvasRef.value) {
-      const blob = await toBlob(canvasRef.value);
-      if (blob) form.append('screenshot', blob, 'screenshot.jpg');
-    }
-    result = await sendSupportMessage(form);
+    const blob = showShot.value && canvasRef.value ? await toBlob(canvasRef.value) : null;
+    result = await sendSupportMessage(buildSupportForm(fields, blob));
   } catch (error) {
     /* e.g. toBlob on a tainted canvas: report it as a generic failure so the user can retry */
     console.error('submitSupport error:', error);

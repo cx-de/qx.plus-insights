@@ -68,7 +68,6 @@ describe('getPriceData', () => {
   });
 
   it('keeps the chunks already fetched when the pass is aborted', async () => {
-    // A weekday inside the 08:00-22:00 Berlin feed window.
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-10-21T12:00:00Z'));
     apiKey.value = 'qxp_test';

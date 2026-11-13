@@ -40,7 +40,7 @@
               </Button>
             </template>
             <span class="dc-seg">
-              <span class="dc-lbl">{{ $t('dc_ratio') }}</span> <b>{{ info.ratio ? numberToGerman(info.ratio, !(info.ratio % 1)) : '–' }}</b>
+              <span class="dc-lbl">{{ $t('dc_ratio') }}</span> <b>{{ info.ratio ? formatRatio(info.ratio) : '–' }}</b>
               <span class="dc-pipe">|</span>
               <span class="dc-lbl">Quanto</span> <b>{{ info.quanto2 ? $t(info.quanto2) : '–' }}</b>
               <span class="dc-pipe">|</span>
@@ -93,7 +93,7 @@
                               {{ numberToGerman(info[column]) }}
                             </template>
                             <template v-else-if="column === 'ratio' ">
-                              {{ numberToGerman(info[column]) }}
+                              {{ formatRatio(info[column]) }}
                             </template>
                             <template v-else-if="column === 'timestamp' ">
                               {{ formatTimestamp(info[column]) }}
@@ -153,7 +153,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 
-import { numberToGerman, unitPriceToGerman, formatTimestamp, getComparableUnderlyingPrice } from '~/utils/helper';
+import { numberToGerman, unitPriceToGerman, formatRatio, formatTimestamp, getComparableUnderlyingPrice } from '~/utils/helper';
 import { buildDerivativeData, renderDerivativeChart } from '~/utils/derivative-chart-utils';
 import { Copy, Check } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n';

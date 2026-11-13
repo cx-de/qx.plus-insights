@@ -54,17 +54,36 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: release-files
           path: release-files
 
+      # Bare names in SHA256SUMS.txt so sha256sum -c works in a user's download folder
+      - name: Write checksums
+        working-directory: release-files
+        run: |
+          mv .output/qx-plus-insights-*.zip examples/sample_backup.json .
+          sha256sum qx-plus-insights-*.zip sample_backup.json > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      # Signed here, not in build: npm install scripts never hold the id-token permission
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            release-files/qx-plus-insights-*.zip
+            release-files/sample_backup.json
+            release-files/SHA256SUMS.txt
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release-files/.output/qx-plus-insights-*.zip release-files/examples/sample_backup.json \
+          gh release create "$GITHUB_REF_NAME" release-files/qx-plus-insights-*.zip release-files/sample_backup.json release-files/SHA256SUMS.txt \
             --title "QX+ Insights $GITHUB_REF_NAME" \
+            --notes "Verify a download: \`gh attestation verify <file> --repo $GH_REPO\` or \`sha256sum -c SHA256SUMS.txt --ignore-missing\`." \
             --generate-notes

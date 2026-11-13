@@ -42,13 +42,37 @@
       }) }}
     </div>
   </Teleport>
+
+  <!-- Outside its own chain: off-hours the feed still answers, so this sits beside a rate-limit pill -->
+  <div v-if="apiKeyLoaded && apiKey && !apiAuthFailed && marketOpensIn >= 0" role="status" id="marketClosedMessage"
+    class="mb-4 flex items-center gap-3 rounded-lg border bg-card px-4 py-2.5 text-sm shadow-xs">
+    <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
+      <Clock class="h-4 w-4" aria-hidden="true" />
+    </span>
+    <span class="text-muted-foreground">
+      <span class="font-medium text-foreground">{{ $t('market_closed') }}</span>
+      {{ $t('market_closed_last_prices', { when: marketOpensWhen, time: `${String(MARKET_OPEN_HOUR).padStart(2, '0')}:00` }) }}
+    </span>
+  </div>
 </template>
 
 <script lang="ts" setup>
-import { Info } from 'lucide-vue-next';
+import { Info, Clock } from 'lucide-vue-next';
+import { useNow } from '@vueuse/core';
+import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
-import { apiKey, apiAuthFailed, apiKeyLoaded, apiRateLimit, apiRateLimitSecondsLeft } from '~/utils/helper'
+import { apiKey, apiAuthFailed, apiKeyLoaded, apiRateLimit, apiRateLimitSecondsLeft, daysUntilMarketOpen, marketOpenDayName, MARKET_OPEN_HOUR } from '~/utils/helper'
 import { PRICING_URL } from '~/utils/constants';
+
+const { t, locale } = useI18n();
+// useNow ticks it, so the notice appears at 22:00 and goes at 08:00 without a page change.
+const now = useNow({ interval: 60_000 });
+const marketOpensIn = computed(() => daysUntilMarketOpen(now.value));
+const marketOpensWhen = computed(() => {
+  const days = marketOpensIn.value;
+  const day = marketOpenDayName(days, locale.value);
+  return days < 2 ? day : t('market_opens_on_day', { day });
+});
 
 const secondsLeft = ref(0);
 const isSample = ref(false);

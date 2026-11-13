@@ -5,10 +5,13 @@ const CHECK_KEY = 'local:VERSION_CHECK';
 const FAIL_KEY = 'local:VERSION_CHECK_FAIL';
 const SNOOZE_KEY = 'local:UPDATE_SNOOZE';
 const READY_KEY = 'local:UPDATE_READY';
+const STORE_KEY = 'local:UPDATE_STORE_CHECK';
 const REOPEN_KEY = 'local:REOPEN_DASHBOARD';
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const FAIL_BACKOFF_MS = 15 * 60 * 1000;
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
+// Hourly keeps a fresh store release quick to show without tripping Chrome's update-check throttle.
+const STORE_RECHECK_MS = 60 * 60 * 1000;
 
 const installedVersion = () => browser.runtime.getManifest().version;
 
@@ -71,6 +74,8 @@ async function readyVersion() {
 export async function versionNextUpdate() {
   const [server, ready]:any = await Promise.all([versionInfo(), readyVersion()]);
   let info = server?.update_available ? server : null;
+  // The GitHub release reaches our server before store review ends; announcing it then is a dead end.
+  if (info && !ready && !await storeHasUpdate(info.latest_version)) info = null;
   if (ready) {
     // Notes and force describe the server's latest; they only fit the downloaded build when it is that version.
     const same = server?.latest_version === ready;
@@ -192,6 +197,7 @@ export async function versionReopenDashboard() {
 // Background, on runtime.onInstalled with reason 'update'.
 export async function versionAfterUpdate() {
   await storage.removeItem(READY_KEY);
+  await storage.removeItem(STORE_KEY);
 }
 
 const UPDATE_CHECK_TIMEOUT_MS = 10_000;
@@ -200,6 +206,33 @@ const UPDATE_DOWNLOAD_TIMEOUT_MS = 30_000;
 // Resolves null on timeout: Chrome's check can stay pending forever, which left the button stuck disabled.
 function withTimeout(promise:any, ms:any) {
   return Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), ms))]);
+}
+
+// Asks the web store; null when the browser has no update checks, times out or throws (unpacked builds).
+async function checkStore() {
+  if (!browser.runtime.requestUpdateCheck) return null;
+  try {
+    // Chrome resolves { status }, Firefox [status, details].
+    const result:any = await withTimeout(browser.runtime.requestUpdateCheck(), UPDATE_CHECK_TIMEOUT_MS);
+    return Array.isArray(result) ? result[0] : result?.status || null;
+  } catch (err:any) {
+    /* unpacked/dev builds and some browsers do not support update checks */
+    console.log('checkStore failed', err?.message || err);
+    return null;
+  }
+}
+
+// Cached per version: a confirmed release stays confirmed, anything else is asked again after an hour.
+async function storeHasUpdate(version:any) {
+  const cached:any = await storage.getItem(STORE_KEY);
+  if (cached?.version === version) {
+    if (cached.status === 'update_available') return true;
+    if (Date.now() - cached.checked_at < STORE_RECHECK_MS) return false;
+  }
+  const status = await checkStore();
+  console.log('storeHasUpdate', version, status);
+  await storage.setItem(STORE_KEY, { version, status, checked_at: Date.now() });
+  return status === 'update_available';
 }
 
 // 'update_available' only means the store has it; reloading before the download lands restarts the old version.
@@ -224,21 +257,12 @@ export async function versionUpdateNow() {
     await versionRestart();
     return 'reloading';
   }
-  // Safari has no update check; the App Store installs releases itself.
-  if (!browser.runtime.requestUpdateCheck) return 'pending';
-  try {
-    // Chrome resolves { status }, Firefox [status, details]. Only on a click: Chrome throttles frequent checks.
-    const result:any = await withTimeout(browser.runtime.requestUpdateCheck(), UPDATE_CHECK_TIMEOUT_MS);
-    const status = Array.isArray(result) ? result[0] : result?.status;
-    console.log('versionUpdateNow status', status);
-    if (status === 'update_available') {
-      await waitForUpdateDownload();
-      await versionRestart();
-      return 'reloading';
-    }
-  } catch (err:any) {
-    /* unpacked/dev builds and some browsers do not support update checks */
-    console.warn('versionUpdateNow check failed:', err?.message || err);
-  }
-  return 'pending';
+  // The dialog's store probe already started the download; a second check right away comes back 'throttled'.
+  const cached:any = await storage.getItem(STORE_KEY);
+  const status = cached?.status === 'update_available' ? cached.status : await checkStore();
+  console.log('versionUpdateNow status', status);
+  if (status !== 'update_available') return 'pending';
+  await waitForUpdateDownload();
+  await versionRestart();
+  return 'reloading';
 }

@@ -530,7 +530,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'ratio'">
-                                    {{  row.original.ratio ? numberToGerman(row.original.ratio) : ''  }}
+                                    {{  row.original.ratio ? formatRatio(row.original.ratio) : ''  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'timestamp'">
@@ -752,7 +752,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'ratio'">
-                                  {{  item.original.ratio ? numberToGerman(item.original.ratio) : ''  }}
+                                  {{  item.original.ratio ? formatRatio(item.original.ratio) : ''  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'sideways_return_pa'">
@@ -1114,7 +1114,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isMarketClosed, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso, currencyRateText, isDerivativeType } from '~/utils/helper';
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, formatRatio, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isFeedBlocked, daysUntilMarketOpen, fetchedThisClosedPeriod, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso, currencyRateText, isDerivativeType } from '~/utils/helper';
 
 import { 
   getPriceData,
@@ -2142,9 +2142,9 @@ const TOTAL_COLUMNS = [
   'profit_loss_percentage', //keep this last for manual process
 ];
 const WEIGHTED_COLUMNS = ['distance_to_the_cap', 'sideways_return_pa'];
-// Ticks like the row badges, else the total outlives them at 22:00 since price refresh stops then
+// Ticks like the row badges, else the total outlives them at 22:00.
 const peerClock = useNow({ interval: 60_000 });
-const showPeerTotal = (total:any) => (peerClock.value, !peerLocked.value && !isMarketClosed() && parseFloat(total?.peer_members) > 0);
+const showPeerTotal = (total:any) => !peerLocked.value && !isFeedBlocked() && daysUntilMarketOpen(peerClock.value) < 0 && parseFloat(total?.peer_members) > 0;
 
 function sumTotals(rows:any) {
   const totals:any = {};
@@ -2223,7 +2223,7 @@ let dailyPassBudget = Infinity;
 
 
 const getProductData = async (forceUpdate = false) => {
-  if(isMarketClosed()) return;
+  if(isFeedBlocked()) return;
 
   const controller = new AbortController();
   controllers.push(controller);
@@ -2250,7 +2250,7 @@ const getProductData = async (forceUpdate = false) => {
         if (chunk.length > dailyPassBudget) break;
         dailyPassBudget -= chunk.length;
         const wknParam = chunk.join(',');
-        const url = `${apiBaseUrl}products?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wknParam)}`;
+        const url = `${apiBaseUrl}products?wkn=${encodeURIComponent(wknParam)}`;
         const apiData = await fetchFeed(url, controller.signal);
         if (!apiData) {
           if (apiAuthFailed.value || isApiRateLimited()) break;
@@ -2273,7 +2273,7 @@ const getProductData = async (forceUpdate = false) => {
         if (chunk.length > dailyPassBudget) break;
         dailyPassBudget -= chunk.length;
         const isinParam = chunk.join(',');
-        const url = `${apiBaseUrl}products?apikey=${encodeURIComponent(apiKey.value)}&isin=${encodeURIComponent(isinParam)}`;
+        const url = `${apiBaseUrl}products?isin=${encodeURIComponent(isinParam)}`;
         const apiData = await fetchFeed(url, controller.signal);
         if (!apiData) {
           if (apiAuthFailed.value || isApiRateLimited()) break;
@@ -2330,8 +2330,13 @@ const reloadPriceData = async(forceUpdate=false) =>{
     if(forceUpdate) toast({ title: t('api_rate_limited_short', { seconds: apiRateLimitSecondsLeft() }), variant: 'destructive' });
     return;
   }
-  if(isMarketClosed()){
-    if(forceUpdate) toast({ title: t('market_closed_no_prices') });
+  if(isFeedBlocked()){
+    if(forceUpdate) toast({ title: t(apiAuthFailed.value ? 'settings_page.usage_invalid_key_title' : 'no_key_live_prices_need_subscription'), variant: 'destructive' });
+    return;
+  }
+  // The passes would skip every row anyway; say why Reload changed nothing.
+  if(forceUpdate && daysUntilMarketOpen() >= 0 && mainListData.value.every(item => !(item.isin || item.wkn) || fetchedThisClosedPeriod(item.priceUpdatedAt))){
+    toast({ title: t('market_closed_prices_current') });
     return;
   }
   const currentData = mainListData.value;
@@ -2390,7 +2395,7 @@ const reloadPriceData = async(forceUpdate=false) =>{
 }
 
 const getPeerProductData = async () => {
-  if(isMarketClosed()) return;
+  if(isFeedBlocked()) return;
   const controller = new AbortController();
   controllers.push(controller);
 
@@ -2410,7 +2415,7 @@ const getPeerProductData = async () => {
 
   const fetchPeers = async (wkn:any) => {
     try {
-      const url = `${apiBaseUrl}peers?apikey=${encodeURIComponent(apiKey.value)}&wkn=${encodeURIComponent(wkn)}`;
+      const url = `${apiBaseUrl}peers?wkn=${encodeURIComponent(wkn)}`;
       const apiData = await fetchFeed(url, controller.signal);
       if (!apiData) {
         // A plain error is stamped as before; only auth and rate-limit misses retry today.
@@ -2482,7 +2487,6 @@ const amountFields = [
   'total_value',
   'future_total_value',
   'underlying_price',
-  'ratio',
   'cap_strike',
   'cap_disco_os',
   'profit_loss_target',
@@ -2508,6 +2512,9 @@ const exportCellValue = (row:any, col:any) => {
   const value = getNestedValue(row, col.accessorKey || col.id);
   if (col.accessorKey === 'peer_members') return value != null ? value.join(',') : '';
   if (col.accessorKey === 'quanto2') return value ? t(value) : '';
+  if (col.accessorKey === 'currency_rate') return Number.isFinite(parseFloat(value)) ? Number(parseFloat(value).toFixed(4)) : '';
+  // Unrounded: ratios like 0,001 exported as 0 at 2 decimals.
+  if (col.accessorKey === 'ratio') return Number.isFinite(parseFloat(value)) ? parseFloat(value) : '';
   if (amountFields.includes(col.accessorKey)) return value != null ? Number(parseFloat(value).toFixed(2)) : '';
   return value;
 };
@@ -2565,7 +2572,6 @@ const cancellAllRequests = () => {
 };
 
 let priceInterval: ReturnType<typeof setInterval> | null = null;
-let alertInterval: ReturnType<typeof setInterval> | null = null;
 
 // onMounted awaits storage before it starts the intervals; leaving during that wait must not start them afterwards.
 let isLeaving = false;
@@ -2585,9 +2591,7 @@ onBeforeRouteLeave(() => {
 
 onUnmounted(() => {
   if (priceInterval !== null) clearInterval(priceInterval);
-  if (alertInterval !== null) clearInterval(alertInterval);
   priceInterval = null;
-  alertInterval = null;
 });
 
 onMounted( async() => {
@@ -2623,10 +2627,6 @@ onMounted( async() => {
       await reloadPriceData();
     }, priceUpdateDuration.value * 60 * 1000);
   }
-
-  //Alert Interval
-  alertInterval = setInterval(checkAlerts, 1000);
-
 });
 
 
@@ -2664,6 +2664,7 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
     return;
   }
   activeRefreshes.value++;
+  let updated = false;
   try {
     // Prices first: on the first open of a day the products/peers pass alone nearly fills a feed window.
     if(!isPriceReload){
@@ -2681,7 +2682,7 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
     // Same filters as getProductData/getPeerProductData, or a row they never stamp keeps this true all day.
     const dailyPending = rows.some(r =>
       ((r.type === 'stock' ? r.wkn : r.isin) && r.lastUpdated !== today) || (r.wkn && r.peerslastUpdated !== today));
-    if(dailyPending && !isMarketClosed()){
+    if(dailyPending && !isFeedBlocked()){
       // /usage is never metered; no answer means no budget, as before.
       const feedWindow:any = (await fetchApiUsage(apiKey.value) as any)?.window;
       if (isLeaving) return;
@@ -2704,11 +2705,14 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
 
     calculateTotals();
     await getLatestListData();
+    updated = true;
   } catch (err) {
     // Cached rows are already on screen; the next interval or Reload retries.
     console.error('refreshFromNetwork error:', err);
   } finally {
     activeRefreshes.value--;
+    // After the decrement: checkAlerts skips while any pass runs, and a later pass checks on its own end.
+    if (updated && !isLeaving) checkAlerts();
   }
 }
 
@@ -3080,8 +3084,10 @@ async function createAlert() {
   alerts.value.push(newAlert);
   await saveAlerts();
   toast({ title: t('alert_created_successfully') });
-  
+
   closeModal();
+  // No interval any more: an alert already met would otherwise wait for the next price update.
+  checkAlerts();
 }
 
 // Update an existing alert
@@ -3127,6 +3133,7 @@ async function updateAlert(id:any) {
     toast({ title: t('alert_updated_successfully') });
   }
   closeModal();
+  checkAlerts();
 }
 
 // Delete an alert
@@ -3165,7 +3172,9 @@ async function checkAlerts() {
   // Cached prices are painted before the network pass; firing on them would complete alerts on stale values.
   if (isRefreshing.value) return;
   alertCheckInFlight = true;
+  let fired = false;
   try {
+    // Every match fires in this pass: the next check waits for the next price update.
     for (const alert of alerts.value) {
       if(alert.status===1) continue; //pass if completed
 
@@ -3207,10 +3216,7 @@ async function checkAlerts() {
         };
 
         alertDialog.value = true
-        const audio = new Audio(alertAudioUrl);
-        audio.currentTime = 0 // always reset to start
-        audio.play().catch((err) => {
-        });
+        fired = true;
 
         // Telegram message — build HTML safely with user-input fields escaped.
         const a = triggeredAlert.value;
@@ -3237,13 +3243,15 @@ async function checkAlerts() {
           alerts.value[index].status=1;
           await saveAlerts();
         }
-        break // Stop after first match (optional: remove if you want to show multiple)
-      }else{
       }
     }
   } catch (error) {
+    console.error('checkAlerts error:', error);
   } finally {
     alertCheckInFlight = false;
+  }
+  if (fired) {
+    new Audio(alertAudioUrl).play().catch(() => { /* autoplay blocked: the dialog still shows */ });
   }
 }
 

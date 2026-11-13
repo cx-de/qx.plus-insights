@@ -5,7 +5,7 @@ import { getApiKey, setApiAuthFailed, fetchFeed, apiKey, apiAuthFailed,
   apiRateLimit, isApiRateLimited } from '@/utils/helper';
 
 const NOW = new Date('2026-09-24T10:00:00Z').getTime();
-const FEED_URL = 'https://api.qx.plus/v1/feed/price?apikey=secret';
+const FEED_URL = 'https://api.qx.plus/v1/feed/price?wkn=X';
 
 // Routes feed and /validate calls separately so each test can script the probe verdict.
 const stubFetch = (feedStatus: number, validate: () => Promise<Response>) => {
@@ -56,6 +56,15 @@ describe('fetchFeed', () => {
     const probe = stubFetch(200, status(200));
     expect(await fetchFeed(FEED_URL)).toEqual({ ok: true });
     expect(probe).not.toHaveBeenCalled();
+  });
+
+  it('sends the key in the X-Api-Key header, never in the URL', async () => {
+    stubFetch(200, status(200));
+    await fetchFeed(FEED_URL);
+    const [url, init] = (fetch as any).mock.calls[0];
+    expect(init.headers['X-Api-Key']).toBe('secret');
+    expect(String(url)).not.toContain('apikey');
+    expect(String(url)).not.toContain('secret');
   });
 
   it('returns null on a non-auth error without probing', async () => {

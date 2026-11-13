@@ -85,15 +85,18 @@ const confirmApiAuthFailed = async () => {
   return authProbe;
 }
 
-// The key rides in the query string, so a raw feed URL must never reach the console.
-const redactApiKey = (url:any) => String(url).replace(/apikey=[^&]*/, 'apikey=***');
+// Path only: the query carries the user's holdings.
+const feedPath = (url:any) => { try { return new URL(url).pathname; } catch { /* unparsable URL, log nothing of it */ return ''; } };
 
 // Returns null on failure so callers can tell a failed fetch from a genuinely empty one.
 export const fetchFeed = async (url:any, signal?:any) => {
   // Every later chunk would be refused too, and each refusal still counts against the quota.
   if (isApiRateLimited()) return null;
 
-  const res = await fetch(url, signal ? { signal } : undefined);
+  // Header, never ?apikey=: a query string lands in server and proxy access logs, and the API rejects it.
+  const init:any = { headers: { 'X-Api-Key': apiKey.value } };
+  if (signal) init.signal = signal;
+  const res = await fetch(url, init);
 
   if (res.status === 429) {
     const body = await res.json().catch(() => /* limit still applies without a readable body */ ({}));
@@ -104,7 +107,7 @@ export const fetchFeed = async (url:any, signal?:any) => {
   if (res.status === 401 || res.status === 403) {
     // The body tells a JSON "invalid key" apart from a WAF/CDN block page.
     const body = await res.text().catch(() => /* body is diagnostics only */ '');
-    console.error('fetchFeed auth error:', res.status, redactApiKey(url), redactApiKey(body.slice(0, 200)));
+    console.error('fetchFeed auth error:', res.status, feedPath(url), body.slice(0, 200));
     // Outside service hours says nothing about the key; probing it here latched good keys dead overnight.
     if (res.status === 403 && body.includes('"service_window_closed"')) return null;
     // One 401/403 can be a server blip; a second request decides before prices stop.
@@ -119,7 +122,7 @@ export const fetchFeed = async (url:any, signal?:any) => {
       await setApiRateLimit(body);
       return null;
     }
-    console.error('fetchFeed non-OK:', res.status, redactApiKey(url));
+    console.error('fetchFeed non-OK:', res.status, feedPath(url));
     return null;
   }
 
@@ -254,6 +257,10 @@ const CENT_QUOTED_TYPES = ['stock', 'exchangeTradedFund', 'fund'];
 export const unitPriceToGerman = (value:any, type?:string) =>
   numberToGerman(value, false, type && !CENT_QUOTED_TYPES.includes(type) && Math.abs(Number(value)) < 5 ? 4 : 2);
 
+// Ratios like 0,0001 or 1,10463 lost digits at 2 decimals; show every significant one.
+export const formatRatio = (value:any) =>
+  numberToGerman(value, false, 10).replace(/,?0+$/, '');
+
 // Broker product labels (German/English, singular/plural, any case) to the row types the dashboard knows.
 // Without a feed subscription this is the only type a row gets, so ETFs, funds and bonds must not land in 'certificate'.
 // Unrecognised labels return `fallback`: some scrapers keep the raw broker label, others use 'certificate'.
@@ -279,8 +286,8 @@ const NON_DERIVATIVE_TYPES = ['stock', 'exchangeTradedFund', 'fund', 'bond'];
 // A row without a type is not treated as a derivative.
 export const isDerivativeType = (type?:string) => !!type && !NON_DERIVATIVE_TYPES.includes(type);
 
-// EUR lines carry rate 1; only a rate that differs at 2 decimals is worth a cell.
-export const currencyRateText = (rate:any) => numberToGerman(rate) === numberToGerman(1) ? '' : numberToGerman(rate);
+// EUR lines carry rate 1; only a rate that differs at 4 decimals is worth a cell.
+export const currencyRateText = (rate:any) => numberToGerman(rate, false, 4) === numberToGerman(1, false, 4) ? '' : numberToGerman(rate, false, 4);
 
 
 export const sendTelegramMessage = async (token:any, channelId:any, message:any) => {
@@ -360,6 +367,21 @@ export const fetchApiUsage = async (token:any) => {
 };
 
 // Relative to the feed base so the support endpoint always shares the API origin; the key is optional and only links the account.
+// Privacy by default (GDPR Art. 25(2)): the screenshot is opt-in on every open and never remembered.
+export const supportFormDefaults = () => ({ includeScreenshot: false, hideNumbers: true });
+
+export const buildSupportForm = (fields:any, screenshot:Blob|null) => {
+  const form = new FormData();
+  form.append('message', fields.message);
+  form.append('page_url', fields.page_url);
+  form.append('client_version', fields.client_version);
+  form.append('locale', fields.locale);
+  if (fields.name !== undefined) form.append('name', fields.name);
+  if (fields.email !== undefined) form.append('email', fields.email);
+  if (screenshot) form.append('screenshot', screenshot, 'screenshot.jpg');
+  return form;
+};
+
 export const sendSupportMessage = async (form:any) => {
   try {
     const headers:any = { Accept: 'application/json' };
@@ -807,30 +829,54 @@ export const clearAllStockData = async () => {
 // Same parse as formatTimestamp: scrapers store ms numbers, ISO strings and parsed broker times.
 const timeOf = (value:any) => new Date(value).getTime() || 0;
 
-// The feed only serves 08:00-22:00 Berlin, whatever the user's clock zone.
+// Trading hours are judged in Berlin time, whatever the user's clock zone.
 const berlinClock = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Berlin', weekday: 'short', hour: 'numeric', hourCycle: 'h23' });
-const FEED_OPEN_HOUR = 8;
-const FEED_CLOSE_HOUR = 22;
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+export const MARKET_OPEN_HOUR = 8;
+export const MARKET_CLOSE_HOUR = 22;
 
-export function isMarketClosed() {
+// -1 while trading, else days until the next 08:00 Berlin open (0 = later today).
+export function daysUntilMarketOpen(now = new Date()) {
+  const parts = berlinClock.formatToParts(now);
+  const day = DAY_NAMES.indexOf(parts.find(p => p.type === 'weekday')?.value || '');
+  const hour = Number(parts.find(p => p.type === 'hour')?.value);
+  if (day < 5 && hour >= MARKET_OPEN_HOUR && hour < MARKET_CLOSE_HOUR) return -1;
+  if (day < 5 && hour < MARKET_OPEN_HOUR) return 0;
+  return day >= 4 ? 7 - day : 1;
+}
+
+const berlinDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit' });
+
+// Berlin date of the next open, '' while trading; equal values mean the same closed period.
+function nextMarketOpenDay(now:Date) {
+  const days = daysUntilMarketOpen(now);
+  if (days < 0) return '';
+  const [y, m, d] = berlinDate.format(now).split('-').map(Number) as [number, number, number];
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+// Off-hours the feed repeats the last close, so a fetch already made in this closed period would only burn quota.
+export function fetchedThisClosedPeriod(stampedAt:any, now = new Date()) {
+  const at = new Date(stampedAt).getTime();
+  if (!at) return false;
+  const period = nextMarketOpenDay(now);
+  return period !== '' && nextMarketOpenDay(new Date(at)) === period;
+}
+
+// "today", "tomorrow" or the weekday; 2+ days is always a weekend, so it is Monday (date math slipped a day at the DST switch).
+export function marketOpenDayName(days:number, locale:string) {
+  if (days < 2) return new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }).format(days, 'day');
+  return new Date(Date.UTC(2026, 0, 5, 12)).toLocaleDateString(locale, { weekday: 'long', timeZone: 'UTC' });
+}
+
+// The feed serves prices around the clock, so only a missing or rejected key blocks it.
+export function isFeedBlocked() {
   if(!apiKey.value){
     return true;
   }
 
   // A rejected key would otherwise re-fire every doomed request on each refresh cycle.
-  if(apiAuthFailed.value){
-    return true;
-  }
-
-  const parts = berlinClock.formatToParts(new Date());
-  const weekday = parts.find(p => p.type === 'weekday')?.value;
-  const hour = Number(parts.find(p => p.type === 'hour')?.value);
-  if (weekday === 'Sat' || weekday === 'Sun'){
-    return true;
-  }
-
-  // Night-time calls are refused anyway, and their fallback used to swap feed prices for old broker ones.
-  return hour < FEED_OPEN_HOUR || hour >= FEED_CLOSE_HOUR;
+  return apiAuthFailed.value;
 }
 
 

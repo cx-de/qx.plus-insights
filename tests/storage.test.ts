@@ -143,7 +143,7 @@ describe('calculateLatestMainListData', () => {
     expect(row.bid).toBe(5);
   });
 
-  it('computes days since purchase and only annualises after 30 days', async () => {
+  it('computes days since purchase and annualises the yield', async () => {
     const base = { broker: 'flatex', account_id: 'A', type: 'stock', stocks_owned: 10, bid: 110, total_entry_value: 1000 };
     const [held, fresh] = await run([
       { ...base, wkn: 'OLD', purchase_date: new Date(NOW.getTime() - 60 * DAY).toISOString() },
@@ -152,7 +152,7 @@ describe('calculateLatestMainListData', () => {
     expect(held.days_since_purchase).toBe(60);
     expect(held.yield_pa_since_purchase).toBeCloseTo((Math.pow(1.1, 365 / 60) - 1) * 100);
     expect(fresh.days_since_purchase).toBe(10);
-    expect(fresh.yield_pa_since_purchase).toBeUndefined();
+    expect(fresh.yield_pa_since_purchase).toBeCloseTo((Math.pow(1.1, 365 / 10) - 1) * 100);
   });
 
   it('shows a discountCall strike as cap_strike and yields on the call-side payout', async () => {
@@ -169,6 +169,31 @@ describe('calculateLatestMainListData', () => {
   ])('yields a discountPut at underlying %s on the put-side payout %d', async (underlying_price, payout) => {
     const [row] = await run([{ broker: 'flatex', account_id: 'A', wkn: 'P', type: 'discountPut', currency: 'EUR', underlying_currency: 'EUR', strike: '100', cap: '80', underlying_price, bid: '9', stocks_owned: 1 }]);
     expect(row.cap_strike).toBe(100);
-    expect(row.sideways_return).toBeCloseTo(payout ? (payout / 9 - 1) * 100 : 0);
+    expect(row.sideways_return).toBeCloseTo((payout / 9 - 1) * 100);
+  });
+
+  it('gives a put that expires worthless a -100% sideways return', async () => {
+    const valuation_date = new Date(NOW.getTime() + 60 * DAY).toISOString().slice(0, 10);
+    const [row] = await run([{ broker: 'flatex', account_id: 'A', wkn: 'W', type: 'put', currency: 'EUR', underlying_currency: 'EUR', strike: '100', underlying_price: '120', bid: '0.5', ratio: '0.1', stocks_owned: 100, valuation_date }]);
+    expect(row.sideways_return).toBeCloseTo(-100);
+    expect(row.sideways_return_pa).toBeCloseTo(-100);
+  });
+
+  it('keeps sideways return at 0 for a product without cap or strike', async () => {
+    const [row] = await run([{ broker: 'flatex', account_id: 'A', wkn: 'I', type: 'indexcertificate', currency: 'EUR', underlying_currency: 'EUR', underlying_price: '18000', bid: '180', ratio: '0.01', stocks_owned: 10 }]);
+    expect(row.sideways_return).toBe(0);
+  });
+
+  it('keeps a capped yield p.a. when the underlying quote is missing', async () => {
+    const valuation_date = new Date(NOW.getTime() + 60 * DAY).toISOString().slice(0, 10);
+    const [row] = await run([{ broker: 'flatex', account_id: 'A', wkn: 'B', type: 'bonusCertificate', currency: 'EUR', underlying_currency: 'EUR', cap: '110', bid: '100', stocks_owned: 1, valuation_date }]);
+    expect(row.sideways_return_pa).toBeGreaterThan(0);
+  });
+
+  it('keeps sideways return at 0 until the underlying quote loads', async () => {
+    const valuation_date = new Date(NOW.getTime() + 60 * DAY).toISOString().slice(0, 10);
+    const [row] = await run([{ broker: 'flatex', account_id: 'A', wkn: 'K', type: 'call', currency: 'EUR', underlying_currency: 'EUR', strike: '100', bid: '0.5', ratio: '0.1', stocks_owned: 100, valuation_date }]);
+    expect(row.sideways_return).toBe(0);
+    expect(row.sideways_return_pa).toBe(0);
   });
 });

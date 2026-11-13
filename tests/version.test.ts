@@ -44,7 +44,17 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+const stubStore = (impl: () => Promise<any>) => {
+  const spy = vi.fn(impl);
+  (browser.runtime as any).requestUpdateCheck = spy;
+  return spy;
+};
+
 describe('versionNextUpdate', () => {
+  beforeEach(() => {
+    stubStore(async () => ({ status: 'update_available' }));
+  });
+
   it('asks next to the feed base with the installed version', async () => {
     const spy = stubFetch(async () => json(answer()));
 
@@ -117,7 +127,69 @@ describe('versionNextUpdate', () => {
   });
 });
 
+describe('versionNextUpdate store gate', () => {
+  it.each([
+    ['the store has not released it', async () => ({ status: 'no_update' })],
+    ['the store is throttled', async () => ({ status: 'throttled' })],
+    ['the check throws', async () => { throw new Error('not supported'); }],
+  ])('hides the update when %s', async (_label, impl) => {
+    stubFetch(async () => json(answer()));
+    stubStore(impl);
+
+    expect(await versionNextUpdate()).toBeNull();
+  });
+
+  it('hides a forced update the store does not have', async () => {
+    stubFetch(async () => json(answer({ force: true })));
+    stubStore(async () => ({ status: 'no_update' }));
+
+    expect(await versionNextUpdate()).toBeNull();
+  });
+
+  it('asks the store again only after an hour', async () => {
+    stubFetch(async () => json(answer()));
+    const store = stubStore(async () => ({ status: 'no_update' }));
+
+    await versionNextUpdate();
+    vi.setSystemTime(NOW.getTime() + 30 * 60_000);
+    await versionNextUpdate();
+    expect(store).toHaveBeenCalledTimes(1);
+
+    store.mockResolvedValue({ status: 'update_available' });
+    vi.setSystemTime(NOW.getTime() + 61 * 60_000);
+    expect((await versionNextUpdate() as any)?.latest_version).toBe('2.11.0');
+    expect(store).toHaveBeenCalledTimes(2);
+
+    await versionNextUpdate();
+    expect(store).toHaveBeenCalledTimes(2);
+  });
+
+  it('asks the store at once for a newer server version', async () => {
+    stubFetch(async () => json(answer()));
+    const store = stubStore(async () => ({ status: 'no_update' }));
+    await versionNextUpdate();
+
+    await storage.removeItem('local:VERSION_CHECK');
+    stubFetch(async () => json(answer({ latest_version: '2.12.0' })));
+    await versionNextUpdate();
+    expect(store).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a downloaded update without asking the store', async () => {
+    stubFetch(async () => json(answer()));
+    const store = stubStore(async () => ({ status: 'no_update' }));
+    await storage.setItem('local:UPDATE_READY', { version: '2.11.0' });
+
+    expect(await versionNextUpdate()).toMatchObject({ latest_version: '2.11.0', ready: true });
+    expect(store).not.toHaveBeenCalled();
+  });
+});
+
 describe('versionNextUpdate offline', () => {
+  beforeEach(() => {
+    stubStore(async () => ({ status: 'update_available' }));
+  });
+
   it('skips the request while the browser is offline', async () => {
     vi.stubGlobal('navigator', { onLine: false });
     const spy = stubFetch(async () => json(answer()));
@@ -237,6 +309,20 @@ describe('versionUpdateNow', () => {
     expect(await versionUpdateNow()).toBe('pending');
   });
 
+  it('skips a second check when the store probe already confirmed the update', async () => {
+    const check = vi.fn();
+    (browser.runtime as any).requestUpdateCheck = check;
+    await storage.setItem('local:UPDATE_STORE_CHECK', { version: '2.11.0', status: 'update_available', checked_at: Date.now() });
+
+    const pending = versionUpdateNow();
+    await vi.advanceTimersByTimeAsync(1_000);
+    await fakeBrowser.runtime.onUpdateAvailable.trigger({ version: '2.11.0' });
+
+    expect(await pending).toBe('reloading');
+    expect(check).not.toHaveBeenCalled();
+    expect(reload).toHaveBeenCalledTimes(1);
+  });
+
   it('restarts straight away when the update is already downloaded', async () => {
     const check = vi.fn();
     (browser.runtime as any).requestUpdateCheck = check;
@@ -304,12 +390,14 @@ describe('versionApplyUpdate', () => {
 });
 
 describe('versionAfterUpdate', () => {
-  it('clears the ready marker', async () => {
+  it('clears the ready marker and the store answer', async () => {
     await storage.setItem('local:UPDATE_READY', { version: '2.11.0' });
+    await storage.setItem('local:UPDATE_STORE_CHECK', { version: '2.11.0', status: 'update_available', checked_at: 0 });
 
     await versionAfterUpdate();
 
     expect(await storage.getItem('local:UPDATE_READY')).toBeNull();
+    expect(await storage.getItem('local:UPDATE_STORE_CHECK')).toBeNull();
   });
 });
 

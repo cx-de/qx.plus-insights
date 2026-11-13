@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { apiAuthFailed, apiKey, sendSupportMessage } from '@/utils/helper';
+import { apiAuthFailed, apiKey, buildSupportForm, sendSupportMessage, supportFormDefaults } from '@/utils/helper';
 
 const json = (body: any, status = 200) => new Response(JSON.stringify(body), { status });
 
@@ -17,6 +17,49 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+const fields = { message: 'Prices do not load', page_url: '#/list', client_version: '1.2.3', locale: 'de' };
+
+describe('support form defaults', () => {
+  it('starts with the screenshot off and numbers redacted', () => {
+    expect(supportFormDefaults()).toEqual({ includeScreenshot: false, hideNumbers: true });
+  });
+
+  it('returns a fresh object, so a ticked box never leaks into the next open', () => {
+    const first: any = supportFormDefaults();
+    first.includeScreenshot = true;
+    expect(supportFormDefaults().includeScreenshot).toBe(false);
+  });
+});
+
+describe('buildSupportForm', () => {
+  it('sends no screenshot field without an opted-in image', () => {
+    const form = buildSupportForm(fields, null);
+
+    expect(form.has('screenshot')).toBe(false);
+    expect(form.get('message')).toBe('Prices do not load');
+    expect(form.get('page_url')).toBe('#/list');
+    expect(form.get('client_version')).toBe('1.2.3');
+    expect(form.get('locale')).toBe('de');
+  });
+
+  it('attaches the screenshot as a JPEG file when given', () => {
+    const form = buildSupportForm(fields, new Blob(['jpeg'], { type: 'image/jpeg' }));
+
+    const file = form.get('screenshot') as File;
+    expect(file).toBeInstanceOf(File);
+    expect(file.name).toBe('screenshot.jpg');
+  });
+
+  it('adds name and email only when passed', () => {
+    expect(buildSupportForm(fields, null).has('name')).toBe(false);
+    expect(buildSupportForm(fields, null).has('email')).toBe(false);
+
+    const form = buildSupportForm({ ...fields, name: 'Max Muster', email: 'max@example.com' }, null);
+    expect(form.get('name')).toBe('Max Muster');
+    expect(form.get('email')).toBe('max@example.com');
+  });
 });
 
 describe('sendSupportMessage', () => {
