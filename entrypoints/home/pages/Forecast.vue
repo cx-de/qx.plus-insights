@@ -1,21 +1,21 @@
 <template>
-  <div>
+  <div class="flex min-h-0 flex-1 flex-col">
     <h1 class="sr-only">{{ $t('forecast') }}</h1>
 
-    <!-- grid-cols-1 (minmax(0,1fr)): an auto column grows to the wide table and scrolls the page -->
-    <div class="mx-auto grid grid-cols-1 flex-1 auto-rows-max gap-4">
+    <!-- min-w-0 on the column: a content-sized track grew to the wide table and scrolled the page -->
+    <div class="mx-auto flex w-full min-h-0 flex-1 flex-col gap-4">
 
-      <div class="w-full min-w-0">
+      <div class="flex w-full min-w-0 min-h-0 flex-1 flex-col">
 
-        <Card class="block w-full min-w-0 p-4 sm:p-5">
-          <CardContent class="p-0">
-            <div class="w-full lg:w-auto flex items-center justify-center">
+        <Card class="flex w-full min-w-0 min-h-0 flex-1 flex-col p-4 sm:p-5">
+          <CardContent class="flex min-h-0 flex-1 flex-col p-0">
+            <div class="flex min-h-0 w-full flex-1 flex-col">
               
               <!-- Flex column: the canvas has maintainAspectRatio:false so it fills its
                    parent, and as a sibling of the toolbar it overflowed this fixed box.
-                   Height comes from chartHeightClass, which accounts for the API-key banner.
+                   flex-1 down from Layout fills the window below any banner.
                    The toolbar stays outside the loading switch so Scenarios and Export are reachable while it loads. -->
-              <div class="relative w-full flex flex-col min-h-[320px]" :class="chartHeightClass">
+              <div class="relative w-full flex flex-1 flex-col min-h-[320px]">
                 <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
                   <div class="flex flex-wrap items-center gap-3">
                     <AccountFilter @change="loadForecast()" />
@@ -573,6 +573,7 @@ import { toast } from '@/components/ui/toast';
 
 import { FlexRender, getCoreRowModel, getExpandedRowModel, getFilteredRowModel, getSortedRowModel, useVueTable } from "@tanstack/vue-table";
 import { sortableHeader } from '~/utils/table-utils';
+import { columnLabelOf, columnLabelsGet, columnLabelsWatch } from '~/utils/column-label-utils';
 
 import { valueUpdater } from '~/lib/utils'
 
@@ -932,7 +933,7 @@ const syncCrosshair = {
     const index = chart.$syncIndex;
     if (index === null || index === undefined) return;
     const { ctx, chartArea } = chart;
-    const datasetIndex = chart.data.datasets.findIndex((dataset:any) => !dataset.scenario
+    const datasetIndex = chart.data.datasets.findIndex((dataset:any) => !dataset.scenario && !dataset.reinvest
       && Number.isFinite(dataset.data[index]));
     const point = datasetIndex >= 0 ? chart.getDatasetMeta(datasetIndex).data[index] : null;
     const x = point ? point.x : chart.scales.x.getPixelForValue(chart.data.labels[index]);
@@ -966,7 +967,7 @@ const chartOptions:any = {
   maintainAspectRatio: false,
   // Room for lineEndLabels on lines that run to the right edge; sized per render by endLabelPadding.
   layout: { padding: { right: 190 } },
-  locale: localStorage.getItem('lang') || 'en',
+  locale: locale.value,
   plugins: {
     title: {
       display: false,
@@ -1207,6 +1208,39 @@ function calculateTotalValueForDate(date: Date, rows:any = listData.value): numb
     }
   });
   return Math.round(total);
+}
+
+// Same lag as PAYOUT_LAG_DAYS in price-data-utils.ts: cash arrives 7 days after Bewertungstag.
+const PAYOUT_LAG_DAYS = 7;
+
+// Near maturity a tiny remaining gain annualises to hundreds of percent, so short runs are skipped and the rate capped.
+const REINVEST_MIN_DAYS = 30;
+const REINVEST_MAX_YIELD_PA = 50;
+
+// Rows paying out cash at a positive yield p.a., the rate the payout is reinvested at.
+function reinvestRows(rows:any) {
+  return (rows as any[]).filter((item:any) => item.valuation_date && item.stock_name !== 'Cash'
+    && item.future_total_value > 0 && Number(item.sideways_return_pa) > 0
+    && (+payoutDateOf(item) - +toDate(todayDate)) / MS_PER_DAY >= REINVEST_MIN_DAYS);
+}
+
+function payoutDateOf(item:any) {
+  // A string parses as local midnight here; new Date('YYYY-MM-DD') is UTC and lands a day early west of UTC.
+  const payout = toDate(item.valuation_date);
+  payout.setDate(payout.getDate() + PAYOUT_LAG_DAYS);
+  return payout;
+}
+
+// Each payout keeps compounding at its own yield p.a., as if bought back into a similar product.
+function reinvestGainForDate(date: Date, rows:any): number {
+  let gain = 0;
+  for (const item of reinvestRows(rows)) {
+    const days = (+date - +payoutDateOf(item)) / MS_PER_DAY;
+    if (days <= 0) continue;
+    const yieldPa = Math.min(Number(item.sideways_return_pa), REINVEST_MAX_YIELD_PA);
+    gain += item.future_total_value * (Math.pow(1 + yieldPa / 100, days / 365) - 1);
+  }
+  return Math.round(gain);
 }
 
 function toDate(val:any) {
@@ -1495,6 +1529,35 @@ const recalculateDatapoints = async() => {
         accountKey: group.key,
         endLabel: t('current_forecast'),
       });
+
+      const payouts = reinvestRows(group.rows).map(payoutDateOf);
+      if (payouts.length) {
+        const firstPayout = Math.min(...payouts.map((d:any) => +d));
+        // Starts at the last forecast point before the first payout, so the dotted line branches off the solid one.
+        let branchIndex = 0;
+        datesForForecast.forEach((date:any, i:any) => {
+          if (+date <= firstPayout && Number.isFinite(newDatapoints[i])) branchIndex = i;
+        });
+        const reinvestData = datesForForecast.map((date:any, i:any) => i < branchIndex || !Number.isFinite(newDatapoints[i])
+          ? NaN : newDatapoints[i] + reinvestGainForDate(date, group.rows));
+        if (reinvestData.some((value:any, i:any) => Number.isFinite(value) && value !== newDatapoints[i])) {
+          allBase.push(...reinvestData.filter((value:any) => Number.isFinite(value)));
+          chartData.value.datasets.push({
+            label: t('forecast_reinvest'),
+            data: reinvestData,
+            reinvest: true,
+            fill: false,
+            tension: 0.4,
+            borderDash: [6, 4],
+            borderColor: customColors[1],
+            backgroundColor: customColors[1],
+            cubicInterpolationMode: 'monotone',
+            accountKey: group.key,
+            endLabel: t('forecast_reinvest'),
+            baseData: newDatapoints,
+          });
+        }
+      }
 
       chartOptions.scales.x.min = getMinDate(datesForForecast[0]);
       chartOptions.scales.x.ticks.source = "auto";
@@ -2465,7 +2528,13 @@ const forecastTableNonPriceFields = [
 // Text columns read left; everything else is a number and lines up on the right.
 const isNumericExportColumn = (id: string) => id !== 'type' && !forecastTableNonPriceFields.includes(id);
 
-const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label), 'hover:bg-accent hover:text-accent-foreground');
+// Renames made in the List column menu apply here too, matched by column id.
+const columnLabels = ref<Record<string, string>>({});
+const colLabel = (id:string, key = id) => columnLabelOf(columnLabels.value, id, t(key));
+onMounted(async () => { columnLabels.value = await columnLabelsGet(); });
+onUnmounted(columnLabelsWatch((labels) => { columnLabels.value = labels; }));
+
+const getSortingHeader = (column:any, label:any) => sortableHeader(column, colLabel(column.id, label), 'hover:bg-accent hover:text-accent-foreground');
 
 const isTableLoading = ref(false);
 const isExporting = ref(false);
@@ -2488,10 +2557,10 @@ const loadForecastData = async () => {
 
   // Build table columns dynamically
   columns.value = [
-    { accessorKey: "stock_name", header: t("stock_name") },
+    { accessorKey: "stock_name", header: () => colLabel("stock_name") },
     { accessorKey: "type", header: ({ column }:any) => getSortingHeader(column, 'type') },
-    { accessorKey: "wkn", header: t("wkn") },
-    { accessorKey: "isin", header: t("isin") },
+    { accessorKey: "wkn", header: () => colLabel("wkn") },
+    { accessorKey: "isin", header: () => colLabel("isin") },
     { accessorKey: "currency_rate", header: ({ column }:any) => getSortingHeader(column, 'currency_rate') },
     { accessorKey: "implied_volatility", header: ({ column }:any) => getSortingHeader(column, 'implied_volatility') },
     
@@ -2546,11 +2615,6 @@ const loadForecast = async() => {
     notifyError(t('forecast_load_failed'));
   }
 };
-
-// dvh like List; 170 leaves room for the API-key banner above the chart.
-const chartHeightClass = computed(() => apiKeyLoaded.value && (!apiKey.value || apiAuthFailed.value)
-  ? 'h-[calc(100dvh-170px)]'
-  : 'h-[calc(100dvh-100px)]');
 
 const isChartEmpty = computed(() => !isLoading.value
   && (!listData.value.length || (selectedType.value === 'history' && !(chartData.value.labels || []).length)));

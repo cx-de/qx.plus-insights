@@ -14,12 +14,16 @@ Backups you export contain your portfolio data and settings. They never contain 
 
 | Purpose | What is sent | When |
 |---|---|---|
-| Prices and product data | WKN/ISIN/currency codes of your holdings, your API key (in a request header, not in the URL) | On page open and on the refresh interval you set |
+| Prices and product data | WKN/ISIN/currency codes of your holdings, your API key (in a request header, not in the URL) | On page open and on the refresh interval you set; while you have alerts that have not triggered yet, also in the background on that interval when the dashboard is closed and the browser is running |
 | Usage and key check | Your API key | When you open the dashboard or save the key |
 | Update check | The extension version and browser type | Periodically, without your API key |
 | Support form | Your message, the dashboard page, extension version and language; your name and email if you have no API key (otherwise your API key); a screenshot of the dashboard only if you tick the option, which can show your positions and values. The option is not preselected, and no screenshot is taken until you tick it. Numbers are masked by default; you can turn masking off before sending. | Only when you submit the form |
 
 Apart from a support screenshot you choose to attach, no position sizes, balances or account numbers are sent to QX+.
+
+## System notifications
+
+If you allow notifications when you save an alert, a triggered alert also shows a notification from your browser with the alert name, product name, condition and value. It stays on your device, but your operating system may show it on the lock screen or in its notification history.
 
 ## Data sent to Telegram (api.telegram.org)
 

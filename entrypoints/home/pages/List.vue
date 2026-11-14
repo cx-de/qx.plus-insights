@@ -1,13 +1,13 @@
 <template>
-  <div>
+  <div class="flex min-h-0 flex-col">
     <h1 class="sr-only">{{ $t('list') }}</h1>
-    <!-- grid-cols-1 (minmax(0,1fr)): an auto column grows to the wide table and scrolls the page -->
-    <div class="mx-auto grid grid-cols-1 flex-1 auto-rows-max gap-4">
-      <div class="w-full min-w-0">
+    <!-- min-w-0 on the column: a content-sized track grew to the wide table and scrolled the page -->
+    <div class="mx-auto flex w-full min-h-0 flex-col gap-4">
+      <div class="flex w-full min-w-0 min-h-0 flex-col">
 
-        <Card class="block w-full min-w-0 p-4 sm:p-5">
-          <!-- Card p-6 + CardHeader p-6 + toolbar p-2 stacked ~60px above the filter row. -->
-          <CardHeader class="pt-0 pb-0">
+        <Card class="flex w-full min-w-0 min-h-0 flex-col p-4 sm:p-5">
+          <!-- Card p-5 is the only padding: CardHeader/CardContent defaults added 24px and pushed the page into scrolling -->
+          <CardHeader class="p-0">
             <div class="flex flex-wrap items-center justify-start gap-5 mb-2">
               <!-- v-show here, not on the strip: a hidden strip still left this empty flex item and its gap-5 -->
               <div v-show="Object.keys(rowSelection).length" class="w-full">
@@ -52,7 +52,8 @@
                   </Button>
 
                   <template v-if="Object.keys(rowSelection).length === 1 && !isCashRow(currentRow)">
-                    <Button size="sm" variant="outline" class="h-8 sm:ml-auto" @click="openModal(currentRow, 'stock')">
+                    <Button size="sm" variant="outline" class="h-8 sm:ml-auto bg-background" @click="openModal(currentRow, 'stock')">
+                      <AlarmClockPlus class="h-4 w-4" />
                       {{ $t('set_alert') }}
                     </Button>
                   </template>
@@ -102,7 +103,7 @@
                         </span>
                       </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" class="w-64">
+                  <DropdownMenuContent align="end" class="w-72">
                       <div class="relative p-1">
                         <Search class="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                         <!-- keydown.stop: the menu's typeahead otherwise swallows the keystrokes -->
@@ -110,19 +111,49 @@
                           @keydown.stop />
                       </div>
                       <DropdownMenuSeparator />
-                      <div class="max-h-[60vh] overflow-y-auto">
+                      <div class="max-h-[60vh] overflow-y-auto overflow-x-hidden">
                         <template v-for="section in menuSections" :key="section.key">
                           <DropdownMenuLabel v-if="menuSections.length > 1" class="text-xs font-medium text-muted-foreground">
                             {{ $t(section.key) }}
                           </DropdownMenuLabel>
                           <div v-for="colId in section.ids" :key="colId" class="group flex items-center">
-                            <DropdownMenuCheckboxItem
-                              class="flex-1"
+                            <!-- keydown.stop: menu typeahead and Escape-to-close otherwise fire while typing -->
+                            <div v-if="editingColId === colId" class="flex flex-1 items-center gap-1 py-0.5 pl-2">
+                              <Input :ref="focusOnMount" v-model="editingLabel" :maxlength="40" :placeholder="t(colId)"
+                                :aria-label="$t('rename_column')" class="h-7 px-2 text-sm"
+                                @keydown.stop @keydown.enter.prevent="saveColumnLabel" @keydown.esc.prevent="editingColId = ''"
+                                @blur="saveColumnLabel" />
+                              <!-- mousedown.prevent keeps focus in the input, so blur doesn't save before Cancel runs -->
+                              <Button size="icon" variant="ghost" class="h-7 w-7 shrink-0 text-primary"
+                                :title="$t('save')" :aria-label="$t('save')"
+                                @mousedown.prevent @click.stop="saveColumnLabel">
+                                <Check class="h-4 w-4" />
+                              </Button>
+                              <Button size="icon" variant="ghost" class="h-7 w-7 shrink-0 text-muted-foreground"
+                                :title="$t('cancel')" :aria-label="$t('cancel')"
+                                @mousedown.prevent @click.stop="editingColId = ''">
+                                <X class="h-4 w-4" />
+                              </Button>
+                            </div>
+                            <DropdownMenuCheckboxItem v-else
+                              class="flex-1 min-w-0"
                               :model-value="columnOrder.includes(colId)"
                               @update:model-value="(value) => toggleColumn(colId, value)">
-                              {{ t(colId) }}
+                              <span class="truncate" :title="colLabel(colId)">{{ colLabel(colId) }}</span>
                             </DropdownMenuCheckboxItem>
-                            <Button size="icon" variant="ghost" class="h-7 w-7 shrink-0"
+                            <Button v-if="columnLabels[colId] && editingColId !== colId" size="icon" variant="ghost"
+                              class="h-7 w-7 shrink-0 text-muted-foreground"
+                              :title="$t('reset_column_name')" :aria-label="$t('reset_column_name')"
+                              @click.stop="columnLabelSave(colId, '')">
+                              <RotateCcw class="h-3.5 w-3.5" />
+                            </Button>
+                            <Button v-if="editingColId !== colId" size="icon" variant="ghost"
+                              class="h-7 w-7 shrink-0 text-muted-foreground opacity-40 group-hover:opacity-100 focus-visible:opacity-100"
+                              :title="$t('rename_column')" :aria-label="$t('rename_column')"
+                              @click.stop="startColumnRename(colId)">
+                              <Pencil class="h-3.5 w-3.5" />
+                            </Button>
+                            <Button v-if="editingColId !== colId" size="icon" variant="ghost" class="h-7 w-7 shrink-0"
                               :class="stickyColumns.includes(colId)
                                 ? 'text-primary'
                                 : 'text-muted-foreground opacity-40 group-hover:opacity-100 focus-visible:opacity-100'"
@@ -191,12 +222,12 @@
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div>
+          <CardContent class="flex min-h-0 flex-col p-0">
+            <div class="flex min-h-0 flex-col">
               
               
-                <!-- dvh max-height; 210px once the toolbar wraps below 1360px -->
-                <div ref="dt" @scroll.passive="onTableScroll" :class="{ 'scrolled-x': isScrolledX }" class="rounded-md border w-full max-h-[calc(100dvh-150px)] max-[1360px]:max-h-[calc(100dvh-210px)] overflow-auto">
+                <!-- Height comes from the min-h-0 flex chain up to Layout, so banners and the selection strip need no pixel budget -->
+                <div ref="dt" @scroll.passive="onTableScroll" :class="{ 'scrolled-x': isScrolledX, 'footer-floating': isFooterFloating }" class="rounded-md border w-full min-h-[240px] max-sm:max-h-[75dvh] overflow-auto">
                  
                   <Table id="table_list">
                       <TableHeader class="bg-muted sticky top-0 z-10">
@@ -837,7 +868,7 @@
                             </TableCell>
                           </template>
                         </tr>
-                        <tr class="total-row sticky bottom-0">
+                        <tr class="total-row">
                           <template v-for="header in table.getHeaderGroups()[0]!.headers"
                             :key="'foot'+header.id">
 
@@ -1023,26 +1054,6 @@
         </Dialog>
 
 
-         <!-- final alert dialog -->
-         <Dialog v-model:open="alertDialog">
-          <DialogContent class="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>{{ $t('alert_triggered') }}</DialogTitle>
-            </DialogHeader>
-            <div class="space-y-1 py-2 text-sm" v-if="triggeredAlert">
-              <p><strong>{{ $t('alert_name') }}</strong>: {{ triggeredAlert.alertName }}</p>
-              <p v-if="triggeredAlert.contextKey === 'stock_name'"><strong>{{ $t('stock_name') }}</strong>: {{ triggeredAlert.stockName }}</p>
-              <p v-else-if="triggeredAlert.contextKey === 'group_name'"><strong>{{ $t('group_name') }}</strong>: {{ triggeredAlert.stockName }}</p>
-              <p v-else><strong>{{ $t('total') }}</strong></p>
-              <p><strong>{{ $t(triggeredAlert.field) }}</strong> {{ conditionLabel(triggeredAlert.condition) }} <strong>{{ alertValueText(triggeredAlert.alertValue, triggeredAlert.field, triggeredAlert.instrumentType) }}</strong></p>
-              <p><strong>{{ $t('current') }}</strong>: {{ alertValueText(triggeredAlert.currentValue, triggeredAlert.field, triggeredAlert.instrumentType) }}</p>
-            </div>
-            <DialogFooter>
-              <Button @click="alertDialog = false">{{ $t('close') }}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
         <AlertDialog :open="!!confirmState" @update:open="(open) => { if (!open) confirmState = null }">
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -1114,7 +1125,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, formatRatio, germanToNumer, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isFeedBlocked, daysUntilMarketOpen, fetchedThisClosedPeriod, saveDailyTotal, getComparableUnderlyingPrice, escapeHtml, todayIso, currencyRateText, isDerivativeType } from '~/utils/helper';
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, formatRatio, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isFeedBlocked, daysUntilMarketOpen, fetchedThisClosedPeriod, saveDailyTotal, getComparableUnderlyingPrice, todayIso, currencyRateText, isDerivativeType } from '~/utils/helper';
 
 import { 
   getPriceData,
@@ -1126,6 +1137,7 @@ import {
   mainListWriteChanges,
   getPeerSwitchData,
 } from '~/utils/price-data-utils'
+import { TOTAL_COLUMNS, WEIGHTED_COLUMNS, CONDITION_KEYS, alertValueText, alertMatchesRow, sumTotals, computeGroupTotals, alertRequestNotifications } from '~/utils/alert-utils'
 
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -1139,7 +1151,8 @@ import { toast } from '@/components/ui/toast';
 import { downloadCsv, downloadXlsx, fileTimestamp } from '~/utils/export-utils';
 
 import { sortableHeader } from '~/utils/table-utils';
-import { ListFilter, Trash, X, Search, Download, RefreshCcw, AlarmClockPlus, Pen, File, FileSpreadsheet, Pencil, Save, ChevronRight, Pin, Lock } from 'lucide-vue-next';
+import { columnLabelOf, columnLabelsGet, columnLabelSave, columnLabelsWatch, columnExportNames } from '~/utils/column-label-utils';
+import { ListFilter, Trash, X, Search, Download, RefreshCcw, AlarmClockPlus, Pen, File, FileSpreadsheet, Pencil, Save, ChevronRight, Pin, Lock, RotateCcw, Check } from 'lucide-vue-next';
 
 const { t } = useI18n();
 document.title = t('list');
@@ -1242,13 +1255,29 @@ const onColumnMenuOpen = (open: boolean) => {
     menuPinned.value = [...pinnedColumns.value];
   } else {
     columnSearch.value = '';
+    editingColId.value = '';
   }
+};
+
+const editingColId = ref('');
+const editingLabel = ref('');
+const startColumnRename = (colId:string) => {
+  editingColId.value = colId;
+  editingLabel.value = colLabel(colId);
+};
+const focusOnMount = (el:any) => { if (el) nextTick(() => (el.$el ?? el).focus?.()); };
+// Enter then blur both land here; the guard keeps the second call from saving twice.
+const saveColumnLabel = async () => {
+  const colId = editingColId.value;
+  if (!colId) return;
+  editingColId.value = '';
+  await columnLabelSave(colId, editingLabel.value, t(colId));
 };
 
 const menuColumns = computed(() => {
   const query = columnSearch.value.trim().toLowerCase();
   if (!query) return menuOrder.value;
-  return menuOrder.value.filter(id => t(id).toLowerCase().includes(query));
+  return menuOrder.value.filter(id => `${colLabel(id)} ${t(id)}`.toLowerCase().includes(query));
 });
 
 const menuSections = computed(() => [
@@ -1402,7 +1431,7 @@ const allColumns:any = {
         getSortingHeader(column, "broker"),
         h(DataTableFacetedFilter, {
           column,
-          title: t("broker"),
+          title: colLabel("broker"),
           options: brokerOptions.value.map(item => ({
             label: item, value: item,
           })),
@@ -1423,7 +1452,7 @@ const allColumns:any = {
         getSortingHeader(column, "type"),
         h(DataTableFacetedFilter, {
           column,
-          title: t("type"),
+          title: colLabel("type"),
           options: typeOptions.value.map(type => ({
             label: t(type), value: type,
           })),
@@ -1441,7 +1470,7 @@ const allColumns:any = {
         getSortingHeader(column, "stocks_owned"),
         h(DataTableFacetedFilter, {
           column,
-          title: t("stocks_owned"),
+          title: colLabel("stocks_owned"),
           options: [{ label: t('hide_zero_stocks_owned'), value: 'hideZero' }],
         }),
       ]),
@@ -1464,7 +1493,7 @@ const allColumns:any = {
         getSortingHeader(column, "issuer"),
         h(DataTableFacetedFilter, {
           column,
-          title: t("issuer"),
+          title: colLabel("issuer"),
           options: issuerOptions.value.map(item => ({
             label: item, value: item,
           })),
@@ -1557,11 +1586,31 @@ const cellClass = (colId: string, z = 'z-1') => {
   return `sticky_column ${z} ${align}${isLast ? ' sticky_column_last' : ''}`;
 };
 
+const dt = ref<HTMLElement | null>(null);
 const isScrolledX = ref(false);
+const isFooterFloating = ref(false);
+
+// The fade above the total hides half-cut rows; at the scroll end it would fade the real last row instead.
+const updateFooterFloating = () => {
+  const el = dt.value;
+  isFooterFloating.value = !!el && el.scrollTop + el.clientHeight < el.scrollHeight - 1;
+};
+
 // the frozen-edge shadow only means something once columns slide underneath it
 const onTableScroll = (event: Event) => {
   isScrolledX.value = (event.target as HTMLElement).scrollLeft > 0;
+  updateFooterFloating();
 };
+
+// Rows loading, filtering or a window resize change the overflow without any scroll event.
+let footerObserver: ResizeObserver | null = null;
+onMounted(() => {
+  footerObserver = new ResizeObserver(updateFooterFloating);
+  if (dt.value) footerObserver.observe(dt.value);
+  const table = document.getElementById('table_list');
+  if (table) footerObserver.observe(table);
+});
+onBeforeUnmount(() => footerObserver?.disconnect());
 
 const stickyStyle = (colId: string) => {
   if (colId !== 'select' && !pinnedColumns.value.includes(colId)) return undefined;
@@ -1728,12 +1777,6 @@ const table = useVueTable({
   enableRowSelection: row => !row.original?.isCombined,
   enableSubRowSelection: true,
 });
-
-const parseGermanNumber = (value: string | number): number => {
-  if (typeof value === 'number') return value
-  if (typeof value !== 'string') return 0
-  return germanToNumer(value)
-}
 
 const groupName = ref('');
 const currentRow = ref<any>(null);
@@ -1988,62 +2031,6 @@ const scopedTotalValue = computed(() => {
   return accountViewFilter(mainListData.value)?.reduce((acc, val) => acc + Number(val.total_value || 0), 0) || 0;
 });
 
-function computeGroupTotals(items:any, totalAll:any) {
-  let total_entry_value = 0;
-  let profit_loss_price = 0;
-  let total_value = 0;
-  let position_target_percentage = 0;
-  let future_total_value = 0;
-  let profit_loss_target_per_day = 0;
-
-  for (const item of items) {
-    // Cash has no units or bid; its balance is both entry and value, so it adds no P/L.
-    if (isCashRow(item)) {
-      const balance = Number(item.total_entry_value) || 0;
-      total_value += balance;
-      total_entry_value += balance;
-      continue;
-    }
-
-    const totalValue = (item.stocks_owned || 0) * (item.bid || 0);
-    total_value += totalValue;
-
-    const profitLossPrice = totalValue - (item.total_entry_value || 0);
-    profit_loss_price += profitLossPrice;
-
-    const totalEntryValue = parseGermanNumber(item.total_entry_value);
-    total_entry_value += totalEntryValue;
-
-    const totalPositionTarget = parseGermanNumber(item.position_target_percentage);
-    position_target_percentage += totalPositionTarget;
-
-    const totalFutureTotal = parseGermanNumber(item.future_total_value);
-    future_total_value += totalFutureTotal;
-
-    const totalProfitLossTargetPerDay = parseGermanNumber(item.profit_loss_target_per_day);
-    profit_loss_target_per_day += totalProfitLossTargetPerDay;
-  }
-
-  const profit_loss_percentage = total_entry_value > 0
-    ? ((total_value / total_entry_value) - 1) * 100
-    : 0;
-
-  const position_percentage = totalAll > 0
-    ? Number(((total_value / totalAll) * 100).toFixed(2))
-    : 0;
-
-  return {
-    total_entry_value,
-    profit_loss_price,
-    profit_loss_percentage,
-    total_value,
-    position_percentage,
-    position_target_percentage,
-    future_total_value,
-    profit_loss_target_per_day,
-  };
-}
-
 // Memoized map of groupId -> totals to avoid repeated heavy computation in templates
 const groupTotalsMap = computed(() => {
   const map = {} as Record<string, any>;
@@ -2134,55 +2121,9 @@ const scopedPositionPercentage = (row:any) => {
 const listTotal = ref<any>({});
 // "Total" used to sit only in the broker column, so it vanished whenever broker was hidden
 const footerLabelColumn = computed(() => columnOrder.value.find((id: string) => id !== 'select'));
-const TOTAL_COLUMNS = [
-  'total_entry_value', 'profit_loss_price',
-  'total_value','future_total_value',
-  'profit_loss_target',
-  'profit_loss_target_per_day',
-  'profit_loss_percentage', //keep this last for manual process
-];
-const WEIGHTED_COLUMNS = ['distance_to_the_cap', 'sideways_return_pa'];
 // Ticks like the row badges, else the total outlives them at 22:00.
 const peerClock = useNow({ interval: 60_000 });
 const showPeerTotal = (total:any) => !peerLocked.value && !isFeedBlocked() && daysUntilMarketOpen(peerClock.value) < 0 && parseFloat(total?.peer_members) > 0;
-
-function sumTotals(rows:any) {
-  const totals:any = {};
-  for (const key of TOTAL_COLUMNS) {
-    totals[key] = rows.reduce((sum:any, row:any) => {
-      let value = parseFloat(row[key]);
-      return sum + (isNaN(value) ? 0 : value);
-    }, 0);
-  }
-
-  //custom calculation
-  // Guarded: a filter matching only cash or zero-cost rows would otherwise show NaN or Infinity
-  totals.profit_loss_percentage = totals.total_entry_value
-    ? ((totals.total_value / totals.total_entry_value) - 1) * 100 : 0;
-
-  // Weighted by total_value, not position_percentage: that one is portfolio-wide and wrong under a filter
-  let weightSum = 0, distSum = 0, sidewaysSum = 0;
-  for (const row of rows) {
-    if (!isDerivativeType(row.type) || row.stock_name === 'Cash') continue;
-    const weight = parseFloat(row.total_value);
-    if (!(weight > 0)) continue;
-    weightSum += weight;
-    distSum += (parseFloat(row.distance_to_the_cap) || 0) * weight;
-    sidewaysSum += (parseFloat(row.sideways_return_pa) || 0) * weight;
-  }
-  totals.distance_to_the_cap = weightSum ? distSum / weightSum : 0;
-  totals.sideways_return_pa = weightSum ? sidewaysSum / weightSum : 0;
-
-  // Same formula as the per-row badge in PeerProductsCard
-  totals.peer_members = rows.reduce((sum:number, row:any) =>
-    sum + (row.peer_switch?.gainPerPiece || 0) * (Number(row.stocks_owned) || 0), 0);
-
-  //convert to german
-  for (const key in totals) {
-    totals[key] = parseFloat(totals[key]).toFixed(2);
-  }
-  return totals;
-}
 
 async function calculateTotals(saveDaily = true) {
   const allRows = accountViewFilter(mainListData.value);
@@ -2208,12 +2149,18 @@ const filteredTotal = computed(() => sumTotals(filteredLeafRows.value));
 
 
 // No hover override: gray-300 hover with black text broke dark mode; ghost variant already has a themed hover
-const getSortingHeader = (column:any, label:any) => sortableHeader(column, t(label));
+// Header text: the user's own name for the column if set, else the translated default.
+const columnLabels = ref<Record<string, string>>({});
+const colLabel = (id:string, key = id) => columnLabelOf(columnLabels.value, id, t(key));
+onMounted(async () => { columnLabels.value = await columnLabelsGet(); });
+onUnmounted(columnLabelsWatch((labels) => { columnLabels.value = labels; }));
+
+const getSortingHeader = (column:any, label:any) => sortableHeader(column, colLabel(column.id, label));
 // Sorting a column with no data does nothing, so a locked column gets a lock in place of the sort button.
 const lockedHeader = (label:string) => h('span', {
   class: 'inline-flex h-9 items-center gap-2 px-4 text-sm font-medium',
   title: t('peer_members_needs_subscription'),
-}, [t(label), h(Lock, { class: 'h-4 w-4', 'aria-hidden': 'true' })]);
+}, [colLabel(label), h(Lock, { class: 'h-4 w-4', 'aria-hidden': 'true' })]);
 
 
 const controllers: AbortController[] = [];
@@ -2523,7 +2470,9 @@ const exportCSV = () => {
   const delimiter = exportDelimiter.value;
   const activeColumns = columns.value.filter(col => !['select','id','profile_photo','actions'].includes(col.id));
 
-  const header = activeColumns.map(col => col.id).join(delimiter) + '\n';
+  // A custom name may hold the delimiter or a quote; unquoted it would shift every column after it.
+  const csvCell = (name:string) => (name.includes(delimiter) || name.includes('"') ? `"${name.replace(/"/g, '""')}"` : name);
+  const header = columnExportNames(activeColumns.map(col => col.id), columnLabels.value).map(csvCell).join(delimiter) + '\n';
   const body = rowsToExport()
     .map(row => activeColumns.map(col => exportCellValue(row, col) ?? '').join(delimiter))
     .join('\n');
@@ -2534,10 +2483,11 @@ const exportCSV = () => {
 const exportXlsx = async () => {
   const activeColumns = columns.value.filter(col => !['select', 'id', 'actions'].includes(col.id));
 
+  const names = columnExportNames(activeColumns.map(col => col.id), columnLabels.value);
   const exportData = rowsToExport().map(row => {
     const newRow:any = {};
-    activeColumns.forEach(col => {
-      newRow[col.id] = exportCellValue(row, col);
+    activeColumns.forEach((col, i) => {
+      newRow[names[i]] = exportCellValue(row, col);
     });
     return newRow;
   });
@@ -2554,8 +2504,6 @@ const exportXlsx = async () => {
 const wknLink = ref('');
 const isinLink = ref('');
 const priceUpdateDuration = ref(30);
-const telegramBotToken = ref('');
-const telegramChannelId = ref('');
 
 const loadingRows = ref(14);
 const isLoading = ref(true);
@@ -2616,8 +2564,6 @@ onMounted( async() => {
     isinLink.value         = settings.isin_link           ?? '';
     exportDelimiter.value  = settings.export_delimiter    ?? ';';
     priceUpdateDuration.value = Number(settings.price_duration) > 0 ? Number(settings.price_duration) : 30;
-    telegramBotToken.value = settings.telegram_bot_token  ?? '';
-    telegramChannelId.value= settings.telegram_channel_id ?? '';
   }
 
   if (isLeaving) return;
@@ -2664,7 +2610,6 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
     return;
   }
   activeRefreshes.value++;
-  let updated = false;
   try {
     // Prices first: on the first open of a day the products/peers pass alone nearly fills a feed window.
     if(!isPriceReload){
@@ -2705,14 +2650,11 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
 
     calculateTotals();
     await getLatestListData();
-    updated = true;
   } catch (err) {
     // Cached rows are already on screen; the next interval or Reload retries.
     console.error('refreshFromNetwork error:', err);
   } finally {
     activeRefreshes.value--;
-    // After the decrement: checkAlerts skips while any pass runs, and a later pass checks on its own end.
-    if (updated && !isLeaving) checkAlerts();
   }
 }
 
@@ -2853,26 +2795,10 @@ function getTitleForHL(field:any, currentValue:any) {
   return hl ? t(hl === 'high' ? 'column_highest' : 'column_lowest') : undefined;
 }
 
-const UNIT_PRICE_FIELDS = ['buy_price', 'bid', 'ask'];
-// Alert values on unit-price fields use the same precision as the table cell.
-const alertValueText = (value:any, field:string, instrumentType?:string) =>
-  UNIT_PRICE_FIELDS.includes(field) ? unitPriceToGerman(value, instrumentType) : numberToGerman(value);
-
 // alert.type is the alert scope (stock/group/total); the instrument type lives on the position row.
 const alertRowType = (alert:any) => alert.type === 'stock'
   ? mainListData.value.find((i:any) => i.wkn === alert.type_id && i.stock_name === alert.stock_name && alertMatchesRow(alert, i))?.type
   : undefined;
-
-// Alerts written before the multi-account key carry no account, so they keep
-// matching on wkn alone rather than going silent.
-function alertMatchesRow(alert:any, item:any) {
-  if (!alert?.account_id) return true;
-  // A combined row stands for all its accounts, so any child's alert shows on it.
-  if (item?.isCombined) {
-    return alert.broker === item.broker && (item.combined_accounts || []).includes(alert.account_id);
-  }
-  return accountKeyOf(item) === accountKeyOf(alert);
-}
 
 // Called per cell, so bucket once instead of scanning every alert per cell.
 const alertsByKey = computed(() => {
@@ -2933,14 +2859,7 @@ const alertForm = reactive<any>({
 });
 
 
-const CONDITION_KEYS:any = {
-  '>=': 'condition_gte',
-  '>': 'condition_gt',
-  '<=': 'condition_lte',
-  '<': 'condition_lt',
-  '==': 'condition_eq',
-};
-// stored values stay symbols (isConditionSatisfied matches on them); only the label is spelled out
+// stored values stay symbols (evaluateAlerts matches on them); only the label is spelled out
 const conditionLabel = (value: string) => CONDITION_KEYS[value] ? t(CONDITION_KEYS[value]) : value;
 const conditionOptions = computed(() => Object.keys(CONDITION_KEYS)
   .map((value) => ({ value, label: conditionLabel(value) })));
@@ -2954,30 +2873,30 @@ const fieldOptions = ref<any[]>([]);
 function setAlertFields(){
   if(alertType.value=='stock'){
     fieldOptions.value = [
-      { value: 'bid', label: t('bid_price') },
-      { value: 'profit_loss_price', label: t('profit_loss_price') },
-      { value: 'profit_loss_percentage', label: t('profit_loss_percentage') },
-      { value: 'sideways_return_pa', label: t('sideways_return_pa') },
-      { value: 'underlying_price', label: t('underlying_price') },
-      { value: 'yield_pa_since_purchase', label: t('yield_pa_since_purchase') },
-      { value: 'dc_dist_cap', label: t('dc_dist_cap') },
-      { value: 'dc_dist_barrier', label: t('dc_dist_barrier') },
+      { value: 'bid', label: colLabel('bid', 'bid_price') },
+      { value: 'profit_loss_price', label: colLabel('profit_loss_price') },
+      { value: 'profit_loss_percentage', label: colLabel('profit_loss_percentage') },
+      { value: 'sideways_return_pa', label: colLabel('sideways_return_pa') },
+      { value: 'underlying_price', label: colLabel('underlying_price') },
+      { value: 'yield_pa_since_purchase', label: colLabel('yield_pa_since_purchase') },
+      { value: 'dc_dist_cap', label: colLabel('dc_dist_cap') },
+      { value: 'dc_dist_barrier', label: colLabel('dc_dist_barrier') },
     ];
   }else if(alertType.value=='total'){
     fieldOptions.value = [
-      { value: 'total_entry_value', label: t('total_entry_value') },
-      { value: 'profit_loss_price', label: t('profit_loss_price') },
-      { value: 'total_value', label: t('total_value') },
-      { value: 'future_total_value', label: t('future_total_value') },
-      { value: 'profit_loss_percentage', label: t('profit_loss_percentage') },
+      { value: 'total_entry_value', label: colLabel('total_entry_value') },
+      { value: 'profit_loss_price', label: colLabel('profit_loss_price') },
+      { value: 'total_value', label: colLabel('total_value') },
+      { value: 'future_total_value', label: colLabel('future_total_value') },
+      { value: 'profit_loss_percentage', label: colLabel('profit_loss_percentage') },
     ];
   }else if(alertType.value=='group'){
     fieldOptions.value = [
-      { value: 'total_entry_value', label: t('total_entry_value') },
-      { value: 'profit_loss_percentage', label: t('profit_loss_percentage') },
-      { value: 'profit_loss_price', label: t('profit_loss_price') },
-      { value: 'total_value', label: t('total_value') },
-      { value: 'position_percentage', label: t('position_percentage') },
+      { value: 'total_entry_value', label: colLabel('total_entry_value') },
+      { value: 'profit_loss_percentage', label: colLabel('profit_loss_percentage') },
+      { value: 'profit_loss_price', label: colLabel('profit_loss_price') },
+      { value: 'total_value', label: colLabel('total_value') },
+      { value: 'position_percentage', label: colLabel('position_percentage') },
     ];
   }
 
@@ -3033,7 +2952,10 @@ const onAlertFieldChange = (event:any) =>{
 }
 
 const alerts = ref<any[]>([]);
-async function saveAlerts() {
+// Fresh read, not the page copy: the background completes alerts while this page is open, and a stale write re-armed them.
+async function mutateAlerts(change: (list: any[]) => any[]) {
+  const fresh = await storage.getItem<any[]>('local:ALERTS') || [];
+  alerts.value = change(Array.isArray(fresh) ? fresh : []);
   await storage.setItem('local:ALERTS', JSON.parse(JSON.stringify(alerts.value)))
 }
 
@@ -3045,9 +2967,16 @@ async function loadAlerts() {
   }
 }
 
+// The background marks alerts completed; without this the list and cell highlights stayed pending until a reload.
+const unwatchAlerts = storage.watch<any[]>('local:ALERTS', (saved) => {
+  alerts.value = Array.isArray(saved) ? saved : [];
+});
+onUnmounted(unwatchAlerts);
+
 // --- MAIN functions ---
 // Create new alert
 async function createAlert() {
+  void alertRequestNotifications();
   const exists = alerts.value.some(
     (a) => a.field === alertForm.field
     && a.type_id === alertForm.type_id
@@ -3081,13 +3010,11 @@ async function createAlert() {
     status:0, //0:pending, 1:complete
   }
 
-  alerts.value.push(newAlert);
-  await saveAlerts();
+  // The background checks a newly pending alert at once, so one already met fires without waiting for prices.
+  await mutateAlerts((list) => [...list, newAlert]);
   toast({ title: t('alert_created_successfully') });
 
   closeModal();
-  // No interval any more: an alert already met would otherwise wait for the next price update.
-  checkAlerts();
 }
 
 // Update an existing alert
@@ -3125,15 +3052,16 @@ async function openEditAlert(id:any) {
 
 // Update an existing alert
 async function updateAlert(id:any) {
-  const updatedData = alertForm;
-  const idx = alerts.value.findIndex((a) => a.id === id)
-  if (idx !== -1) {
-    alerts.value[idx] = { ...alerts.value[idx], ...updatedData }
-    await saveAlerts();
-    toast({ title: t('alert_updated_successfully') });
-  }
+  void alertRequestNotifications();
+  const updatedData = { ...alertForm };
+  let found = false;
+  await mutateAlerts((list) => list.map((a) => {
+    if (a.id !== id) return a;
+    found = true;
+    return { ...a, ...updatedData };
+  }));
+  if (found) toast({ title: t('alert_updated_successfully') });
   closeModal();
-  checkAlerts();
 }
 
 // Delete an alert
@@ -3142,131 +3070,11 @@ function confirmDeleteAlert(id: string) {
 }
 
 async function deleteAlert(id: string) {
-  alerts.value = alerts.value.filter((a) => a.id !== id)
-  await saveAlerts()
+  await mutateAlerts((list) => list.filter((a) => a.id !== id));
   toast({ title: t('alert_deleted_successfully') });
 }
 
 
-// alert trigger
-const alertDialog = ref(false)
-type TriggeredAlert = {
-  alertName: string
-  contextKey: 'stock_name' | 'group_name' | null
-  stockName: string
-  field: string
-  condition: string
-  alertValue: number
-  currentValue: number
-  instrumentType?: string
-}
-const triggeredAlert = ref<TriggeredAlert | null>(null)
-
-
-import alertAudioUrl from '~/assets/alert.mp3';
-
-
-let alertCheckInFlight = false;
-async function checkAlerts() {
-  if (alertCheckInFlight) return;
-  // Cached prices are painted before the network pass; firing on them would complete alerts on stale values.
-  if (isRefreshing.value) return;
-  alertCheckInFlight = true;
-  let fired = false;
-  try {
-    // Every match fires in this pass: the next check waits for the next price update.
-    for (const alert of alerts.value) {
-      if(alert.status===1) continue; //pass if completed
-
-
-      let item;
-      let alertType = alert.type;
-      if(alertType =='stock'){
-        item = mainListData.value.find(
-          (i) => i.wkn === alert.type_id && i.stock_name === alert.stock_name && alertMatchesRow(alert, i)
-        );
-      }else if(alertType=='total'){
-        item = listTotal.value;
-      }else if(alertType=='group'){
-        item = getGroupTotals(alert.type_id);
-      }
-
-      if (!item) continue
-
-      const rawFieldValue = item[alert.field];
-      const fieldValue = rawFieldValue == null ? NaN : Number(rawFieldValue);
-
-      if (!Number.isFinite(fieldValue)) continue
-
-      if (isConditionSatisfied(fieldValue, alert.condition, alert.alert_value)) {
-
-        const contextKey: TriggeredAlert['contextKey'] =
-          alertType === 'stock' ? 'stock_name' :
-          alertType === 'group' ? 'group_name' : null;
-
-        triggeredAlert.value = {
-          alertName: alert?.alert_name ?? '',
-          contextKey,
-          stockName: alert?.stock_name ?? '',
-          field: alert.field,
-          condition: alert.condition,
-          alertValue: Number(alert.alert_value),
-          currentValue: fieldValue,
-          instrumentType: alertType === 'stock' ? item.type : undefined,
-        };
-
-        alertDialog.value = true
-        fired = true;
-
-        // Telegram message — build HTML safely with user-input fields escaped.
-        const a = triggeredAlert.value;
-        // Newlines, not <br/>: Telegram HTML mode rejects <br> and the whole alert was dropped.
-        const contextLine =
-          a.contextKey === 'stock_name'
-            ? `<strong>${t('stock_name')}</strong>: ${escapeHtml(a.stockName)}\n`
-            : a.contextKey === 'group_name'
-              ? `<strong>${t('group_name')}</strong>: ${escapeHtml(a.stockName)}\n`
-              : `<strong>${t('total')}</strong>\n`;
-        let message = `🚨${t('alert')}\n\n` +
-          `<strong>${t('alert_name')}</strong>: ${escapeHtml(a.alertName)}\n` +
-          contextLine +
-          `<strong>${t(a.field)}</strong> ${escapeHtml(a.condition)} <strong>${alertValueText(a.alertValue, a.field, a.instrumentType)}</strong>\n` +
-          `<strong>${t('current')}</strong>: ${alertValueText(a.currentValue, a.field, a.instrumentType)}`;
-        
-        if(telegramBotToken.value && telegramChannelId.value){
-          await sendTelegramMessage(telegramBotToken.value,telegramChannelId.value,message)
-        }
-
-        //update status to complet
-        const index = alerts.value.findIndex(alrt => alrt.id === alert.id);
-        if (index !== -1) {
-          alerts.value[index].status=1;
-          await saveAlerts();
-        }
-      }
-    }
-  } catch (error) {
-    console.error('checkAlerts error:', error);
-  } finally {
-    alertCheckInFlight = false;
-  }
-  if (fired) {
-    new Audio(alertAudioUrl).play().catch(() => { /* autoplay blocked: the dialog still shows */ });
-  }
-}
-
-
-function isConditionSatisfied(current: number, condition: string, target: number) {
-  switch (condition) {
-    case '==': return current == target
-    case '!=': return current != target
-    case '>': return current > target
-    case '<': return current < target
-    case '>=': return current >= target
-    case '<=': return current <= target
-    default: return false
-  }
-}
 
 
 // Keyed by position, not wkn: the same product in two accounts is two rows, and the
@@ -3369,7 +3177,8 @@ th,td {
   --tbl-row: hsl(var(--card));
   --tbl-row-alt: color-mix(in srgb, hsl(var(--muted)) 70%, hsl(var(--card)));
   --tbl-row-hover: color-mix(in srgb, hsl(var(--muted)) 90%, hsl(var(--foreground)));
-  --tbl-row-selected: color-mix(in srgb, hsl(var(--primary)) 12%, hsl(var(--card)));
+  /* chart-1 blue, not primary: primary is near-black, so its tint read as one more grey stripe */
+  --tbl-row-selected: color-mix(in srgb, var(--chart-1) 16%, hsl(var(--card)));
   font-variant-numeric: tabular-nums;
 }
 #table_list tbody tr > td { background-color: var(--tbl-row); }
@@ -3507,44 +3316,37 @@ td:has(.alert_bottom) {
 .group-child:hover > td { background-color: var(--grp-child-bg-hover) !important; }
 .group-child-last > td { border-bottom: 2px solid var(--grp-child-bar) !important; }
 
+/* one shadow on tfoot, not a rule per cell: pinned sticky cells snap to their own pixel grid and stepped the line by 1px */
+#table_list tfoot {
+  box-shadow:
+    0 -2px 0 hsl(var(--foreground) / 0.8),
+    0 -8px 8px -6px rgb(0 0 0 / 0.15),
+    /* cap below: at fractional zoom a sub-pixel seam under the stuck footer showed the rows behind it */
+    0 2px 0 hsl(var(--card));
+}
+/* scrim while rows pass under the stuck footer, so a half-cut row fades out instead of reading as a stray line */
+.footer-floating #table_list tfoot {
+  box-shadow:
+    0 -2px 0 hsl(var(--foreground) / 0.8),
+    0 -14px 10px -2px hsl(var(--card) / 0.92),
+    0 2px 0 hsl(var(--card));
+}
 /* card bg, not muted: muted matched the gray zebra so the total read as one more row */
-/* hidden, not transparent: collapsed borders never show the cell background, so the rule broke at every column gap */
 .total-row > td,
 .filtered-total-row > td {
   background-color: hsl(var(--card)) !important;
-  background-image: linear-gradient(var(--rule), var(--rule));
-  background-size: 100% var(--rule-w);
-  background-repeat: no-repeat;
   border-right-style: hidden;
   font-variant-numeric: tabular-nums;
 }
 .total-row > td {
-  --rule: hsl(var(--foreground) / 0.8);
-  --rule-w: 2px;
   color: hsl(var(--foreground));
   font-weight: 700;
 }
 /* lighter than the total, so the grand total still reads as the final figure */
 .filtered-total-row > td {
-  --rule: hsl(var(--foreground) / 0.3);
-  --rule-w: 1px;
   color: hsl(var(--foreground) / 0.75);
   font-weight: 600;
-  border-bottom-color: transparent;
-}
-/* lift only the topmost footer row, or the total's shadow falls across the filtered row */
-.filtered-total-row > td,
-.total-row:first-child > td {
-  box-shadow: 0 -6px 8px -6px rgb(0 0 0 / 0.15);
-}
-/* restate the pinned edge: the lift shadow above out-ranks .sticky_column_last */
-.filtered-total-row > td.sticky_column_last,
-.total-row:first-child > td.sticky_column_last {
-  box-shadow: 0 -6px 8px -6px rgb(0 0 0 / 0.15), inset -1px 0 0 hsl(var(--foreground) / 0.15);
-}
-.scrolled-x .filtered-total-row > td.sticky_column_last,
-.scrolled-x .total-row:first-child > td.sticky_column_last {
-  box-shadow: 0 -6px 8px -6px rgb(0 0 0 / 0.15), inset -1px 0 0 hsl(var(--foreground) / 0.15), 6px 0 8px -4px rgb(0 0 0 / 0.12);
+  border-bottom-color: hsl(var(--foreground) / 0.3);
 }
 .filtered-count {
   display: inline-block;

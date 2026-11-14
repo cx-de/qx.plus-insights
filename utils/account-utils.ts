@@ -60,23 +60,25 @@ const ROW_STORES = [
  *  View preference - shared across Home, List and Forecast
  * ------------------------------------------------------------------------- */
 
-// Module-level refs, the repo's existing cross-route reactive pattern (see apiKey in
-// helper.ts). Read synchronously so a route never paints unscoped data first.
-function accountViewRead() {
+// Account keys to show. Empty means every account - there is no separate "all" flag.
+export const accountViewSelected = ref<any[]>([]);
+
+// Off by default: combining is opt-in, so nobody's view changes until they flip it.
+export const accountViewCombined = ref<boolean>(false);
+
+// Called from home/main.ts before mount, never at import: background and content scripts load this file too.
+export function accountViewLoad() {
+  console.log("accountViewLoad");
   try {
-    const raw = localStorage.getItem('accountViewSelected');
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    // Combined first, so corrupt selection JSON cannot reset the combine switch too.
+    accountViewCombined.value = localStorage.getItem('accountViewCombined') === 'true';
+    const parsed = JSON.parse(localStorage.getItem('accountViewSelected') || '[]');
+    accountViewSelected.value = Array.isArray(parsed) ? parsed : [];
   } catch (err) {
-    // Content scripts auto-import this too, where localStorage is the broker page's.
-    console.error('accountViewRead error:', err);
-    return [];
+    /* corrupt JSON or blocked storage: an empty selection shows every account */
+    console.error('accountViewLoad error:', err);
   }
 }
-
-// Account keys to show. Empty means every account - there is no separate "all" flag.
-export const accountViewSelected = ref<any[]>(accountViewRead());
 
 // Bumped whenever the set of known accounts changes, so every open page can reload
 // itself. Same module-ref pattern as apiKey in helper.ts.
@@ -90,19 +92,6 @@ export function accountViewSave() {
     console.error('accountViewSave error:', err);
   }
 }
-
-function accountViewCombinedRead() {
-  try {
-    return localStorage.getItem('accountViewCombined') === 'true';
-  } catch (err) {
-    // Same content-script caveat as accountViewRead; off is the safe default.
-    console.error('accountViewCombinedRead error:', err);
-    return false;
-  }
-}
-
-// Off by default: combining is opt-in, so nobody's view changes until they flip it.
-export const accountViewCombined = ref<boolean>(accountViewCombinedRead());
 
 export function accountViewCombinedSave() {
   try {

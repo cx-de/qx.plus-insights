@@ -117,6 +117,8 @@
   "search": "Suche",
   "search_columns": "Spalten suchen",
   "pin_column": "Spalte fixieren",
+  "rename_column": "Spalte umbenennen",
+  "reset_column_name": "Standardnamen wiederherstellen",
   "unpin_column": "Fixierung lösen",
   "pinned_columns": "Fixiert",
   "columns": "Spalten",
@@ -147,6 +149,15 @@
   "alerts": "Alarme",
   "current": "Aktuell",
   "alert_triggered": "Alarm ausgelöst",
+  "alerts_triggered_count": "{count} Alarme ausgelöst",
+  "alert_dialog": {
+      "single_text": "Ihr Alarm „{name}“ wurde am {time} ausgelöst.",
+      "single_text_unnamed": "Ihr Alarm wurde am {time} ausgelöst.",
+      "multi_text": "Der älteste wurde am {time} ausgelöst.",
+      "threshold": "Grenze",
+      "portfolio_total": "Gesamtportfolio",
+      "show_in_list": "In Liste anzeigen"
+  },
   "active": "Aktiv",
   "completed": "Abgeschlossen",
   "alert": "Alarm",
@@ -308,6 +319,7 @@
     "csv": "CSV",
     "xlsx": "XLSX",
     "current_forecast": "Aktuelle Prognose",
+    "forecast_reinvest": "Prognose + Reinvest",
     "scenario_effect_on_the_target_value": "Szenario-Effekt auf den Zielwert",
     "portfolio_value_in_euro": "Portfolio-Wert in Euro",
     "until": "bis",
@@ -484,7 +496,7 @@
         "hint_token": "Aus Schritt 1 der Einrichtung.",
         "hint_channel": "Aus Schritt 4. Öffentliche Kanäle können auch {'@'}name nutzen.",
         "test_disabled": "Füllen Sie beide Felder aus, um einen Test zu senden.",
-        "list_note": "Alarme legen Sie auf der Seite {list} an. Sie werden geprüft, solange diese Seite geöffnet ist."
+        "list_note": "Alarme legen Sie auf der Seite {list} an. Sie werden bei jeder Kursaktualisierung im Hintergrund geprüft, solange der Browser läuft, auch bei geschlossenem Dashboard."
     },
     "menu": "Menü",
     "change_since_yesterday": "Veränderung seit gestern",

@@ -1,16 +1,16 @@
 <template>
   <!-- Sample banner: keeps made-up numbers from being mistaken for a real portfolio. -->
   <div v-if="isSample" role="status"
-    class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card px-4 py-2.5 shadow-xs text-sm">
-    <div class="flex min-w-0 flex-1 items-center gap-3">
+    class="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border bg-card px-3 py-1.5 shadow-xs text-sm">
+    <div class="flex min-w-0 flex-1 items-center gap-2.5">
       <Badge variant="secondary" class="shrink-0">{{ $t('tour.sample.badge') }}</Badge>
       <span class="font-medium text-foreground">{{ $t('tour.sample.banner') }}</span>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <Button size="sm" variant="ghost" @click="remove()">{{ $t('tour.sample.remove') }}</Button>
+      <Button size="sm" variant="ghost" class="h-7" @click="remove()">{{ $t('tour.sample.remove') }}</Button>
       <!-- Subscription is a second step, so connecting stays the one primary action -->
-      <Button v-if="apiKeyLoaded && !apiKey" size="sm" variant="outline" class="bg-background" as="a" :href="PRICING_URL" target="_blank" rel="noopener noreferrer">{{ $t('start_subscription') }}</Button>
-      <Button size="sm" @click="connect()">{{ $t('tour.sample.connect') }}</Button>
+      <Button v-if="apiKeyLoaded && !apiKey" size="sm" variant="outline" class="h-7 bg-background" as="a" :href="PRICING_URL" target="_blank" rel="noopener noreferrer">{{ $t('start_subscription') }}</Button>
+      <Button size="sm" class="h-7" @click="connect()">{{ $t('tour.sample.connect') }}</Button>
     </div>
   </div>
 </template>

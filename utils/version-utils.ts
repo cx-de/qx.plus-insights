@@ -1,5 +1,6 @@
 import { storage } from '#imports';
-import { apiBaseUrl } from './helper';
+// Not from helper.ts: that drags vue, i18n and account-utils into the service worker.
+import { API_BASE_URL } from './constants';
 
 const CHECK_KEY = 'local:VERSION_CHECK';
 const FAIL_KEY = 'local:VERSION_CHECK_FAIL';
@@ -22,7 +23,7 @@ async function fetchVersionInfo() {
   // The App Store updates Safari; the Chrome fallback below would announce releases Safari cannot install.
   if (import.meta.env.BROWSER === 'safari') return null;
   try {
-    const url = new URL('../extension/version', apiBaseUrl);
+    const url = new URL('../extension/version', API_BASE_URL);
     url.searchParams.set('current', installedVersion());
     // The backend 422s any other target, which would hide updates from e.g. an Opera build.
     const target = ['chrome', 'edge', 'firefox'].includes(import.meta.env.BROWSER) ? import.meta.env.BROWSER : 'chrome';

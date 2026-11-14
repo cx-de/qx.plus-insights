@@ -3,7 +3,7 @@
       <Toaster />
       <SupportWidget />
       <div class="flex min-h-screen w-full flex-col bg-muted/40">
-        <div class="flex flex-col sm:gap-4 sm:py-1 sm:pl-14">
+        <div class="flex flex-col sm:gap-4 sm:py-1 sm:pl-14" :class="{ 'sm:h-dvh': route.meta.fitViewport }">
 
       <aside class="fixed inset-y-0 left-0 z-10 hidden w-14 flex-col border-r bg-background sm:flex">
         <TooltipProvider>
@@ -32,7 +32,7 @@
         </aside>
 
         <!-- Aside is hidden below sm, which left narrow windows with no navigation at all -->
-        <header class="sticky top-0 z-10 flex h-12 items-center gap-2 border-b bg-background px-3 sm:hidden">
+        <header class="sticky top-0 z-10 flex h-12 shrink-0 items-center gap-2 border-b bg-background px-3 sm:hidden">
           <Sheet v-model:open="isMobileNavOpen">
             <SheetTrigger as-child>
               <Button size="icon" variant="ghost" class="h-9 w-9" :aria-label="$t('menu')">
@@ -55,10 +55,14 @@
           <span class="text-sm font-semibold">QX+ Insights</span>
         </header>
 
-        <main class="grid flex-1 items-start gap-4 sm:py-0 md:gap-8">
+        <main :class="route.meta.fitViewport ? 'flex min-h-0 flex-1 flex-col' : 'grid flex-1 items-start gap-4 sm:py-0 md:gap-8'">
           <!-- min-w-0: a grid item grows to its widest child, which pushed banner buttons past the window edge -->
-          <div class="min-w-0 p-3 sm:p-5">
-            <ApiKeyNotice />
+          <div class="min-w-0 p-3 sm:p-5" :class="{ 'flex min-h-0 flex-1 flex-col': route.meta.fitViewport }">
+            <!-- One stack so fit-to-window pages size around however many banners show -->
+            <div class="mb-3 flex shrink-0 flex-col gap-2 empty:mb-0">
+              <ApiKeyNotice />
+              <SampleDataBanner />
+            </div>
             <slot />
           </div>
         </main>
@@ -72,6 +76,7 @@
   
   import { applyTheme, getApiKey, saveDailyTotal, todayIso } from '~/utils/helper'
   import ApiKeyNotice from '~/components/ApiKeyNotice.vue'
+  import SampleDataBanner from '~/components/SampleDataBanner.vue'
   import SupportWidget from '~/components/SupportWidget.vue'
   
   import {

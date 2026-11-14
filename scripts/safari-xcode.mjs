@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const build = resolve(root, '.output/safari-mv3');
-// Outside the repo: the Xcode project holds signing settings and must not ride along in the sources zip.
+// Outside the repo: the Xcode project holds signing settings and must never be committed.
 const project = resolve(root, '../qxplus_safari');
 
 if (process.platform !== 'darwin') {

@@ -823,6 +823,8 @@ export const clearAllStockData = async () => {
   await storage.removeItem('local:CUR_CONSORSBANKID');
   // SmartBroker+ had no identity key at all before multi-account.
   await storage.removeItem('local:CUR_SMARTBROKERID');
+  // A reset must not reopen the alert dialog for positions that no longer exist.
+  await storage.removeItem('local:ALERT_EVENTS');
   
 }
 

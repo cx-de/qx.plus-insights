@@ -130,14 +130,17 @@ describe('importAll', () => {
   });
 
   it('keeps the user language and theme when the sample is imported', async () => {
-    localStorage.setItem('lang', 'en');
+    await storage.setItem('local:LANG', 'en');
     localStorage.setItem('theme', 'dark');
     await importAll(backupFile({
-      extension: [{ key: 'local:SAMPLE_DATA', value: true }, { key: 'local:MAIN_LIST', value: [] }],
+      extension: [{ key: 'local:SAMPLE_DATA', value: true }, { key: 'local:MAIN_LIST', value: [] }, { key: 'local:LANG', value: 'de' }],
       local: { lang: 'de', theme: 'light', columnOrder: ['stock_name'] },
     }));
 
-    expect([localStorage.getItem('lang'), localStorage.getItem('theme')]).toEqual(['en', 'dark']);
+    expect(await storage.getItem('local:LANG')).toBe('en');
+    // An old backup's localStorage language must not come back as a second, unread copy.
+    expect(localStorage.getItem('lang')).toBeNull();
+    expect(localStorage.getItem('theme')).toBe('dark');
     expect(localStorage.getItem('columnOrder')).toBe('["stock_name"]');
   });
 
@@ -211,5 +214,56 @@ describe('contentSampleGate', () => {
     expect(await contentSampleGate()).toBe('replaced');
     expect(await storage.getItem('local:SAMPLE_DATA')).toBeNull();
     expect(await storage.getItem('local:api_key')).toBe('qxp_test');
+  });
+});
+
+describe('column names in backups', () => {
+  const labelsOf = () => storage.getItem('local:COLUMN_LABELS');
+
+  it('exports custom column names', async () => {
+    await storage.setItem('local:MAIN_LIST', [{ wkn: 'X' }]);
+    await storage.setItem('local:COLUMN_LABELS', { profit_loss_price: 'G/V' });
+    const backup = await exportedBackup();
+    expect(backup.extension.find((item: any) => item.key === 'local:COLUMN_LABELS')?.value).toEqual({ profit_loss_price: 'G/V' });
+  });
+
+  it('restores column names from the backup over this device', async () => {
+    await storage.setItem('local:COLUMN_LABELS', { bid: 'Geld' });
+    await importAll(backupFile({ extension: [
+      { key: 'local:MAIN_LIST', value: [{ wkn: 'X' }] },
+      { key: 'local:COLUMN_LABELS', value: { profit_loss_price: 'G/V' } },
+    ] }));
+    expect(await labelsOf()).toEqual({ profit_loss_price: 'G/V' });
+  });
+
+  it('cleans a broken value instead of failing the import', async () => {
+    await importAll(backupFile({ extension: [
+      { key: 'local:MAIN_LIST', value: [{ wkn: 'NEW' }] },
+      { key: 'local:COLUMN_LABELS', value: [1, 2] },
+    ] }));
+    expect(await storage.getItem('local:MAIN_LIST')).toEqual([{ wkn: 'NEW' }]);
+    expect(await labelsOf()).toEqual({});
+
+    await importAll(backupFile({ extension: [
+      { key: 'local:MAIN_LIST', value: [{ wkn: 'NEW' }] },
+      { key: 'local:COLUMN_LABELS', value: { Bad: 'x', a: 5, bid: ' Geld\n' } },
+    ] }));
+    expect(await labelsOf()).toEqual({ bid: 'Geld' });
+  });
+
+  it('keeps this device names when an older backup has none', async () => {
+    await storage.setItem('local:COLUMN_LABELS', { profit_loss_price: 'G/V' });
+    await importAll(backupFile({ extension: [{ key: 'local:MAIN_LIST', value: [{ wkn: 'X' }] }] }));
+    expect(await labelsOf()).toEqual({ profit_loss_price: 'G/V' });
+  });
+
+  it('keeps column names when demo data is cleared', async () => {
+    await storage.setItems([
+      { key: 'local:SAMPLE_DATA', value: true },
+      { key: 'local:COLUMN_LABELS', value: { profit_loss_price: 'G/V' } },
+    ]);
+    await storageClearKeepPrivate();
+    expect(await storage.getItem('local:SAMPLE_DATA')).toBeNull();
+    expect(await labelsOf()).toEqual({ profit_loss_price: 'G/V' });
   });
 });

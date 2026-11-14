@@ -13,20 +13,18 @@ export default defineConfig({
   // packageVersion, not version: WXT 0.21 changed what {{version}} resolves to
   zip: {
     artifactTemplate: 'qx-plus-insights-{{packageVersion}}-{{browser}}.zip',
-    sourcesTemplate: 'qx-plus-insights-{{packageVersion}}-sources.zip',
-    // Allowlist, not blocklist: the sources zip goes to AMO and public releases, so stray local files must never ride along.
-    includeSources: [
-      'assets/**', 'components/**', 'entrypoints/**', 'lib/**', 'public/**', 'utils/**',
-      'components.json', 'package.json', 'package-lock.json', 'tsconfig.json', 'wxt.config.ts',
-      'README.md', 'LICENSE', 'SECURITY.md', 'PRIVACY.md', 'examples/**', 'scripts/**', 'vendor/**',
-    ],
+    // WXT zips sources for every Firefox build unless told not to
+    zipSources: false,
   },
   manifest: ({ browser }) => ({
     name: 'QX+ Insights',
     version: pkg.version,
     description:
       'Mehr Durchblick an der Börse: Mit zusätzlichen Insights und Details behalten Sie jederzeit die volle Kontrolle über Ihre Depots.',
-    permissions: ['storage', 'unlimitedStorage'],
+    // alarms carries no install warning; a new warning on update would disable the extension until re-enabled
+    permissions: ['storage', 'unlimitedStorage', 'alarms'],
+    // Warns "Display notifications", so it is asked for when the user saves an alert, not on update
+    optional_permissions: ['notifications'],
     ...(browser !== 'firefox' && browser !== 'safari' && { minimum_chrome_version: '116' }),
     // Derived from API_BASE_URL so the code can never call a host the manifest doesn't allow
     host_permissions: [`${new URL(API_BASE_URL).origin}/*`],

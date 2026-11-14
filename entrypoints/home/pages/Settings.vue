@@ -697,7 +697,8 @@ const languageOptions = [
 
 const setLanguage = (lang: string) => {
   i18n.global.locale = lang as typeof i18n.global.locale;
-  localStorage.setItem('lang', lang);
+  // The watch in i18n.ts carries it to other tabs, bank pages and the background.
+  void languageSave(lang);
 };
 
 // Arrow keys move and select inside a radiogroup; only the checked option is a tab stop.
@@ -894,10 +895,8 @@ const clearData = async () => {
   // A half-done guide or the sample flag would otherwise reopen against data that no longer exists.
   await storage.removeItems(['local:TOUR', 'local:TOUR_CELEBRATED', 'local:SAMPLE_DATA']);
   const keepTheme = localStorage.getItem('theme');
-  const keepLang = localStorage.getItem('lang');
   localStorage.clear();
   if (keepTheme) localStorage.setItem('theme', keepTheme);
-  if (keepLang) localStorage.setItem('lang', keepLang);
   toast({ title: t('data_cleared_successfully'), description: t('settings_page.reloading') });
   // pages kept showing the cleared data until a manual reload
   setTimeout(() => { location.reload(); }, 1500);

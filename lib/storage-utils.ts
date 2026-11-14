@@ -1,5 +1,6 @@
 import { browser, storage } from '#imports';
 import { accountClearCurrentIds } from '@/utils/account-utils';
+import { columnLabelsNormalize } from '@/utils/column-label-utils';
 
 // Values whose localStorage form is JSON text; everything else is restored as the plain string.
 const jsonLocalKeys = ['tableSortState', 'columnOrder', 'stickyColumns', 'tableExpanded', 'accountViewSelected'];
@@ -8,12 +9,16 @@ const jsonLocalKeys = ['tableSortState', 'columnOrder', 'stickyColumns', 'tableE
 const coreKeys = ['local:MAIN_LIST', 'local:LIST_DATA', 'local:settings'];
 const arrayKeys = ['local:MAIN_LIST', 'local:LIST_DATA', 'local:ALERTS', 'local:scenarios', 'local:DAILY_TOTAL', 'local:ACCOUNTS'];
 
-// Credentials and server-controlled state: never written to a backup file, never taken from one.
+// Credentials and server-controlled or device state: never written to a backup file, never taken from one.
 // The flatex probe trio stays together: a hash from this device with an account from the file would mislabel positions.
+// PRICES_UPDATED_AT is this device's last pass; a copied stamp would hold back the background alert refresh.
 const privateKeys = ['local:api_key', 'local:api_auth_failed', 'local:api_auth_failed_at', 'local:api_auth_fail_count',
   'local:flatexProbedToken', 'local:flatexProbedTokenHash', 'local:flatexProbedAccount', 'local:flatexProbeFailedAt', 'local:flatexUserSync',
-  'local:VERSION_CHECK', 'local:api_rate_limit', 'local:UPDATE_SNOOZE', 'local:VERSION_CHECK_FAIL', 'local:UPDATE_READY', 'local:REOPEN_DASHBOARD', 'local:ACCOUNT_SNOOZE', 'local:FLATEX_SYNC_LOCK'];
+  'local:VERSION_CHECK', 'local:api_rate_limit', 'local:UPDATE_SNOOZE', 'local:VERSION_CHECK_FAIL', 'local:UPDATE_READY', 'local:REOPEN_DASHBOARD', 'local:ACCOUNT_SNOOZE', 'local:FLATEX_SYNC_LOCK',
+  'local:ALERT_EVENTS', 'local:LANG', 'local:PRICES_UPDATED_AT'];
 const privateSettings = ['telegram_bot_token', 'telegram_channel_id'];
+// Display preferences: exported like portfolio data, but a demo wipe or a backup that lacks them keeps this device's copy.
+const keptPreferences = ['local:COLUMN_LABELS'];
 
 const isCash = (row: any) => String(row?.stock_name ?? '').trim().toLowerCase() === 'cash';
 const countOf = (value: any) => (Array.isArray(value) ? value.length : 0);
@@ -172,6 +177,8 @@ export async function importAll(file: File) {
 
   const kept = await storage.getItems(privateKeys as any);
   const currentSettings: any = await storage.getItem('local:settings');
+  const keptPrefs = (await storage.getItems(keptPreferences as any))
+    .filter((item: any) => !parsed.extension.some((entry: any) => entry?.key === item.key));
 
   // A failed write after clear() would otherwise leave the user with no data at all.
   const before = await storage.snapshot('local');
@@ -179,7 +186,9 @@ export async function importAll(file: File) {
   await storage.clear('local');
   const entries = parsed.extension
     .filter((item: any) => item?.key && !privateKeys.includes(item.key) && item.value !== null && item.value !== undefined)
-    .map((item: any) => (item.key === 'local:settings' ? { ...item, value: sanitizeSettings(item.value, currentSettings) } : item));
+    .map((item: any) => (item.key === 'local:settings' ? { ...item, value: sanitizeSettings(item.value, currentSettings) } : item))
+    // Cleaned, not rejected: a broken header name is no reason to fail a whole portfolio restore.
+    .map((item: any) => (item.key === 'local:COLUMN_LABELS' ? { ...item, value: columnLabelsNormalize(item.value) } : item));
   // The file has no settings to merge into, so carry this device's Telegram credentials over on their own.
   const credentials = Object.fromEntries(privateSettings.filter(field => currentSettings?.[field] !== undefined)
     .map(field => [field, currentSettings[field]]));
@@ -189,7 +198,7 @@ export async function importAll(file: File) {
     await storage.setItems([
       ...entries.map((item: any) => ({ key: item.key, value: item.value })),
       ...keptSettings,
-      ...kept.filter((item: any) => item.value !== null && item.value !== undefined),
+      ...[...kept, ...keptPrefs].filter((item: any) => item.value !== null && item.value !== undefined),
     ]);
   } catch (err) {
     console.error('importAll error:', err);
@@ -200,10 +209,12 @@ export async function importAll(file: File) {
 
   const isSample = entries.some((item: any) => item.key === 'local:SAMPLE_DATA');
   if (parsed.local) {
-    // The sample carries its own language and theme; the user's choice must survive it.
-    const keepLocal = isSample ? ['theme', 'lang'].map(key => [key, localStorage.getItem(key)]) : [];
+    // The sample carries its own theme; the user's choice must survive it. Language lives in local:LANG.
+    const keepLocal = isSample ? ['theme'].map(key => [key, localStorage.getItem(key)]) : [];
     localStorage.clear();
     for (const [key, value] of Object.entries(parsed.local)) {
+      // Older backups carry 'lang' here; restoring it would leave a second copy nothing reads.
+      if (key === 'lang') continue;
       try {
         localStorage.setItem(key, jsonLocalKeys.includes(key) ? JSON.stringify(value) : (value as any));
       } catch (err) {
@@ -233,7 +244,7 @@ export async function importAll(file: File) {
 // Extension storage only, so content scripts can call it: their localStorage is the broker page's, not ours.
 export async function storageClearKeepPrivate() {
   console.log('storageClearKeepPrivate');
-  const kept = await storage.getItems(privateKeys as any);
+  const kept = await storage.getItems([...privateKeys, ...keptPreferences] as any);
   const currentSettings: any = await storage.getItem('local:settings');
   // Telegram credentials sit inside settings, not in privateKeys; carry them over as importAll does.
   const credentials = Object.fromEntries(privateSettings.filter(field => currentSettings?.[field] !== undefined)
@@ -249,7 +260,7 @@ export async function storageClearKeepPrivate() {
 export async function resetAll() {
   console.log('resetAll');
   await storageClearKeepPrivate();
-  const keepLocal = ['theme', 'lang'].map(key => [key, localStorage.getItem(key)]);
+  const keepLocal = ['theme'].map(key => [key, localStorage.getItem(key)]);
   localStorage.clear();
   for (const [key, value] of keepLocal) if (value) localStorage.setItem(key as string, value);
 }

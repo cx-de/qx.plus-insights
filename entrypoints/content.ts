@@ -1,4 +1,4 @@
-import { i18n } from '~/entrypoints/home/i18n';
+import { i18n, i18nSyncLanguage } from '~/entrypoints/home/i18n';
 import {
   flatexSyncState,
   flatexRunSync,
@@ -23,6 +23,13 @@ export default defineContentScript({
   async main(ctx) {
     // Tells the background this tab uses the extension, so a downloaded update waits instead of orphaning it.
     versionAnswerInUse();
+    // The bank page's localStorage is not ours, so the language comes from extension storage.
+    try {
+      await i18nSyncLanguage();
+    } catch (err) {
+      /* the default language still labels the buttons; scraping must not stop over it */
+      console.error('i18nSyncLanguage error:', err);
+    }
     const updateDuration = BROKER_REFRESH_MS;
 
     const kontoFlatexWebsite = 'konto.flatex.de';

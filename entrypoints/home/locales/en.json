@@ -117,6 +117,8 @@
     "search": "Search",
     "search_columns": "Search columns",
     "pin_column": "Pin column",
+    "rename_column": "Rename column",
+    "reset_column_name": "Reset to default name",
     "unpin_column": "Unpin column",
     "pinned_columns": "Pinned",
     "columns": "Columns",
@@ -147,6 +149,15 @@
     "alerts": "Alerts",
     "current": "Current",
     "alert_triggered": "Alert Triggered",
+    "alerts_triggered_count": "{count} alerts triggered",
+    "alert_dialog": {
+        "single_text": "Your alert “{name}” triggered on {time}.",
+        "single_text_unnamed": "Your alert triggered on {time}.",
+        "multi_text": "The oldest triggered on {time}.",
+        "threshold": "Threshold",
+        "portfolio_total": "Whole portfolio",
+        "show_in_list": "Show in list"
+    },
     "active": "Active",
     "completed": "Completed",
     "alert": "Alert",
@@ -308,6 +319,7 @@
     "csv": "CSV",
     "xlsx": "XLSX",
     "current_forecast": "Current Forecast",
+    "forecast_reinvest": "Forecast + reinvest",
     "scenario_effect_on_the_target_value": "Scenario effect on the target value",
     "portfolio_value_in_euro": "Portfolio value in Euro",
     "until": "until",
@@ -484,7 +496,7 @@
         "hint_token": "From step 1 of the setup guide.",
         "hint_channel": "From step 4. Public channels can also use {'@'}name.",
         "test_disabled": "Fill in both fields to send a test.",
-        "list_note": "Create alerts on the {list} page. They are checked while that page is open."
+        "list_note": "Create alerts on the {list} page. They are checked in the background whenever prices update, while the browser is running, even with this dashboard closed."
     },
     "menu": "Menu",
     "change_since_yesterday": "Change since yesterday",

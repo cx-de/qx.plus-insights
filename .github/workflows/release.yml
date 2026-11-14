@@ -85,5 +85,7 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" release-files/qx-plus-insights-*.zip release-files/sample_backup.json release-files/SHA256SUMS.txt \
             --title "QX+ Insights $GITHUB_REF_NAME" \
-            --notes "Verify a download: \`gh attestation verify <file> --repo $GH_REPO\` or \`sha256sum -c SHA256SUMS.txt --ignore-missing\`." \
+            --notes "Installation via the stores. The ZIP files are intended for developers and for review purposes.
+
+          Verify a download: \`gh attestation verify <file> --repo $GH_REPO\` or \`sha256sum -c SHA256SUMS.txt --ignore-missing\`." \
             --generate-notes

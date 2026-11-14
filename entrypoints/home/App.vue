@@ -1,6 +1,5 @@
 <template>
   <Layout>
-    <SampleDataBanner />
     <RouterView />
 
     <!-- new account -->
@@ -30,6 +29,7 @@
 
     <SetupGuideDialog :blocked="isNewAccount || isUpdateShown" />
     <UpdateDialog v-model:shown="isUpdateShown" :blocked="isNewAccount" />
+    <AlertTriggeredDialog :blocked="isNewAccount" />
   </Layout>
 
 </template>
@@ -38,7 +38,7 @@
 import Layout from '@/components/Layout.vue';
 import UpdateDialog from '@/components/UpdateDialog.vue';
 import SetupGuideDialog from '@/components/SetupGuideDialog.vue';
-import SampleDataBanner from '@/components/SampleDataBanner.vue';
+import AlertTriggeredDialog from '@/components/AlertTriggeredDialog.vue';
 import { todayIso } from "~/utils/helper";
 
 import { Button } from "@/components/ui/button"
@@ -114,7 +114,6 @@ const detectAccountChange = async () =>{
 }
 
 onMounted(async () => {
-
   // Popup may open before any broker page has run; migrate here too, it is idempotent.
   await accountMigrate();
 

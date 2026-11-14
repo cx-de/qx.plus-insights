@@ -183,21 +183,29 @@ export const getPeerSwitchData = async (forceUpdate = false) => {
 };
 
 
+// No DOM here: the background worker runs this too. Returns false when a page leave cut it short.
+export const refreshPricesHeadless = async ({ peers = true } = {}) => {
+  if (isFeedBlocked()) return false;
+  const run = priceRunId;
+  await getPriceData();
+  if (run !== priceRunId) return false;
+  await getUnderlyingPriceData();
+  if (run !== priceRunId) return false;
+  await getCurrencyRate();
+  if (run !== priceRunId) return false;
+  await calculateLatestMainListData(true);
+  if (run !== priceRunId) return false;
+  // After the recalculation: it needs the fresh own bid. Alerts never read it, so the worker skips the metered calls.
+  if (peers) await getPeerSwitchData();
+  saveDailyTotal();
+  return true;
+};
+
 export const reloadPriceData = async () => {
   if (isFeedBlocked()) return;
-  const run = priceRunId;
   const currentData:any = await storage.getItem('local:MAIN_LIST') || [];
   try {
-    await getPriceData();
-    if (run !== priceRunId) return;
-    await getUnderlyingPriceData();
-    if (run !== priceRunId) return;
-    await getCurrencyRate();
-    if (run !== priceRunId) return;
-    await calculateLatestMainListData(true);
-    if (run !== priceRunId) return;
-    // After the recalculation: it needs the fresh own bid.
-    await getPeerSwitchData();
+    if (!await refreshPricesHeadless()) return;
     // Re-read after the passes: comparing the pre-fetch array with itself never flashed anything.
     const mainListData:any = await storage.getItem('local:MAIN_LIST') || [];
 
@@ -233,8 +241,6 @@ export const reloadPriceData = async () => {
         }
       });
     });
-
-    saveDailyTotal();
   } catch (e) {
     console.error('reloadPriceData failed:', e);
   }
@@ -825,6 +831,8 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
 
   const clonedData = deepCloneReactiveData(mainListData);
   await storage.setItem('local:MAIN_LIST',clonedData);
+  // Only network passes stamp: the background checks alerts on this, never on a cached-price paint.
+  if (isPriceReload) await storage.setItem('local:PRICES_UPDATED_AT', Date.now());
   return true;
 };
 
