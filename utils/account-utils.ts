@@ -155,9 +155,9 @@ export function accountPositionKey(item:any) {
   return item?.stock_name === "Cash" ? `cash|${key}` : `${item?.wkn}|${key}`;
 }
 
-// ISIN-based sibling of accountPositionKey, for the List where rows are matched by ISIN.
+// ISIN-based sibling of accountPositionKey, for the List where rows are matched by ISIN; crypto has only a WKN.
 export function accountRowKey(item:any) {
-  return `${item?.isin}|${accountKeyOf(item)}${accountDepotPart(item)}`;
+  return `${item?.isin || item?.wkn}|${accountKeyOf(item)}${accountDepotPart(item)}`;
 }
 
 // The depot half of accountPositionKey, for the merge paths that match field by field.

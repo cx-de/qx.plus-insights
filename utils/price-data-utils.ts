@@ -13,7 +13,8 @@ import {
   fetchedThisClosedPeriod,
   saveDailyTotal,
   getComparableUnderlyingPrice,
-  fetchApiUsage
+  fetchApiUsage,
+  isFeedExcludedType
 } from './helper';
 
 // Global state for price data management
@@ -265,7 +266,7 @@ export const getPriceData = async (forceUpdate = false) => {
   let allApiData: any[] = [];
   let failed = false;
   const stockItems = mainListData.filter((item:any) => item.type === 'stock' && item.isin && needsUpdate(item));
-  const otherItems = mainListData.filter((item:any) => item.type !== 'stock' && item.wkn && needsUpdate(item));
+  const otherItems = mainListData.filter((item:any) => item.type !== 'stock' && !isFeedExcludedType(item.type) && item.wkn && needsUpdate(item));
 
   // Deduped: the same holding in two accounts is two rows but one product to price.
   const isinChunks = chunkArray([...new Set(stockItems.map((item:any) => item.isin))], globalPriceState.chunkSize);
@@ -309,7 +310,8 @@ export const getPriceData = async (forceUpdate = false) => {
 
     // Merge price data into main list
     mainListData = mainListData.map((item:any) => {
-      const extraData = item.type === 'stock' ? stockApiMap[item.isin] : wknApiMap[item.wkn];
+      const extraData = isFeedExcludedType(item.type) ? undefined
+        : item.type === 'stock' ? stockApiMap[item.isin] : wknApiMap[item.wkn];
       
       if (extraData && typeof extraData === "object") {
         const { currency, bid, ask, timestamp, ...restExtraData } = extraData;
@@ -564,7 +566,8 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
           ];
           
           const filteredNewItem = Object.fromEntries(
-            Object.entries(newItem).filter(([key]) => allowedFields.includes(key))
+            Object.entries(newItem).filter(([key]) => allowedFields.includes(key)
+              || (isFeedExcludedType(newItem.type) && (key === 'bid' || key === 'type')))
           );
           // Once the feed delivered a rate, the broker's scraped one is older.
           if (existingItem.currencyRateUpdatedAt) delete filteredNewItem.currency_rate;

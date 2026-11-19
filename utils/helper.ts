@@ -281,10 +281,13 @@ export const productTypeFromLabel = (label: unknown, fallback = 'certificate'): 
 
 // Peers and other derivative-only feed data exist for everything except these.
 // Separate from CENT_QUOTED_TYPES: bonds are not derivatives but quote in percent.
-const NON_DERIVATIVE_TYPES = ['stock', 'exchangeTradedFund', 'fund', 'bond'];
+const NON_DERIVATIVE_TYPES = ['stock', 'exchangeTradedFund', 'fund', 'bond', 'crypto'];
 
 // A row without a type is not treated as a derivative.
 export const isDerivativeType = (type?:string) => !!type && !NON_DERIVATIVE_TYPES.includes(type);
+
+// Never priced by the feed (it may quote crypto in USD or know another product under its WKN); the broker's price is kept.
+export const isFeedExcludedType = (type?:string) => type === 'crypto';
 
 // EUR lines carry rate 1; only a rate that differs at 4 decimals is worth a cell.
 export const currencyRateText = (rate:any) => numberToGerman(rate, false, 4) === numberToGerman(1, false, 4) ? '' : numberToGerman(rate, false, 4);
@@ -513,7 +516,8 @@ export const getLatestData = async () => {
       const newItem = newDataMap.get(key);
       if (newItem) {
         const filteredFields = Object.fromEntries(
-          Object.entries(newItem).filter(([key]) => allowedFields.includes(key))
+          Object.entries(newItem).filter(([key]) => allowedFields.includes(key)
+            || (isFeedExcludedType((newItem as any).type) && (key === 'bid' || key === 'type')))
         );
         // A broker scrape from yesterday must not replace the feed's newer price time.
         if (timeOf(currentItem.timestamp) > timeOf(newItem.timestamp)) delete filteredFields.timestamp;

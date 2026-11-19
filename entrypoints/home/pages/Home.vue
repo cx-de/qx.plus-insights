@@ -1040,7 +1040,8 @@ async function getTopGainersAndLosers() {
   const changes = todayData.map(
     (item: any) => {
       const todayQty = item?.stocks_owned || 0;
-      if (todayQty === 0) return null;
+      // Movers are keyed by ISIN; crypto has none and is not in the history either.
+      if (todayQty === 0 || !item.isin) return null;
       let todayPrice = item.total_value / todayQty;
 
       let yesterdayPrice = 0;
