@@ -252,6 +252,13 @@ export const numberToGerman = (floatValue:any, isInt = false, decimalPoints?:any
   return isInt ? formattedIntegerPart : `${formattedIntegerPart},${decimalPart}`;
 }
 
+// Crypto trades in fractions down to 1 satoshi (8 decimals); trailing zeros dropped so 0,001 BTC reads as such.
+const formatCryptoQuantity = (value:any) => numberToGerman(value, false, 8).replace(/,?0+$/, '');
+
+// Pieces are whole numbers except for crypto.
+export const formatQuantity = (value:any, type?:string) =>
+  type === 'crypto' ? formatCryptoQuantity(value) : numberToGerman(value, true);
+
 // Stocks, ETFs and funds quote in cents; only derivatives trade in sub-cent steps below 5 €.
 const CENT_QUOTED_TYPES = ['stock', 'exchangeTradedFund', 'fund'];
 export const unitPriceToGerman = (value:any, type?:string) =>

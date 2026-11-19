@@ -5,6 +5,7 @@ import {
   numberToGerman,
   unitPriceToGerman,
   formatRatio,
+  formatQuantity,
   productTypeFromLabel,
   isDerivativeType,
   isFeedExcludedType,
@@ -259,5 +260,18 @@ describe('isFeedExcludedType', () => {
     for (const type of ['stock', 'certificate', '', undefined]) {
       expect(isFeedExcludedType(type)).toBe(false);
     }
+  });
+});
+
+describe('formatQuantity', () => {
+  it('keeps fractional crypto pieces without trailing zeros', () => {
+    expect(formatQuantity(0.001, 'crypto')).toBe('0,001');
+    expect(formatQuantity(1.5, 'crypto')).toBe('1,5');
+    expect(formatQuantity(2, 'crypto')).toBe('2');
+  });
+
+  it('shows other products as whole pieces', () => {
+    expect(formatQuantity(108, 'certificate')).toBe('108');
+    expect(formatQuantity(1234, 'stock')).toBe('1.234');
   });
 });

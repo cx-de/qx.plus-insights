@@ -370,6 +370,20 @@ async function justtradeRefreshApi() {
 }
 
 
+// Exported for tests. Matched on uppercase page text, not on element order: the badge ("Krypto") or the name
+// ("Bitcoin") read as the symbol would give every coin the same or a wrong WKN.
+export function justtradeCryptoSymbolIn(actions:any) {
+  if (!actions) return '';
+  const leaves = Array.from(actions.querySelectorAll('div, p, span')).filter((el:any) => !el.children.length);
+  const badge = /^(krypto|crypto)$/i;
+  if (!leaves.some((el:any) => badge.test(el.textContent.trim()))) return '';
+  const found:any = Array.from(actions.querySelectorAll('p.MuiTypography-body2')).find((el:any) => {
+    const text = el.textContent.trim();
+    return /^[A-Z0-9]{2,10}$/.test(text) && !badge.test(text);
+  });
+  return found ? found.textContent.trim() : '';
+}
+
 // The crypto symbol (BTC) is only rendered in the expanded row, so Sync opens each unmatched row once.
 async function justtradeReadCryptoSymbols() {
   console.log("justtradeReadCryptoSymbols");
@@ -384,9 +398,7 @@ async function justtradeReadCryptoSymbols() {
     const wasOpen = summary.getAttribute('aria-expanded') === 'true';
     if (!wasOpen) summary.click();
     const actions:any = await justtradeWaitFor(() => acc.querySelector('.MuiAccordionActions-root'), 1500);
-    const isCrypto = actions && Array.from(actions.querySelectorAll('div, p, span'))
-      .some((el:any) => !el.children.length && /^(krypto|crypto)$/i.test(el.textContent.trim()));
-    const symbol = isCrypto ? actions.querySelector('p.MuiTypography-body2')?.textContent?.trim() : '';
+    const symbol = justtradeCryptoSymbolIn(actions);
     const entry = symbol ? justtradeCryptoEntry(symbol) : null;
     if (entry) {
       cache[justtradeIsinKey(currentAccountId, name)] = entry;

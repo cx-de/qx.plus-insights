@@ -417,7 +417,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'stocks_owned'">
-                                    {{  numberToGerman(row.original.stocks_owned,true)  }}
+                                    {{  formatQuantity(row.original.stocks_owned, row.original.type)  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'buy_price'">
@@ -691,7 +691,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'stocks_owned'">
-                                  {{  numberToGerman(item.original.stocks_owned,true)  }}
+                                  {{  formatQuantity(item.original.stocks_owned, item.original.type)  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'buy_price'">
@@ -1126,7 +1126,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, formatRatio, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isFeedBlocked, daysUntilMarketOpen, fetchedThisClosedPeriod, saveDailyTotal, getComparableUnderlyingPrice, todayIso, currencyRateText, isDerivativeType, isFeedExcludedType } from '~/utils/helper';
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, formatRatio, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isFeedBlocked, daysUntilMarketOpen, fetchedThisClosedPeriod, saveDailyTotal, getComparableUnderlyingPrice, todayIso, currencyRateText, isDerivativeType, isFeedExcludedType, formatQuantity } from '~/utils/helper';
 
 import { 
   getPriceData,
