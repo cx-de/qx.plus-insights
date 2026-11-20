@@ -320,6 +320,7 @@
     "xlsx": "XLSX",
     "current_forecast": "Aktuelle Prognose",
     "forecast_reinvest": "Prognose + Reinvest",
+    "forecast_reinvest_toggle": "Reinvest anzeigen",
     "scenario_effect_on_the_target_value": "Szenario-Effekt auf den Zielwert",
     "portfolio_value_in_euro": "Portfolio-Wert in Euro",
     "until": "bis",
