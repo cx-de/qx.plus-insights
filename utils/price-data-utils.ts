@@ -677,20 +677,21 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
         break;
     }
     
-    let distance_to_the_cap =  cap_strike && comparableUnderlying>0  ?  ((cap_strike - comparableUnderlying) / comparableUnderlying) * 100 : 0;
+    // undefined, not 0, when there is no level: 0 is a real value (underlying exactly on the cap) and must show as 0,00.
+    let distance_to_the_cap: any = cap_strike && comparableUnderlying > 0 ? ((cap_strike - comparableUnderlying) / comparableUnderlying) * 100 : undefined;
     // Same guard as above: before the underlying quote arrives these divided by zero.
     if (comparableUnderlying > 0) {
       switch (item.type) {
         case 'cappedBonusCertificate':
-          distance_to_the_cap = ((strike - comparableUnderlying) / comparableUnderlying) * 100;
+          distance_to_the_cap = strike ? ((strike - comparableUnderlying) / comparableUnderlying) * 100 : undefined;
           break;
         case 'reverseCappedBonusCertificate':
-          distance_to_the_cap = ((barrier_knockout - comparableUnderlying) / comparableUnderlying) * 100;
+          distance_to_the_cap = barrier_knockout ? ((barrier_knockout - comparableUnderlying) / comparableUnderlying) * 100 : undefined;
           break;
       }
     }
 
-    // Kept apart from distance_to_the_cap (merges cap/barrier, defaults to 0) so alarms skip products without the level.
+    // Kept apart from distance_to_the_cap (merges cap and barrier into one column) so alarms skip products without the level.
     let dc_dist_cap: any = undefined;
     let dc_dist_barrier: any = undefined;
     if (comparableUnderlying > 0) {

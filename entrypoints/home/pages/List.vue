@@ -500,7 +500,7 @@
 
                                   <!-- ((cap - underlyingPrice) / underlyingPrice) * 100 -->
                                   <template v-else-if="cell.column.id === 'distance_to_the_cap'">
-                                      {{ row.original.distance_to_the_cap ? numberToGerman(row.original.distance_to_the_cap) : '' }}
+                                      {{ numberToGerman(row.original.distance_to_the_cap) }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'total_value'">
@@ -751,7 +751,7 @@
                                 </template>
                                 
                                 <template v-else-if="column.id === 'distance_to_the_cap'">
-                                    {{ item.original.distance_to_the_cap ? numberToGerman(item.original.distance_to_the_cap) : '' }}
+                                    {{ numberToGerman(item.original.distance_to_the_cap) }}
                                 </template>
 
                                 <template v-else-if="column.id === 'position_percentage'">

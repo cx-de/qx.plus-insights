@@ -80,6 +80,9 @@
                                 </Button>
                               </span>
                             </template>
+                            <template v-else-if="column === 'distance_to_the_cap'">
+                              {{ numberToGerman(info[column]) }}
+                            </template>
                             <template v-else-if="priceColumns.includes(column)">
                               {{ info[column] ? (['buy_price', 'bid', 'ask'].includes(column) ? unitPriceToGerman(info[column], info.type) : numberToGerman(info[column])) : '' }}
                             </template>

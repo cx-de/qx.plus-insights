@@ -72,20 +72,30 @@ jobs:
 
       # Signed here, not in build: npm install scripts never hold the id-token permission
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        id: attest
         with:
           subject-path: |
             release-files/qx-plus-insights-*.zip
             release-files/sample_backup.json
             release-files/SHA256SUMS.txt
 
+      - name: Attach provenance bundle
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          bundle="qx-plus-insights-${GITHUB_REF_NAME#v}.intoto.jsonl"
+          cp "$BUNDLE_PATH" "release-files/$bundle"
+          echo "BUNDLE=$bundle" >> "$GITHUB_ENV"
+
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          gh release create "$GITHUB_REF_NAME" release-files/qx-plus-insights-*.zip release-files/sample_backup.json release-files/SHA256SUMS.txt \
+          gh release create "$GITHUB_REF_NAME" release-files/qx-plus-insights-*.zip release-files/sample_backup.json release-files/SHA256SUMS.txt "release-files/$BUNDLE" \
+            --verify-tag \
             --title "QX+ Insights $GITHUB_REF_NAME" \
             --notes "Installation via the stores. The ZIP files are intended for developers and for review purposes.
 
-          Verify a download: \`gh attestation verify <file> --repo $GH_REPO\` or \`sha256sum -c SHA256SUMS.txt --ignore-missing\`." \
+          Verify a download: \`gh attestation verify <file> --repo $GH_REPO\` (without the GitHub API: add \`--bundle $BUNDLE\`) or \`sha256sum -c SHA256SUMS.txt --ignore-missing\`." \
             --generate-notes
