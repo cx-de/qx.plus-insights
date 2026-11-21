@@ -379,9 +379,10 @@ export function justtradeCryptoSymbolIn(actions:any) {
   if (!leaves.some((el:any) => badge.test(el.textContent.trim()))) return '';
   const found:any = Array.from(actions.querySelectorAll('p.MuiTypography-body2')).find((el:any) => {
     const text = el.textContent.trim();
-    return /^[A-Z0-9]{2,10}$/.test(text) && !badge.test(text);
+    return /^[A-Z0-9]{2,10}(\/[A-Z]{3})?$/.test(text) && !badge.test(text);
   });
-  return found ? found.textContent.trim() : '';
+  // A pair label (XBT/USD) is read as its coin.
+  return found ? found.textContent.trim().split('/')[0] : '';
 }
 
 // The crypto symbol (BTC) is only rendered in the expanded row, so Sync opens each unmatched row once.
@@ -477,6 +478,8 @@ function justtradeGetAllStockData(isinCache:any) {
       wkn: cached.wkn,
       type: cached.type || '',
       bid: justtradeNumber(fields.bid?.textContent),
+      // Fallback for a coin the feed doesn't price: getPriceData restores it as the bid.
+      ...(cached.type === 'crypto' ? { page_bid: justtradeNumber(fields.bid?.textContent) } : {}),
       // Purchase cost, not Gesamtwert: price-data-utils computes P/L as value - total_entry_value.
       total_entry_value: fields.purchase_value
         ? justtradeNumber(fields.purchase_value.textContent)

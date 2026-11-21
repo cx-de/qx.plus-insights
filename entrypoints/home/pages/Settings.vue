@@ -570,7 +570,7 @@
 import { ref, reactive, computed, onMounted, h, defineComponent, watch } from 'vue';
 
 
-import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman, todayIso, applyTheme, themeStored, isFeedExcludedType, type ThemeChoice } from '~/utils/helper'
+import { sendTelegramMessage, sendTestApi, clearAllStockData, apiKey as globalApiKey, setApiAuthFailed, numberToGerman, todayIso, applyTheme, themeStored, type ThemeChoice } from '~/utils/helper'
 import { storage } from '#imports';
 import { useI18n } from "vue-i18n";
 import { i18n } from '../i18n';
@@ -723,7 +723,7 @@ const pricedPositions = ref(0);
 // One refresh (reloadPriceData) spends a position per unique stock ISIN, other WKN and underlying ISIN, plus one per currency chunk.
 const countPricedPositions = (rows: any[]) => {
   const isins = new Set(rows.filter((r: any) => r.type === 'stock' && r.isin).map((r: any) => r.isin));
-  const wkns = new Set(rows.filter((r: any) => r.type !== 'stock' && !isFeedExcludedType(r.type) && r.wkn).map((r: any) => r.wkn));
+  const wkns = new Set(rows.filter((r: any) => r.type !== 'stock' && r.wkn).map((r: any) => r.wkn));
   const underlyings = new Set(rows.filter((r: any) => r.underlying_isin).map((r: any) => r.underlying_isin));
   const currencies = new Set(rows.filter((r: any) => r.currency).map((r: any) => r.currency));
   return isins.size + wkns.size + underlyings.size + Math.ceil(currencies.size / globalPriceState.chunkSize);

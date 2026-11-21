@@ -293,7 +293,7 @@ const NON_DERIVATIVE_TYPES = ['stock', 'exchangeTradedFund', 'fund', 'bond', 'cr
 // A row without a type is not treated as a derivative.
 export const isDerivativeType = (type?:string) => !!type && !NON_DERIVATIVE_TYPES.includes(type);
 
-// Never priced by the feed (it may quote crypto in USD or know another product under its WKN); the broker's price is kept.
+// No products/peers data for these. Crypto is priced by symbol (price?wkn=BTC, mapped by the backend) and converted from USD.
 export const isFeedExcludedType = (type?:string) => type === 'crypto';
 
 // EUR lines carry rate 1; only a rate that differs at 4 decimals is worth a cell.
@@ -522,9 +522,12 @@ export const getLatestData = async () => {
       const key = accountPositionKey(currentItem);
       const newItem = newDataMap.get(key);
       if (newItem) {
+        // Crypto keeps the broker bid only until the feed prices the coin; page_bid stays the fallback.
+        const isCrypto = (newItem as any).type === 'crypto';
         const filteredFields = Object.fromEntries(
           Object.entries(newItem).filter(([key]) => allowedFields.includes(key)
-            || (isFeedExcludedType((newItem as any).type) && (key === 'bid' || key === 'type')))
+            || (isCrypto && (key === 'type' || key === 'page_bid'))
+            || (isCrypto && currentItem.price_source !== 'feed' && key === 'bid'))
         );
         // A broker scrape from yesterday must not replace the feed's newer price time.
         if (timeOf(currentItem.timestamp) > timeOf(newItem.timestamp)) delete filteredFields.timestamp;

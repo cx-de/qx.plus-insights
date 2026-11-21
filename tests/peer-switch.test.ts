@@ -53,6 +53,17 @@ describe('peerSwitchBest', () => {
     expect(peerSwitchBest(own, [{ wkn: 'Z', ask: 33 }])?.wkn).toBe('Z');
   });
 
+  it('skips when the own bid is much older than the peer quotes (e.g. yesterday evening)', () => {
+    const own = { ...row, timestamp: '2026-11-19T21:58:00Z' };
+    expect(peerSwitchBest(own, [{ wkn: 'Z', ask: 33, timestamp: '2026-11-20T08:35:47Z' }])).toBeNull();
+  });
+
+  it('skips when the own product has no current bid in the peer bundle', () => {
+    const bundle = [{ wkn: row.wkn, bid: null, ask: null }, { wkn: 'Z', ask: 33 }];
+    expect(peerSwitchBest(row, bundle)).toBeNull();
+    expect(peerSwitchBest(row, [{ wkn: row.wkn, bid: 33.36, ask: 33.37 }, { wkn: 'Z', ask: 33 }])?.wkn).toBe('Z');
+  });
+
   it('returns null without a usable bid, ask or quantity', () => {
     expect(peerSwitchBest({ ...row, bid: 0 }, peers)).toBeNull();
     expect(peerSwitchBest({ ...row, stocks_owned: 0 }, peers)).toBeNull();

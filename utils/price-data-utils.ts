@@ -13,8 +13,7 @@ import {
   fetchedThisClosedPeriod,
   saveDailyTotal,
   getComparableUnderlyingPrice,
-  fetchApiUsage,
-  isFeedExcludedType
+  fetchApiUsage
 } from './helper';
 
 // Global state for price data management
@@ -247,6 +246,18 @@ export const reloadPriceData = async () => {
   }
 };
 
+const quoteCurrencyOf = (product:any) => String(product?.currency || 'EUR').trim().toUpperCase();
+
+// `{USD: 1.08}` = foreign units per EUR (helper.ts getComparableUnderlyingPrice); null when the feed gave no answer.
+const feedFxRates = async (currencies:string[], signal:AbortSignal) => {
+  if (!currencies.length) return {};
+  const apiData = await fetchChunk(`${apiBaseUrl}price?currencies=${encodeURIComponent(currencies.join(','))}`, signal);
+  if (!apiData || apiData === ABORTED || apiData.status !== 1 || !Array.isArray(apiData.data)) return null;
+  return Object.fromEntries(apiData.data
+    .map((c:any) => [c.currencyID, parseFloat(c.bid)])
+    .filter(([, rate]:any) => rate > 0));
+};
+
 export const getPriceData = async (forceUpdate = false) => {
   if (isFeedBlocked()) return;
   
@@ -266,7 +277,8 @@ export const getPriceData = async (forceUpdate = false) => {
   let allApiData: any[] = [];
   let failed = false;
   const stockItems = mainListData.filter((item:any) => item.type === 'stock' && item.isin && needsUpdate(item));
-  const otherItems = mainListData.filter((item:any) => item.type !== 'stock' && !isFeedExcludedType(item.type) && item.wkn && needsUpdate(item));
+  // Crypto rows go by symbol (wkn=BTC); the backend maps each coin to its feed instrument.
+  const otherItems = mainListData.filter((item:any) => item.type !== 'stock' && item.wkn && needsUpdate(item));
 
   // Deduped: the same holding in two accounts is two rows but one product to price.
   const isinChunks = chunkArray([...new Set(stockItems.map((item:any) => item.isin))], globalPriceState.chunkSize);
@@ -305,14 +317,43 @@ export const getPriceData = async (forceUpdate = false) => {
 
     let wknApiMap = Object.fromEntries(allApiData.map(product => [product.wkn, product]));
 
+    // Coins are quoted as USD pairs, but justTRADE and every total here are EUR.
+    const coinCurrencies = [...new Set(otherItems
+      .filter((item:any) => item.type === 'crypto' && wknApiMap[item.wkn])
+      .map((item:any) => quoteCurrencyOf(wknApiMap[item.wkn]))
+      .filter((cur:string) => cur !== 'EUR'))] as string[];
+    const fxRates = await feedFxRates(coinCurrencies, controller.signal);
+    // No rate means no conversion: keep the old price and retry next tick instead of storing USD as EUR.
+    if (!fxRates) failed = true;
+
     // A failed fetch must never persist as a fresh timestamp, or needsUpdate() later skips a real refresh.
     const freshStamp = failed ? {} : { priceUpdatedAt: currentDatetime };
 
     // Merge price data into main list
     mainListData = mainListData.map((item:any) => {
-      const extraData = isFeedExcludedType(item.type) ? undefined
-        : item.type === 'stock' ? stockApiMap[item.isin] : wknApiMap[item.wkn];
-      
+      let extraData = item.type === 'stock' ? stockApiMap[item.isin] : wknApiMap[item.wkn];
+      // A coin answered without a usable bid is no price: marking it 'feed' would lock out the broker price for good.
+      if (item.type === 'crypto' && !Number.isFinite(parseFloat(extraData?.bid))) extraData = undefined;
+
+      if (item.type === 'crypto' && extraData && typeof extraData === "object") {
+        const cur = quoteCurrencyOf(extraData);
+        const fx = cur === 'EUR' ? 1 : fxRates?.[cur];
+        if (fx) {
+          // Price only: the feed's isin is its instrument code, not something justTRADE knows the coin by.
+          const toEur = (v:any) => (v != null && Number.isFinite(parseFloat(v)) ? parseFloat(v) / fx : null);
+          return {
+            ...item,
+            currency: 'EUR',
+            bid: toEur(extraData.bid),
+            ask: toEur(extraData.ask) ?? 0,
+            timestamp: extraData.timestamp ?? item.timestamp ?? Date.now(),
+            price_source: 'feed',
+            priceUpdatedAt: currentDatetime,
+          };
+        }
+        return item;
+      }
+
       if (extraData && typeof extraData === "object") {
         const { currency, bid, ask, timestamp, ...restExtraData } = extraData;
         return {
@@ -330,13 +371,16 @@ export const getPriceData = async (forceUpdate = false) => {
         return item;
       }else{
         // Only when the feed answered without this product: a 403/429 must keep the last feed price, not the old broker one.
+        // A coin the feed dropped follows the broker price again on the next sync.
+        const releaseToBroker = item.type === 'crypto' && !failed ? { price_source: 'broker' } : {};
         if(item.page_bid && !failed){
           return { ...item,
             bid: parseFloat(item.page_bid),
+            ...releaseToBroker,
             ...freshStamp
           };
         }else{
-          return { ...item, ...freshStamp };
+          return { ...item, ...releaseToBroker, ...freshStamp };
         }
       }
     });
@@ -565,9 +609,12 @@ export const calculateLatestMainListData = async (isPriceReload = false) => {
             'purchase_date', 'purchase_dates'
           ];
           
+          // Crypto keeps the broker bid only until the feed prices the coin; page_bid stays the fallback.
+          const brokerPricedCrypto = newItem.type === 'crypto' && existingItem.price_source !== 'feed';
           const filteredNewItem = Object.fromEntries(
             Object.entries(newItem).filter(([key]) => allowedFields.includes(key)
-              || (isFeedExcludedType(newItem.type) && (key === 'bid' || key === 'type')))
+              || (newItem.type === 'crypto' && (key === 'type' || key === 'page_bid'))
+              || (brokerPricedCrypto && key === 'bid'))
           );
           // Once the feed delivered a rate, the broker's scraped one is older.
           if (existingItem.currencyRateUpdatedAt) delete filteredNewItem.currency_rate;

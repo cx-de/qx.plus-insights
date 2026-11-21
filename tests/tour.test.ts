@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TOUR_BROKERS, tourNextStep, tourHasBrokerData, tourSummary, tourStepTextKey, tourStepTitleKey } from '@/utils/tour-utils';
+import { TOUR_BROKERS, tourNextStep, tourHasBrokerData, tourSummary, tourStepTextKey, tourStepTitleKey, tourFinishCardStale } from '@/utils/tour-utils';
 
 const position = { broker: 'Flatex', stock_name: 'Product X', isin: 'DE000X' };
 const cash = { broker: 'Flatex', stock_name: 'Cash' };
@@ -99,5 +99,22 @@ describe('positions wording on the bank-page done card', () => {
     const { i18n } = await import('@/entrypoints/home/i18n');
     const words = (n:number) => i18n.global.t('tour.positions_count', { count: n }, { locale: 'de', plural: n });
     expect([words(0), words(1), words(5)]).toEqual(['keine Positionen', 'eine Position', '5 Positionen']);
+  });
+});
+
+describe('tourFinishCardStale', () => {
+  it('shows the connected card only on the page that finished the guide', () => {
+    expect(tourFinishCardStale({ step: 'finish' }, true)).toBe(false);
+    expect(tourFinishCardStale({ step: 'finish' }, false)).toBe(true);
+  });
+
+  it('closes it once the dashboard showed the connected screen', () => {
+    expect(tourFinishCardStale({ step: 'finish', seen: true }, true)).toBe(true);
+  });
+
+  it('never touches a guide still in progress', () => {
+    expect(tourFinishCardStale({ step: 'sync' }, false)).toBe(false);
+    expect(tourFinishCardStale({ step: 'login', seen: true }, false)).toBe(false);
+    expect(tourFinishCardStale(null, false)).toBe(false);
   });
 });

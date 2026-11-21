@@ -30,6 +30,11 @@ describe('justtradeCryptoSymbolIn', () => {
     expect(justtradeCryptoSymbolIn(null)).toBe('');
   });
 
+  it('reads a pair label as its coin', () => {
+    const pair = '<div><p class="MuiTypography-body2">XBT/USD</p></div>';
+    expect(justtradeCryptoSymbolIn(actions(badgeDiv + pair + name))).toBe('XBT');
+  });
+
   it('keeps a symbol that equals the coin name', () => {
     const xrp = '<div><p class="MuiTypography-body2">XRP</p></div><p class="MuiTypography-body2">XRP</p>';
     expect(justtradeCryptoSymbolIn(actions(badgeDiv + xrp))).toBe('XRP');
