@@ -5,8 +5,10 @@ import {
   numberToGerman,
   unitPriceToGerman,
   formatRatio,
+  formatQuantity,
   productTypeFromLabel,
   isDerivativeType,
+  isFeedExcludedType,
   parseGermanDateOnly,
   chunkArray,
   getComparableUnderlyingPrice,
@@ -239,8 +241,8 @@ describe('productTypeFromLabel', () => {
 });
 
 describe('isDerivativeType', () => {
-  it('is false for shares, ETFs, funds, bonds and missing types', () => {
-    for (const type of ['stock', 'exchangeTradedFund', 'fund', 'bond', '', undefined]) {
+  it('is false for shares, ETFs, funds, bonds, crypto and missing types', () => {
+    for (const type of ['stock', 'exchangeTradedFund', 'fund', 'bond', 'crypto', '', undefined]) {
       expect(isDerivativeType(type)).toBe(false);
     }
   });
@@ -249,5 +251,27 @@ describe('isDerivativeType', () => {
     for (const type of ['certificate', 'discountCertificate', 'put', 'Optionsschein']) {
       expect(isDerivativeType(type)).toBe(true);
     }
+  });
+});
+
+describe('isFeedExcludedType', () => {
+  it('keeps the broker price only for crypto', () => {
+    expect(isFeedExcludedType('crypto')).toBe(true);
+    for (const type of ['stock', 'certificate', '', undefined]) {
+      expect(isFeedExcludedType(type)).toBe(false);
+    }
+  });
+});
+
+describe('formatQuantity', () => {
+  it('keeps fractional crypto pieces without trailing zeros', () => {
+    expect(formatQuantity(0.001, 'crypto')).toBe('0,001');
+    expect(formatQuantity(1.5, 'crypto')).toBe('1,5');
+    expect(formatQuantity(2, 'crypto')).toBe('2');
+  });
+
+  it('shows other products as whole pieces', () => {
+    expect(formatQuantity(108, 'certificate')).toBe('108');
+    expect(formatQuantity(1234, 'stock')).toBe('1.234');
   });
 });

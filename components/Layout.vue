@@ -155,7 +155,8 @@ async function savePortfolioHistory() {
     const today = todayIso();
     const index = history.findIndex((entry: { date: string }) => entry.date === today);
     
-    const positions:any = allList.filter((item:any) => item.stock_name !== "Cash");
+    // Keyed by ISIN; crypto has none, so it is left out of the history (only Home's movers read it).
+    const positions:any = allList.filter((item:any) => item.stock_name !== "Cash" && item.isin);
 
     const byIsin = new Map();
     positions.forEach((item: { isin:string; stocks_owned:number, buy_price:string, total_value:number, stock_name:string }) => {

@@ -33,6 +33,10 @@
                   <div class="flex flex-wrap items-center gap-2">
                     <!-- In the toolbar, not fixed to the edge, so they never cover chart lines -->
                     <template v-if="selectedType === 'forecast'">
+                      <div v-if="reinvestAvailable" class="flex items-center gap-2">
+                        <Switch id="forecast-reinvest" :model-value="showReinvest" @update:model-value="setShowReinvest" />
+                        <Label for="forecast-reinvest" class="text-sm font-normal cursor-pointer whitespace-nowrap">{{ $t('forecast_reinvest_toggle') }}</Label>
+                      </div>
                       <Button variant="outline" size="sm" @click="isScenarioSheet = true">
                         <SlidersHorizontal />
                         {{ $t('scenarios.title') }}
@@ -563,6 +567,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { chartPalette, chartTokenColor, chartOnThemeChange } from '~/utils/chart-colors-utils';
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import DateRangePicker  from '@/components/DateRangePicker.vue'
 import AccountFilter from '~/components/AccountFilter.vue'
 import CombineSwitch from '~/components/CombineSwitch.vue'
@@ -1149,6 +1154,32 @@ const updateChartData = (event:any)=>{
   recalculateDatapoints();
 }
 
+// Off by default: the reinvest line can climb far above the rest and flatten them on the shared axis.
+const showReinvest = ref(readShowReinvest());
+const reinvestAvailable = ref(false);
+
+function readShowReinvest() {
+  try {
+    return localStorage.getItem('forecastShowReinvest') === '1';
+  } catch (err) {
+    // A view preference is not worth failing the chart over.
+    console.error('readShowReinvest error:', err);
+    return false;
+  }
+}
+
+function setShowReinvest(value:any) {
+  console.log("setShowReinvest", value);
+  showReinvest.value = !!value;
+  try {
+    localStorage.setItem('forecastShowReinvest', showReinvest.value ? '1' : '0');
+  } catch (err) {
+    // Only the remembered choice is lost; the chart still switches.
+    console.error('setShowReinvest error:', err);
+  }
+  recalculateDatapoints();
+}
+
 const getMinDate = (date:any) =>{
   const firstDate = new Date(date);
   const year = firstDate.getFullYear();
@@ -1492,6 +1523,7 @@ const recalculateDatapoints = async() => {
     // Dedup keeps a scenario's equal Date in place of the month-end, so includes() by reference dropped 30.11/31.12.
     const monthEndTimes = new Set(dates.map((d:any) => d.getTime()));
     chartData.value.datasets = [];
+    reinvestAvailable.value = false;
     groups.forEach((group:any, groupIndex:any) => {
       const newDatapoints = datesForForecast.map((date, dateIndex) =>{
         if(dateIndex===0){
@@ -1540,7 +1572,10 @@ const recalculateDatapoints = async() => {
         });
         const reinvestData = datesForForecast.map((date:any, i:any) => i < branchIndex || !Number.isFinite(newDatapoints[i])
           ? NaN : newDatapoints[i] + reinvestGainForDate(date, group.rows));
-        if (reinvestData.some((value:any, i:any) => Number.isFinite(value) && value !== newDatapoints[i])) {
+        const hasReinvest = reinvestData.some((value:any, i:any) => Number.isFinite(value) && value !== newDatapoints[i]);
+        if (hasReinvest) reinvestAvailable.value = true;
+        // Left out of allBase too when hidden, so the y-axis fits the visible lines only.
+        if (hasReinvest && showReinvest.value) {
           allBase.push(...reinvestData.filter((value:any) => Number.isFinite(value)));
           chartData.value.datasets.push({
             label: t('forecast_reinvest'),

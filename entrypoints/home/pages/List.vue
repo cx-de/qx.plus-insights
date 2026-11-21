@@ -417,7 +417,7 @@
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'stocks_owned'">
-                                    {{  numberToGerman(row.original.stocks_owned,true)  }}
+                                    {{  formatQuantity(row.original.stocks_owned, row.original.type)  }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'buy_price'">
@@ -500,7 +500,7 @@
 
                                   <!-- ((cap - underlyingPrice) / underlyingPrice) * 100 -->
                                   <template v-else-if="cell.column.id === 'distance_to_the_cap'">
-                                      {{ row.original.distance_to_the_cap ? numberToGerman(row.original.distance_to_the_cap) : '' }}
+                                      {{ numberToGerman(row.original.distance_to_the_cap) }}
                                   </template>
 
                                   <template v-else-if="cell.column.id === 'total_value'">
@@ -691,7 +691,7 @@
                                 </template>
 
                                 <template v-else-if="column.id === 'stocks_owned'">
-                                  {{  numberToGerman(item.original.stocks_owned,true)  }}
+                                  {{  formatQuantity(item.original.stocks_owned, item.original.type)  }}
                                 </template>
 
                                 <template v-else-if="column.id === 'buy_price'">
@@ -751,7 +751,7 @@
                                 </template>
                                 
                                 <template v-else-if="column.id === 'distance_to_the_cap'">
-                                    {{ item.original.distance_to_the_cap ? numberToGerman(item.original.distance_to_the_cap) : '' }}
+                                    {{ numberToGerman(item.original.distance_to_the_cap) }}
                                 </template>
 
                                 <template v-else-if="column.id === 'position_percentage'">
@@ -1118,6 +1118,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
+import { Label } from '@/components/ui/label'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 
 import { Input } from '@/components/ui/input'
@@ -1125,7 +1126,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, formatRatio, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isFeedBlocked, daysUntilMarketOpen, fetchedThisClosedPeriod, saveDailyTotal, getComparableUnderlyingPrice, todayIso, currencyRateText, isDerivativeType } from '~/utils/helper';
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, formatRatio, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isFeedBlocked, daysUntilMarketOpen, fetchedThisClosedPeriod, saveDailyTotal, getComparableUnderlyingPrice, todayIso, currencyRateText, isDerivativeType, isFeedExcludedType, formatQuantity } from '~/utils/helper';
 
 import { 
   getPriceData,
@@ -2182,7 +2183,7 @@ const getProductData = async (forceUpdate = false) => {
   const shouldInclude = (item:any) => forceUpdate || item.lastUpdated !== today;
   // Deduped: the same holding in two accounts is two rows but one product to fetch.
   const stockItems = [...new Set(mainListData.value.filter(item => item.type === 'stock' && shouldInclude(item)).map(item => item.wkn).filter(Boolean))];
-  const otherItems = [...new Set(mainListData.value.filter(item => item.type !== 'stock' && shouldInclude(item)).map(item => item.isin).filter(Boolean))];
+  const otherItems = [...new Set(mainListData.value.filter(item => item.type !== 'stock' && !isFeedExcludedType(item.type) && shouldInclude(item)).map(item => item.isin).filter(Boolean))];
 
   const wknChunks = chunkArray(stockItems, chunkSize);
   const isinChunks = chunkArray(otherItems, chunkSize);
@@ -2351,7 +2352,7 @@ const getPeerProductData = async () => {
   const today = todayIso();
   // Deduped: the same holding in two accounts is two rows but one peers request.
   const wknList = [...new Set(mainListData.value
-    .filter(item => item.peerslastUpdated !== today)
+    .filter(item => item.peerslastUpdated !== today && !isFeedExcludedType(item.type))
     .map(item => item.wkn)
     .filter(Boolean))];
   // Only stamp wkns the API actually answered: a failed or skipped fetch must retry today.
@@ -2625,8 +2626,8 @@ const refreshFromNetwork = async(isPriceReload=false) =>{
     const today = todayIso();
     const rows:any[] = await storage.getItem('local:MAIN_LIST') || [];
     // Same filters as getProductData/getPeerProductData, or a row they never stamp keeps this true all day.
-    const dailyPending = rows.some(r =>
-      ((r.type === 'stock' ? r.wkn : r.isin) && r.lastUpdated !== today) || (r.wkn && r.peerslastUpdated !== today));
+    const dailyPending = rows.some(r => !isFeedExcludedType(r.type) && (
+      ((r.type === 'stock' ? r.wkn : r.isin) && r.lastUpdated !== today) || (r.wkn && r.peerslastUpdated !== today)));
     if(dailyPending && !isFeedBlocked()){
       // /usage is never metered; no answer means no budget, as before.
       const feedWindow:any = (await fetchApiUsage(apiKey.value) as any)?.window;

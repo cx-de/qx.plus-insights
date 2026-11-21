@@ -1,6 +1,6 @@
 // Without both ratios a price gap this large is more likely a different ratio than a real saving.
 const UNKNOWN_RATIO_MAX_GAIN = 0.05;
-// A peer quote this much older than the own one may no longer be on offer.
+// Quotes this far apart are not one market moment: an old peer ask may be gone, an old own bid is e.g. yesterday's close.
 const MAX_QUOTE_LAG_MS = 15 * 60_000;
 
 const quoteTime = (value:any) => {
@@ -14,6 +14,9 @@ const quoteTime = (value:any) => {
 export function peerSwitchBest(row:any, peerPrices:any[]) {
   const bid = parseFloat(row?.bid);
   if (!(bid > 0) || !Number(row?.stocks_owned)) return null;
+  // The bundle's own quote is the current one: without a bid there, row.bid is only the last known price.
+  const ownQuote = (peerPrices || []).find((peer:any) => peer?.wkn === row.wkn);
+  if (ownQuote && !(parseFloat(ownQuote.bid) > 0)) return null;
   const ratio = parseFloat(row.ratio);
   const ownTime = quoteTime(row.timestamp);
 
@@ -24,7 +27,7 @@ export function peerSwitchBest(row:any, peerPrices:any[]) {
     if (!(ask > 0)) continue;
     if (row.currency && peer.currency && row.currency !== peer.currency) continue;
     const peerTime = quoteTime(peer.timestamp);
-    if (ownTime !== null && peerTime !== null && ownTime - peerTime > MAX_QUOTE_LAG_MS) continue;
+    if (ownTime !== null && peerTime !== null && Math.abs(ownTime - peerTime) > MAX_QUOTE_LAG_MS) continue;
     const gainPerPiece = bid - ask;
     if (!(gainPerPiece > 1e-9)) continue;
     const peerRatio = parseFloat(peer.ratio);

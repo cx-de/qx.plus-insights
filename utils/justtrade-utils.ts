@@ -271,6 +271,12 @@ function justtradeIsinKey(accountId:any, stockName:any, quantity:any = undefined
   return quantity === undefined ? `${accountId}|${stockName}` : `${accountId}|${stockName}|${quantity}`;
 }
 
+// Crypto has no ISIN/WKN anywhere at justTRADE, so its symbol (BTC) stands in as the WKN. Exported for tests.
+export function justtradeCryptoEntry(symbol:any) {
+  const text = String(symbol || '').trim().toUpperCase();
+  return /^[A-Z0-9]{2,10}$/.test(text) ? { isin: '', wkn: text, type: 'crypto' } : null;
+}
+
 function justtradeLookupCache(isinCache:any, stockName:any, quantity:any) {
   return isinCache[justtradeIsinKey(currentAccountId, stockName, quantity)]
     || isinCache[justtradeIsinKey(currentAccountId, stockName)];
@@ -364,6 +370,48 @@ async function justtradeRefreshApi() {
 }
 
 
+// Exported for tests. Matched on uppercase page text, not on element order: the badge ("Krypto") or the name
+// ("Bitcoin") read as the symbol would give every coin the same or a wrong WKN.
+export function justtradeCryptoSymbolIn(actions:any) {
+  if (!actions) return '';
+  const leaves = Array.from(actions.querySelectorAll('div, p, span')).filter((el:any) => !el.children.length);
+  const badge = /^(krypto|crypto)$/i;
+  if (!leaves.some((el:any) => badge.test(el.textContent.trim()))) return '';
+  const found:any = Array.from(actions.querySelectorAll('p.MuiTypography-body2')).find((el:any) => {
+    const text = el.textContent.trim();
+    return /^[A-Z0-9]{2,10}(\/[A-Z]{3})?$/.test(text) && !badge.test(text);
+  });
+  // A pair label (XBT/USD) is read as its coin.
+  return found ? found.textContent.trim().split('/')[0] : '';
+}
+
+// The crypto symbol (BTC) is only rendered in the expanded row, so Sync opens each unmatched row once.
+async function justtradeReadCryptoSymbols() {
+  console.log("justtradeReadCryptoSymbols");
+  if (!currentAccountId) return;
+  const cache = await justtradeLoadIsinCache();
+  let changed = false;
+  for (const acc of justtradeDepotAccordions()) {
+    const name = justtradeRowName(acc);
+    if (!name || justtradeLookupCache(cache, name, justtradeRowQuantity(acc))?.wkn) continue;
+    const summary = acc.querySelector('.MuiAccordionSummary-root');
+    if (!summary) continue;
+    const wasOpen = summary.getAttribute('aria-expanded') === 'true';
+    if (!wasOpen) summary.click();
+    const actions:any = await justtradeWaitFor(() => acc.querySelector('.MuiAccordionActions-root'), 1500);
+    const symbol = justtradeCryptoSymbolIn(actions);
+    const entry = symbol ? justtradeCryptoEntry(symbol) : null;
+    if (entry) {
+      cache[justtradeIsinKey(currentAccountId, name)] = entry;
+      changed = true;
+    }
+    if (!wasOpen) summary.click();
+    await sleep(300);
+  }
+  if (changed) await chrome.storage.local.set({ [ISIN_CACHE_KEY]: cache });
+}
+
+
 /* ------------------------------------------------------------------------- *
  *  Pagination
  * ------------------------------------------------------------------------- */
@@ -412,7 +460,7 @@ function justtradeGetAllStockData(isinCache:any) {
     const fields = justtradeRowFields(acc);
 
     const cached = justtradeLookupCache(isinCache, stock_name, justtradeNumber(fields.stocks_owned?.textContent));
-    if (!cached?.isin || !cached?.wkn) {
+    if (!cached?.wkn || (!cached.isin && cached.type !== 'crypto')) {
       unmatchedRows.push(stock_name);
       continue;
     }
@@ -430,6 +478,8 @@ function justtradeGetAllStockData(isinCache:any) {
       wkn: cached.wkn,
       type: cached.type || '',
       bid: justtradeNumber(fields.bid?.textContent),
+      // Fallback for a coin the feed doesn't price: getPriceData restores it as the bid.
+      ...(cached.type === 'crypto' ? { page_bid: justtradeNumber(fields.bid?.textContent) } : {}),
       // Purchase cost, not Gesamtwert: price-data-utils computes P/L as value - total_entry_value.
       total_entry_value: fields.purchase_value
         ? justtradeNumber(fields.purchase_value.textContent)
@@ -538,16 +588,22 @@ async function justtradeSaveDataToLocalStorage(interactive = false) {
     await justtradeApplyApiPositions();
     const accordions = justtradeDepotAccordions();
     const rows = justtradeGetAllStockData(await justtradeLoadIsinCache());
+    // Rows still without ISIN/WKN are skipped; they never block the save.
+    if (unmatchedRows.length) console.log("justtrade: skipped, no ISIN/WKN", unmatchedRows.length);
 
     // Never persist an empty scrape: getLatestData would read every position as sold.
     if (!rows.length) {
       console.log("justtrade: no rows scraped, skipping save");
       return false;
     }
-    // A replace from one page (or with WKN-less rows skipped) would delete the unseen positions.
+    // Before the first /securities payload an unmatched row may be a real security; saving would drop it and its notes.
+    if (unmatchedRows.length && !apiPositions) {
+      console.log("justtrade: waiting for depot API, skipping save", unmatchedRows.length);
+      return false;
+    }
+    // A replace from one page would delete the positions on the other pages.
     const total = justtradeTotalEntries();
-    if ((total !== null && total > accordions.length) || rows.length !== accordions.length) {
-      if (unmatchedRows.length) console.log("justtrade: no ISIN/WKN for", unmatchedRows);
+    if (total !== null && total > accordions.length) {
       console.log("justtrade: incomplete depot, skipping save", { total, visible: accordions.length, rows: rows.length });
       return false;
     }
@@ -602,8 +658,14 @@ function justtradeCreateEmptyRowsToFill(isinCache:any) {
   for (const acc of justtradeDepotAccordions()) {
     const content = acc.querySelector('.MuiAccordionSummary-content');
     if (!content) continue;
-    const classes = justtradeSiteClasses(content);
     const existing = content.querySelector('.qx-extra-row');
+    // No ISIN/WKN or crypto means no derivative data; the block appears once the API fills the cache.
+    const cached = justtradeLookupCache(isinCache, justtradeRowName(acc), justtradeRowQuantity(acc));
+    if (!cached?.isin || cached.type === 'crypto') {
+      existing?.remove();
+      continue;
+    }
+    const classes = justtradeSiteClasses(content);
     if (existing) {
       justtradeApplyTheme(existing, classes);
       continue;
@@ -683,7 +745,7 @@ function justtradeSetSync(state:any) {
 // Otherwise a blocked save is only visible in the console.
 function justtradeSyncTitle() {
   if (!syncButton) return;
-  syncButton.title = unmatchedRows.length ? `Keine ISIN/WKN für: ${unmatchedRows.join(', ')}` : '';
+  syncButton.title = unmatchedRows.length ? `Nicht synchronisiert (keine ISIN/WKN): ${unmatchedRows.join(', ')}` : '';
 }
 
 async function justtradeRunSync() {
@@ -714,6 +776,7 @@ async function justtradeRunSync() {
     }
     await justtradeMaxPageSize();
     await justtradeRefreshApi();
+    await justtradeReadCryptoSymbols();
     // Id is already resolved above; interactive again would reopen the profile popover.
     const saved = await justtradeSaveDataToLocalStorage(false);
     if (!saved) state = 'error';

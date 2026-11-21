@@ -56,6 +56,13 @@ let tourUi:any = null;
 let tourCard:any = null;
 let tourTarget:any = null;
 let shownStep = '';
+// Set when this page itself moved the guide to 'finish'; a later visit must not greet the user with it again.
+let finishedHere = false;
+
+// The connected card belongs to the page that finished the guide; once the dashboard showed it, or on any later page, it is stale.
+export function tourFinishCardStale(tour:any, finishedOnThisPage:boolean) {
+  return tour?.step === 'finish' && (!!tour.seen || !finishedOnThisPage);
+}
 
 // Advances only on what the scraper actually stored, so a step is never ticked off by a click alone.
 // Known limit: rows carry no save time, so a restarted guide with old data ticks through right after login.
@@ -84,6 +91,7 @@ export async function tourSyncDone() {
     const saved = (Array.isArray(rows) ? rows : []).some((r:any) => r?.broker === broker.name);
     console.log('tourSyncDone', key, stored.TOUR?.step, saved);
     if (stored.TOUR?.broker !== key || stored.TOUR.step !== 'sync' || !saved) return;
+    finishedHere = true;
     await tourSet('finish');
     // Before the first loop tick there is no context yet; that tick then renders the finished card.
     if (tourCtx) await tourTick(tourCtx);
@@ -256,7 +264,17 @@ export async function tourTick(ctx:any) {
     const stored = await chrome.storage.local.get([broker.rowsKey, broker.idKey]);
     const rows = stored[broker.rowsKey];
     const step = tourNextStep(TOUR.step, rows, broker, !!tourSyncButton());
+    if (step === 'finish' && TOUR.step !== 'finish') finishedHere = true;
     if (step !== TOUR.step) await tourSet(step);
+
+    if (tourFinishCardStale({ ...TOUR, step }, finishedHere)) {
+      // Closed for good, not just hidden: the next tick would otherwise reopen it on every bank visit.
+      await tourSet('finish', { cardClosed: true });
+      tourUi?.remove();
+      tourUi = tourCard = null;
+      shownStep = '';
+      return;
+    }
 
     await ensureTourUi(ctx);
     if (step !== shownStep) {

@@ -270,9 +270,18 @@ async function celebrateWhenVisible() {
     document.addEventListener('visibilitychange', () => { void celebrateWhenVisible(); }, { once: true });
     return;
   }
-  if (!finished.value || !open.value || (await chrome.storage.local.get('TOUR_CELEBRATED')).TOUR_CELEBRATED) return;
+  if (!finished.value || !open.value) return;
+  await markFinishSeen();
+  if ((await chrome.storage.local.get('TOUR_CELEBRATED')).TOUR_CELEBRATED) return;
   await chrome.storage.local.set({ TOUR_CELEBRATED: true });
   burstConfetti();
+}
+
+// Seen once is enough, or every reload reopens the card. Fresh read: the bank page and finish() write TOUR too.
+async function markFinishSeen() {
+  const { TOUR } = await chrome.storage.local.get('TOUR');
+  if (TOUR?.step !== 'finish' || TOUR.seen) return;
+  await chrome.storage.local.set({ TOUR: { ...TOUR, seen: true } });
 }
 
 // shortcut: hand-rolled canvas burst, no package; swap in canvas-confetti if more effects are ever wanted.
@@ -355,7 +364,9 @@ async function refresh() {
   if (step === 'choose') closedByUser = false;
   if (closedByUser) return;
 
-  const inProgress = TOUR_BROKERS[tour.value?.broker]?.steps.includes(step);
+  // A connected card already shown stays closed on reload; a new connection writes a fresh TOUR without the flag.
+  const seenFinish = step === 'finish' && tour.value?.seen && !open.value;
+  const inProgress = TOUR_BROKERS[tour.value?.broker]?.steps.includes(step) && !seenFinish;
   // Unasked opens only on Home: popping up over Settings right after "Clear data" reads as an error.
   const automatic = route.path === '/' && (inProgress || (!hasData.value && !stored.TOUR_DISMISSED && !stored.SAMPLE_DATA));
   const shouldOpen = step === 'choose' || automatic;

@@ -80,13 +80,19 @@
                                 </Button>
                               </span>
                             </template>
+                            <template v-else-if="column === 'distance_to_the_cap'">
+                              {{ numberToGerman(info[column]) }}
+                            </template>
                             <template v-else-if="priceColumns.includes(column)">
                               {{ info[column] ? (['buy_price', 'bid', 'ask'].includes(column) ? unitPriceToGerman(info[column], info.type) : numberToGerman(info[column])) : '' }}
                             </template>
                             <template v-else-if="column === 'type' ">
                               {{ info[column] ? $t(info[column]) : '' }}
                             </template>
-                            <template v-else-if="column === 'stocks_owned' || column === 'days_since_purchase'">
+                            <template v-else-if="column === 'stocks_owned'">
+                              {{ formatQuantity(info[column], info.type) }}
+                            </template>
+                            <template v-else-if="column === 'days_since_purchase'">
                               {{ numberToGerman(info[column],true) }}
                             </template>
                             <template v-else-if="column === 'currency_rate' ">
@@ -153,7 +159,7 @@ import {
   HoverCardTrigger,
 } from '@/components/ui/hover-card'
 
-import { numberToGerman, unitPriceToGerman, formatRatio, formatTimestamp, getComparableUnderlyingPrice } from '~/utils/helper';
+import { numberToGerman, unitPriceToGerman, formatRatio, formatQuantity, formatTimestamp, getComparableUnderlyingPrice } from '~/utils/helper';
 import { buildDerivativeData, renderDerivativeChart } from '~/utils/derivative-chart-utils';
 import { Copy, Check } from 'lucide-vue-next'
 import { useI18n } from 'vue-i18n';

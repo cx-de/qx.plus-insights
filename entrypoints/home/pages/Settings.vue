@@ -696,7 +696,7 @@ const languageOptions = [
 ];
 
 const setLanguage = (lang: string) => {
-  i18n.global.locale = lang as typeof i18n.global.locale;
+  i18n.global.locale.value = lang as typeof i18n.global.locale.value;
   // The watch in i18n.ts carries it to other tabs, bank pages and the background.
   void languageSave(lang);
 };

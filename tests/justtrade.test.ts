@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { storage } from '#imports';
-import { justtradeIsValidHash, justtradeIsEmptyDepot, justtradeResolveAccountId, justtradeApiPending } from '@/utils/justtrade-utils';
+import { justtradeIsValidHash, justtradeIsEmptyDepot, justtradeCryptoEntry, justtradeResolveAccountId, justtradeApiPending } from '@/utils/justtrade-utils';
 import { justtradeFingerprint } from '@/utils/hash-utils';
 
 describe('justtradeResolveAccountId', () => {
@@ -108,5 +108,17 @@ describe('justtradeIsEmptyDepot', () => {
     ['payload without timestamp', { positions: [], total: 0 }, 0],
   ])('rejects %s', (_label, api, rows) => {
     expect(justtradeIsEmptyDepot(api, rows as number, now)).toBe(false);
+  });
+});
+
+describe('justtradeCryptoEntry', () => {
+  it('uses the symbol as WKN with no ISIN', () => {
+    expect(justtradeCryptoEntry(' btc ')).toEqual({ isin: '', wkn: 'BTC', type: 'crypto' });
+  });
+
+  it('rejects text that is not a symbol', () => {
+    for (const text of ['Bitcoin Cash', 'B', '', null]) {
+      expect(justtradeCryptoEntry(text)).toBeNull();
+    }
   });
 });
