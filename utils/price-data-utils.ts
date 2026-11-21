@@ -103,8 +103,9 @@ export const getPeerPrices = async (peerMembers: string[]) => {
 
 // 10% slack: a timer tick lands seconds before the stamp expires, which would double the real interval.
 // force (Reload) skips the interval, never the once-per-closed-period rule.
-const isStale = (stampedAt:any, updateMinutes:number, now:number, force = false) =>
-  !fetchedThisClosedPeriod(stampedAt, new Date(now)) && (force || !stampedAt || now >= new Date(stampedAt).getTime() + updateMinutes * 60_000 * 0.9);
+// roundTheClock: crypto trades on weekends, so the closed-period rule would freeze its price until Monday.
+const isStale = (stampedAt:any, updateMinutes:number, now:number, force = false, roundTheClock = false) =>
+  (roundTheClock || !fetchedThisClosedPeriod(stampedAt, new Date(now))) && (force || !stampedAt || now >= new Date(stampedAt).getTime() + updateMinutes * 60_000 * 0.9);
 
 // Held rows only: a switch needs units to sell. Each unique peer is one metered position per interval.
 export const getPeerSwitchData = async (forceUpdate = false) => {
@@ -272,7 +273,7 @@ export const getPriceData = async (forceUpdate = false) => {
   const updateMinutes = priceUpdateDuration;
   const now = Date.now();
   
-  const needsUpdate = (item: any) => isStale(item.priceUpdatedAt, updateMinutes, now, forceUpdate);
+  const needsUpdate = (item: any) => isStale(item.priceUpdatedAt, updateMinutes, now, forceUpdate, item.type === 'crypto');
 
   let allApiData: any[] = [];
   let failed = false;
