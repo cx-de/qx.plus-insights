@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { storage } from '#imports';
 import { getApiKey, setApiAuthFailed, fetchFeed, apiKey, apiAuthFailed,
-  apiRateLimit, isApiRateLimited } from '@/utils/helper';
+  apiRateLimit, isApiRateLimited, apiRateLimitResumeTime } from '@/utils/helper';
 
 const NOW = new Date('2026-09-24T10:00:00Z').getTime();
 const FEED_URL = 'https://api.qx.plus/v1/feed/price?wkn=X';
@@ -125,6 +125,28 @@ describe('fetchFeed rate limit', () => {
     expect(apiRateLimit.value.until).toBe(NOW + 41_000);
     expect(apiRateLimit.value.used).toBe(193);
     expect((await storage.getItem('local:api_rate_limit') as any).until).toBe(NOW + 41_000);
+  });
+
+  it('marks a daily-limit reply as daily and pauses until the reset time', async () => {
+    const DAILY_BODY = { success: false, error: 'daily_limit_reached', daily_limit: 33600, daily_used: 33600,
+      requested: 20, available_at: '2026-09-25T00:00:00+02:00', retry_after: 36000 };
+    const feed = stubBody(429, DAILY_BODY);
+    expect(await fetchFeed(FEED_URL)).toBeNull();
+    expect(apiRateLimit.value.daily).toBe(true);
+    expect(apiRateLimit.value.used).toBe(33600);
+    expect(apiRateLimit.value.limit).toBe(33600);
+    expect(apiRateLimit.value.until).toBe(NOW + 36_000_000);
+    expect(apiRateLimitResumeTime('de-DE')).toBe(new Date(NOW + 36_000_000).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }));
+
+    await fetchFeed(FEED_URL);
+    expect(feed).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the window wording for a window-limit reply', async () => {
+    stubBody(429, LIMIT_BODY);
+    await fetchFeed(FEED_URL);
+    expect(apiRateLimit.value.daily).toBe(false);
+    expect(apiRateLimit.value.window).toBe(60);
   });
 
   it('latches on a 200 whose body says rate_limited', async () => {

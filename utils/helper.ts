@@ -118,7 +118,7 @@ export const fetchFeed = async (url:any, signal?:any) => {
 
   if (!res.ok) {
     const body = await res.json().catch(() => /* non-JSON error page, nothing to inspect */ null);
-    if (body?.error === 'rate_limited') {
+    if (isLimitReply(body)) {
       await setApiRateLimit(body);
       return null;
     }
@@ -128,24 +128,33 @@ export const fetchFeed = async (url:any, signal?:any) => {
 
   const data = await res.json();
   // Checked on 200 too: the limit reply's status code is not guaranteed to be 429.
-  if (data?.error === 'rate_limited') {
+  if (isLimitReply(data)) {
     await setApiRateLimit(data);
     return null;
   }
   return data;
 }
 
+const isLimitReply = (body:any) => body?.error === 'rate_limited' || body?.error === 'daily_limit_reached';
+
 const setApiRateLimit = async (body:any) => {
   console.error('fetchFeed rate limited:', body?.message);
+  // The daily limit lasts until midnight Berlin time; worded as the window limit it read "per 300s" with hours counted in seconds.
+  const daily = body?.error === 'daily_limit_reached';
   apiRateLimit.value = {
     until: Date.now() + (Number(body?.retry_after) > 0 ? Number(body.retry_after) : 60) * 1000,
-    limit: body?.limit ?? '',
-    used: body?.used ?? '',
+    daily,
+    limit: (daily ? body?.daily_limit : body?.limit) ?? '',
+    used: (daily ? body?.daily_used : body?.used) ?? '',
     window: body?.window_seconds ?? 60,
     message: body?.message ?? '',
   };
   await storage.setItem('local:api_rate_limit', apiRateLimit.value);
 }
+
+// Local clock time the limit ends, for the daily notice ("Prices resume at 00:00").
+export const apiRateLimitResumeTime = (locale?:string) =>
+  apiRateLimit.value ? new Date(apiRateLimit.value.until).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }) : '';
 
 // Whole seconds left, for banners and toasts.
 export const apiRateLimitSecondsLeft = () =>

@@ -34,12 +34,17 @@
     <div class="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 max-w-[calc(100vw-2rem)] px-4 py-2 rounded-full border shadow-lg text-sm
       bg-card border-warning/50 text-warning"
       aria-live="off" id="apiRateLimitMessage">
-      {{ $t('api_rate_limited', {
-        used: apiRateLimit?.used,
-        limit: apiRateLimit?.limit,
-        window: apiRateLimit?.window,
-        seconds: secondsLeft,
-      }) }}
+      <template v-if="apiRateLimit?.daily">
+        {{ $t('api_daily_limit_reached', { used: apiRateLimit?.used, limit: apiRateLimit?.limit, time: apiRateLimitResumeTime(locale) }) }}
+      </template>
+      <template v-else>
+        {{ $t('api_rate_limited', {
+          used: apiRateLimit?.used,
+          limit: apiRateLimit?.limit,
+          window: apiRateLimit?.window,
+          seconds: secondsLeft,
+        }) }}
+      </template>
     </div>
   </Teleport>
 
@@ -61,7 +66,7 @@ import { Info, Clock } from 'lucide-vue-next';
 import { useNow } from '@vueuse/core';
 import { useI18n } from 'vue-i18n';
 import { Button } from '@/components/ui/button';
-import { apiKey, apiAuthFailed, apiKeyLoaded, apiRateLimit, apiRateLimitSecondsLeft, daysUntilMarketOpen, marketOpenDayName, MARKET_OPEN_HOUR } from '~/utils/helper'
+import { apiKey, apiAuthFailed, apiKeyLoaded, apiRateLimit, apiRateLimitSecondsLeft, apiRateLimitResumeTime, daysUntilMarketOpen, marketOpenDayName, MARKET_OPEN_HOUR } from '~/utils/helper'
 import { PRICING_URL } from '~/utils/constants';
 
 const { t, locale } = useI18n();

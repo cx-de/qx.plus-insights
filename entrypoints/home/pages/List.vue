@@ -1126,7 +1126,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
-import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimitSecondsLeft, numberToGerman, unitPriceToGerman, formatRatio, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isFeedBlocked, daysUntilMarketOpen, fetchedThisClosedPeriod, saveDailyTotal, getComparableUnderlyingPrice, todayIso, currencyRateText, isDerivativeType, isFeedExcludedType, formatQuantity } from '~/utils/helper';
+import { getApiKey, apiBaseUrl, apiKey, apiAuthFailed, apiKeyLoaded, fetchFeed, fetchApiUsage, isApiRateLimited, apiRateLimit, apiRateLimitSecondsLeft, apiRateLimitResumeTime, numberToGerman, unitPriceToGerman, formatRatio, formatTimestamp, formatDate, getLatestData, chunkArray, deepCloneReactiveData, isFeedBlocked, daysUntilMarketOpen, fetchedThisClosedPeriod, saveDailyTotal, getComparableUnderlyingPrice, todayIso, currencyRateText, isDerivativeType, isFeedExcludedType, formatQuantity } from '~/utils/helper';
 
 import { 
   getPriceData,
@@ -1155,7 +1155,7 @@ import { sortableHeader } from '~/utils/table-utils';
 import { columnLabelOf, columnLabelsGet, columnLabelSave, columnLabelsWatch, columnExportNames } from '~/utils/column-label-utils';
 import { ListFilter, Trash, X, Search, Download, RefreshCcw, AlarmClockPlus, Pen, File, FileSpreadsheet, Pencil, Save, ChevronRight, Pin, Lock, RotateCcw, Check } from 'lucide-vue-next';
 
-const { t } = useI18n();
+const { t, locale } = useI18n();
 document.title = t('list');
 
 // native alert() blocked the page and was English-only; these now go through toast + i18n
@@ -2275,7 +2275,9 @@ const reloadPriceData = async(forceUpdate=false) =>{
     return;
   }
   if(isApiRateLimited()){
-    if(forceUpdate) toast({ title: t('api_rate_limited_short', { seconds: apiRateLimitSecondsLeft() }), variant: 'destructive' });
+    if(forceUpdate) toast({ title: apiRateLimit.value?.daily
+      ? t('api_daily_limit_reached_short', { time: apiRateLimitResumeTime(locale.value) })
+      : t('api_rate_limited_short', { seconds: apiRateLimitSecondsLeft() }), variant: 'destructive' });
     return;
   }
   if(isFeedBlocked()){

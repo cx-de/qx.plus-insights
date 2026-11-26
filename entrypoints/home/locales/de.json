@@ -207,6 +207,8 @@
   "refresh_already_running": "Aktuelle Daten werden bereits geladen. Bitte warten.",
   "api_rate_limited": "API-Limit erreicht ({used}/{limit} Positionen pro {window}s). Kurse wieder in {seconds}s.",
   "api_rate_limited_short": "API-Limit erreicht. Erneut versuchen in {seconds}s.",
+  "api_daily_limit_reached": "Tageslimit der API erreicht ({used}/{limit} Positionen). Kurse wieder ab {time} Uhr (Mitternacht deutscher Zeit).",
+  "api_daily_limit_reached_short": "Tageslimit der API erreicht. Kurse wieder ab {time} Uhr.",
   "ask": "Brief",
   "underlying": "Basiswert",
   "underlying_price": "Kurs Basiswert heute",
